@@ -1,233 +1,146 @@
-# Full Stack FastAPI Template
+# Prism
 
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Docker+Compose%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Docker%20Compose/badge.svg" alt="Test Docker Compose"></a>
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Backend%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Backend/badge.svg" alt="Test Backend"></a>
-<a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/fastapi/full-stack-fastapi-template" target="_blank"><img src="https://coverage-badge.samuelcolvin.workers.dev/fastapi/full-stack-fastapi-template.svg" alt="Coverage"></a>
+Prism is a multi-tenant social media analytics app. Connect your brand's
+accounts once and get a single dashboard, AI-generated insights and
+performance reports across every platform.
 
-## Technology Stack and Features
+## Features
 
-- ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
-  - 🧰 [SQLModel](https://sqlmodel.tiangolo.com) for the Python SQL database interactions (ORM).
-  - 🔍 [Pydantic](https://docs.pydantic.dev), used by FastAPI, for the data validation and settings management.
-  - 💾 [PostgreSQL](https://www.postgresql.org) as the SQL database.
-- 🚀 [React](https://react.dev) for the frontend.
-  - 💃 Using TypeScript, hooks, [Vite](https://vitejs.dev), and other parts of a modern frontend stack.
-  - 🎨 [Tailwind CSS](https://tailwindcss.com) and [shadcn/ui](https://ui.shadcn.com) for the frontend components.
-  - 🤖 An automatically generated frontend client.
-  - 🧪 [Playwright](https://playwright.dev) for End-to-End testing.
-  - 🦇 Dark mode support.
-- 🐋 [Docker Compose](https://www.docker.com) for development and production.
-- 🔒 Secure password hashing by default.
-- 🔑 JWT (JSON Web Token) authentication.
-- 📫 Email based password recovery.
-- 📬 [Mailcatcher](https://mailcatcher.me) for local email testing during development.
-- ✅ Tests with [Pytest](https://pytest.org).
-- 📞 [Traefik](https://traefik.io) as a reverse proxy / load balancer.
-- 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
-- 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
+- **Workspaces**: group integrations per brand or client. Members have a
+  role: **owner** (full control), **admin** (manage integrations and
+  members) or **viewer** (read-only). Add teammates by email from
+  *Settings → Members*.
+- **Integrations** via OAuth 2.0:
+  - Facebook Pages
+  - Instagram Business
+  - Twitter / X
+  - LinkedIn Company Pages
+  - TikTok
+  - Google Analytics 4
+- **Nightly sync**: a Celery worker pulls each account's daily metrics
+  (followers, reach, views or impressions, engagements) and per-post metrics
+  into a normalised schema. A sync also runs right after you connect an
+  account, and you can trigger one manually.
+- **Token lifecycle**: OAuth tokens are encrypted at rest and refreshed
+  before they expire. Accounts that can no longer be refreshed are marked
+  *expired*, with a one-click **Reconnect**.
+- **Dashboards**: KPI totals, daily time series, per-platform breakdown and
+  top posts for any date range.
+- **AI insights and reports** (LangChain): actionable insights and a full
+  markdown performance report generated from your metrics. Works with
+  OpenAI, Anthropic or Google models.
 
-### Dashboard Login
+## Stack
 
-[![API docs](img/login.png)](https://github.com/fastapi/full-stack-fastapi-template)
+| Layer    | Technology |
+|----------|------------|
+| Backend  | FastAPI, SQLModel, PostgreSQL, Alembic, Celery, Redis, LangChain |
+| Frontend | React 19, TypeScript, Vite, TanStack Router & Query, Tailwind CSS, shadcn/ui, Recharts |
+| Tooling  | uv, Ruff, mypy (strict), pytest, Bun, Biome, Playwright |
+| Infra    | Docker Compose, Traefik, GitHub Actions |
 
-### Dashboard - Admin
-
-[![API docs](img/dashboard.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Items
-
-[![API docs](img/dashboard-items.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Dark Mode
-
-[![API docs](img/dashboard-dark.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Interactive API Documentation
-
-[![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-## How To Use It
-
-You can **just fork or clone** this repository and use it as is.
-
-✨ It just works. ✨
-
-### How to Use a Private Repository
-
-If you want to have a private repository, GitHub won't allow you to simply fork it as it doesn't allow changing the visibility of forks.
-
-But you can do the following:
-
-- Create a new GitHub repo, for example `my-full-stack`.
-- Clone this repository manually, set the name with the name of the project you want to use, for example `my-full-stack`:
-
-```bash
-git clone git@github.com:fastapi/full-stack-fastapi-template.git my-full-stack
+```
+backend/app/
+├── api/routes/          # REST endpoints (auth, workspaces, integrations, oauth, metrics, ai)
+├── integrations/
+│   ├── oauth/           # one OAuth provider per platform + registry
+│   ├── platforms/       # one sync module per platform
+│   └── tokens.py        # refresh-before-expiry logic
+├── services/metrics.py  # metrics aggregation shared by dashboards and AI
+├── worker/              # Celery app, sync tasks, nightly Beat schedule
+└── ai/                  # LLM factory and insight / report chains
+frontend/src/
+├── routes/              # pages (dashboard, analytics, integrations, settings, admin)
+├── components/          # UI, including Workspaces/ (onboarding, members)
+└── client/              # generated API client (do not edit by hand)
 ```
 
-- Enter into the new directory:
+## Getting started
+
+1. Create a `.env` file at the repository root. The variables are listed
+   below. Generate secrets with:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+2. Start the stack:
+
+   ```bash
+   docker compose watch
+   ```
+
+   This starts:
+   - the frontend at <http://localhost:5173>
+   - the API at <http://localhost:8000> (interactive docs at `/docs`)
+   - Adminer at <http://localhost:8080>
+   - MailCatcher at <http://localhost:1080>
+   - Postgres, Redis, and the Celery worker and beat
+
+3. Log in with `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` and create
+   your first workspace.
+
+See [development.md](./development.md) for running services outside Docker,
+pre-commit hooks and regenerating the frontend client. See
+[deployment.md](./deployment.md) for production.
+
+### Configuration
+
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | Signs JWTs, and derives the keys that encrypt OAuth tokens and OAuth `state`. **Changing it invalidates stored tokens**, so connected accounts must be reconnected. |
+| `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD` | Initial admin account |
+| `POSTGRES_*` | Database connection |
+| `REDIS_URL` | Celery broker / result backend |
+| `FRONTEND_HOST` | Where users are redirected after OAuth |
+| `API_BASE_URL` | Public URL of the API, used to build OAuth redirect URIs (`{API_BASE_URL}/api/v1/oauth/callback/{platform}`) |
+| `SMTP_*`, `EMAILS_FROM_EMAIL` | Password-recovery emails |
+| `AI_PROVIDER` (`openai` \| `anthropic` \| `google`), `AI_MODEL`, and the matching `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | AI insights and reports |
+| `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY` | Optional LangSmith tracing |
+
+Platform credentials are optional. Set only the ones you use:
+
+| Platform | Variables | Notes |
+|----------|-----------|-------|
+| Facebook, Instagram | `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | One Meta app serves both. Graph API version is pinned in `backend/app/integrations/meta.py`. |
+| Twitter / X | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | OAuth 2.0 with PKCE |
+| LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Requires the Community Management API product |
+| TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | |
+| Google Analytics | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | |
+
+In each provider's developer console, register the redirect URI
+`{API_BASE_URL}/api/v1/oauth/callback/{platform}`. The `{platform}` value is
+one of `facebook`, `instagram`, `twitter`, `linkedin`, `tiktok` or
+`google_analytics`.
+
+## Testing and linting
 
 ```bash
-cd my-full-stack
+# Backend (needs Postgres; see development.md)
+cd backend
+uv run pytest
+uv run ruff check app tests && uv run ruff format --check app tests
+uv run mypy app
+
+# Frontend
+bun run --filter frontend lint
+bun run --filter frontend build
+cd frontend && bunx playwright test  # end-to-end; needs the stack running
 ```
 
-- Set the new origin to your new repository, copy it from the GitHub interface, for example:
+The pre-commit hooks (`.pre-commit-config.yaml`) run the same checks.
 
-```bash
-git remote set-url origin git@github.com:octocat/my-full-stack.git
-```
+## Security
 
-- Add this repo as another "remote" to allow you to get updates later:
+- The OAuth `state` parameter is encrypted, authenticated and expires after
+  15 minutes. It binds each authorization to the user, workspace and
+  platform that started it, and it keeps the PKCE verifier secret.
+- OAuth tokens are encrypted at rest (Fernet) and never returned by the API.
 
-```bash
-git remote add upstream git@github.com:fastapi/full-stack-fastapi-template.git
-```
-
-- Push the code to your new repository:
-
-```bash
-git push -u origin master
-```
-
-### Update From the Original Template
-
-After cloning the repository, and after doing changes, you might want to get the latest changes from this original template.
-
-- Make sure you added the original repository as a remote, you can check it with:
-
-```bash
-git remote -v
-
-origin    git@github.com:octocat/my-full-stack.git (fetch)
-origin    git@github.com:octocat/my-full-stack.git (push)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (fetch)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (push)
-```
-
-- Pull the latest changes without merging:
-
-```bash
-git pull --no-commit upstream master
-```
-
-This will download the latest changes from this template without committing them, that way you can check everything is right before committing.
-
-- If there are conflicts, solve them in your editor.
-
-- Once you are done, commit the changes:
-
-```bash
-git merge --continue
-```
-
-### Configure
-
-You can then update configs in the `.env` files to customize your configurations.
-
-Before deploying it, make sure you change at least the values for:
-
-- `SECRET_KEY`
-- `FIRST_SUPERUSER_PASSWORD`
-- `POSTGRES_PASSWORD`
-
-You can (and should) pass these as environment variables from secrets.
-
-Read the [deployment.md](./deployment.md) docs for more details.
-
-### Generate Secret Keys
-
-Some environment variables in the `.env` file have a default value of `changethis`.
-
-You have to change them with a secret key, to generate secret keys you can run the following command:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-Copy the content and use that as password / secret key. And run that again to generate another secure key.
-
-## How To Use It - Alternative With Copier
-
-This repository also supports generating a new project using [Copier](https://copier.readthedocs.io).
-
-It will copy all the files, ask you configuration questions, and update the `.env` files with your answers.
-
-### Install Copier
-
-You can install Copier with:
-
-```bash
-pip install copier
-```
-
-Or better, if you have [`pipx`](https://pipx.pypa.io/), you can run it with:
-
-```bash
-pipx install copier
-```
-
-**Note**: If you have `pipx`, installing copier is optional, you could run it directly.
-
-### Generate a Project With Copier
-
-Decide a name for your new project's directory, you will use it below. For example, `my-awesome-project`.
-
-Go to the directory that will be the parent of your project, and run the command with your project's name:
-
-```bash
-copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
-```
-
-If you have `pipx` and you didn't install `copier`, you can run it directly:
-
-```bash
-pipx run copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
-```
-
-**Note** the `--trust` option is necessary to be able to execute a [post-creation script](https://github.com/fastapi/full-stack-fastapi-template/blob/master/.copier/update_dotenv.py) that updates your `.env` files.
-
-### Input Variables
-
-Copier will ask you for some data, you might want to have at hand before generating the project.
-
-But don't worry, you can just update any of that in the `.env` files afterwards.
-
-The input variables, with their default values (some auto generated) are:
-
-- `project_name`: (default: `"FastAPI Project"`) The name of the project, shown to API users (in .env).
-- `stack_name`: (default: `"fastapi-project"`) The name of the stack used for Docker Compose labels and project name (no spaces, no periods) (in .env).
-- `secret_key`: (default: `"changethis"`) The secret key for the project, used for security, stored in .env, you can generate one with the method above.
-- `first_superuser`: (default: `"admin@example.com"`) The email of the first superuser (in .env).
-- `first_superuser_password`: (default: `"changethis"`) The password of the first superuser (in .env).
-- `smtp_host`: (default: "") The SMTP server host to send emails, you can set it later in .env.
-- `smtp_user`: (default: "") The SMTP server user to send emails, you can set it later in .env.
-- `smtp_password`: (default: "") The SMTP server password to send emails, you can set it later in .env.
-- `emails_from_email`: (default: `"info@example.com"`) The email account to send emails from, you can set it later in .env.
-- `postgres_password`: (default: `"changethis"`) The password for the PostgreSQL database, stored in .env, you can generate one with the method above.
-- `sentry_dsn`: (default: "") The DSN for Sentry, if you are using it, you can set it later in .env.
-
-## Backend Development
-
-Backend docs: [backend/README.md](./backend/README.md).
-
-## Frontend Development
-
-Frontend docs: [frontend/README.md](./frontend/README.md).
-
-## Deployment
-
-Deployment docs: [deployment.md](./deployment.md).
-
-## Development
-
-General development docs: [development.md](./development.md).
-
-This includes using Docker Compose, custom local domains, `.env` configurations, etc.
-
-## Release Notes
-
-Check the file [release-notes.md](./release-notes.md).
+To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## License
 
-The Full Stack FastAPI Template is licensed under the terms of the MIT license.
+Prism is built on the
+[Full Stack FastAPI Template](https://github.com/fastapi/full-stack-fastapi-template)
+(MIT). See [LICENSE](./LICENSE).

@@ -1,11 +1,6 @@
 import { Link } from "@tanstack/react-router"
 
-import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
-import icon from "/assets/images/fastapi-icon.svg"
-import iconLight from "/assets/images/fastapi-icon-light.svg"
-import logo from "/assets/images/fastapi-logo.svg"
-import logoLight from "/assets/images/fastapi-logo-light.svg"
 
 interface LogoProps {
   variant?: "full" | "icon" | "responsive"
@@ -13,44 +8,77 @@ interface LogoProps {
   asLink?: boolean
 }
 
+/** Prism mark: a beam of light split into colours. Same art as the favicon. */
+function PrismIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      className={cn("size-6 shrink-0", className)}
+    >
+      <path
+        d="M1 18.5 11.5 16"
+        stroke="currentColor"
+        strokeOpacity=".5"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 4 25 26H3L14 4Z"
+        fill="#6366f1"
+        fillOpacity=".15"
+        stroke="#6366f1"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m18.5 15 12-4"
+        stroke="#ef4444"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m18.5 16.5 12 0"
+        stroke="#22c55e"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m18.5 18 12 4"
+        stroke="#3b82f6"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export function Logo({
   variant = "full",
   className,
   asLink = true,
 }: LogoProps) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
+  const wordmark = (
+    <span className="text-lg font-semibold tracking-tight">Prism</span>
+  )
 
-  const fullLogo = isDark ? logoLight : logo
-  const iconLogo = isDark ? iconLight : icon
-
-  const content =
-    variant === "responsive" ? (
-      <>
-        <img
-          src={fullLogo}
-          alt="FastAPI"
-          className={cn(
-            "h-6 w-auto group-data-[collapsible=icon]:hidden",
-            className,
-          )}
-        />
-        <img
-          src={iconLogo}
-          alt="FastAPI"
-          className={cn(
-            "size-5 hidden group-data-[collapsible=icon]:block",
-            className,
-          )}
-        />
-      </>
-    ) : (
-      <img
-        src={variant === "full" ? fullLogo : iconLogo}
-        alt="FastAPI"
-        className={cn(variant === "full" ? "h-6 w-auto" : "size-5", className)}
-      />
-    )
+  const content = (
+    <span
+      role="img"
+      aria-label="Prism"
+      className={cn(
+        "inline-flex items-center gap-2 text-foreground",
+        className,
+      )}
+    >
+      <PrismIcon />
+      {variant === "full" && wordmark}
+      {variant === "responsive" && (
+        <span className="group-data-[collapsible=icon]:hidden">{wordmark}</span>
+      )}
+    </span>
+  )
 
   if (!asLink) {
     return content

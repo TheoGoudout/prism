@@ -193,7 +193,6 @@ You can set several other environment variables:
 
 There are some environment variables only used by GitHub Actions that you can configure:
 
-* `LATEST_CHANGES`: Used by the GitHub Action [latest-changes](https://github.com/tiangolo/latest-changes) to automatically add release notes based on the PRs merged. It's a personal access token, read the docs for details.
 * `SMOKESHOW_AUTH_KEY`: Used to handle and publish the code coverage using [Smokeshow](https://github.com/samuelcolvin/smokeshow), follow their instructions to create a (free) Smokeshow key.
 
 ### Deploy with Docker Compose
@@ -303,7 +302,6 @@ The current Github Actions workflows expect these secrets:
 * `FIRST_SUPERUSER_PASSWORD`
 * `POSTGRES_PASSWORD`
 * `SECRET_KEY`
-* `LATEST_CHANGES`
 * `SMOKESHOW_AUTH_KEY`
 
 ## GitHub Action Deployment Workflows
