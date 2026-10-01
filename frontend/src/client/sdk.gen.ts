@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsGetIntegrationData, IntegrationsGetIntegrationResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsListAccountsData, IntegrationsListAccountsResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, OauthConnectData, OauthConnectResponse, OauthCallbackData, OauthCallbackResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesListWorkspacesData, WorkspacesListWorkspacesResponse, WorkspacesGetWorkspaceData, WorkspacesGetWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsGetIntegrationData, IntegrationsGetIntegrationResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsListAccountsData, IntegrationsListAccountsResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, OauthConnectData, OauthConnectResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesListWorkspacesData, WorkspacesListWorkspacesResponse, WorkspacesGetWorkspaceData, WorkspacesGetWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -367,37 +367,6 @@ export class OauthService {
             },
             query: {
                 workspace_id: data.workspaceId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Callback
-     * OAuth2 callback — called by the provider after user authorises.
-     * This endpoint is not authenticated (the user arrives via redirect).
-     * Workspace identity is recovered from the `state` parameter.
-     * @param data The data for the request.
-     * @param data.platform
-     * @param data.code
-     * @param data.state
-     * @param data.error
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static callback(data: OauthCallbackData): CancelablePromise<OauthCallbackResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/oauth/callback/{platform}',
-            path: {
-                platform: data.platform
-            },
-            query: {
-                code: data.code,
-                state: data.state,
-                error: data.error
             },
             errors: {
                 422: 'Validation Error'

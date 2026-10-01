@@ -25,7 +25,14 @@ from app.crud.integration import (
     upsert_integration,
     upsert_platform_account,
 )
-from app.crud.user import DUMMY_HASH, authenticate, create_user, get_user_by_email, update_user
+from app.crud.user import (
+    DUMMY_HASH,
+    authenticate,
+    create_user,
+    get_user_by_email,
+    get_user_by_email_case_insensitive,
+    update_user,
+)
 from app.crud.workspace import (
     add_member,
     create_workspace,
@@ -44,6 +51,7 @@ __all__ = [
     "authenticate",
     "create_user",
     "get_user_by_email",
+    "get_user_by_email_case_insensitive",
     "update_user",
     # metrics
     "get_latest_snapshot",

@@ -240,8 +240,12 @@ export type WorkspaceCreate = {
     slug?: (string | null);
 };
 
+/**
+ * Identify the user to add by id or by the email they signed up with.
+ */
 export type WorkspaceMemberAdd = {
-    user_id: string;
+    user_id?: (string | null);
+    email?: (string | null);
     role?: WorkspaceRole;
 };
 
@@ -385,15 +389,6 @@ export type OauthConnectData = {
 };
 
 export type OauthConnectResponse = (unknown);
-
-export type OauthCallbackData = {
-    code: string;
-    error?: (string | null);
-    platform: Platform;
-    state: string;
-};
-
-export type OauthCallbackResponse = (unknown);
 
 export type PrivateCreateUserData = {
     requestBody: PrivateUserCreate;

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, useSearch } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { formatDistanceToNow } from "date-fns"
-import { Link2, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { Link2, Loader2, Plug, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
 import { IntegrationsService, OauthService } from "@/client"
-import type { IntegrationPublic, Platform } from "@/client"
+import type { ApiError, IntegrationPublic, Platform } from "@/client"
+import ConfirmDialog from "@/components/Common/ConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,14 +25,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { canManage } from "@/components/Workspaces/roles"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
-import { useEffect } from "react"
 
 export const Route = createFileRoute("/_layout/integrations")({
   component: IntegrationsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { connected?: "1"; error?: string } => ({
     connected: search.connected === "1" ? ("1" as const) : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
   }),
@@ -59,12 +63,52 @@ const PLATFORMS: Platform[] = [
   "google_analytics",
 ]
 
+// Error codes set by the backend's OAuth callback (plus the provider's own
+// `error` value, e.g. access_denied, which is shown as-is if unknown).
+const OAUTH_ERRORS: Record<string, string> = {
+  access_denied: "Connection cancelled: access was not granted.",
+  invalid_state:
+    "The connection link expired or is invalid. Please try connecting again.",
+  missing_code: "The platform didn't complete the authorization. Please retry.",
+  forbidden: "Only workspace owners and admins can connect platforms.",
+  connection_failed:
+    "We couldn't connect to the platform. Please try again in a moment.",
+}
+
+function oauthErrorMessage(code: string): string {
+  return OAUTH_ERRORS[code] ?? `Connection failed: ${code}`
+}
+
 function statusVariant(
   status: string,
 ): "default" | "secondary" | "destructive" | "outline" {
   if (status === "active") return "default"
-  if (status === "error") return "destructive"
+  if (status === "error" || status === "expired") return "destructive"
   return "secondary"
+}
+
+function useConnectPlatform() {
+  const { currentWorkspace } = useWorkspace()
+  const { showErrorToast } = useCustomToast()
+  const [pending, setPending] = useState<Platform | null>(null)
+
+  async function connect(platform: Platform) {
+    if (!currentWorkspace) return
+    setPending(platform)
+    try {
+      const resp = await OauthService.connect({
+        platform,
+        workspaceId: currentWorkspace.id,
+      })
+      const { authorization_url } = resp as { authorization_url: string }
+      window.location.href = authorization_url
+    } catch (err) {
+      setPending(null)
+      handleError.call(showErrorToast, err as ApiError)
+    }
+  }
+
+  return { connect, pending }
 }
 
 function fmtSynced(ts: string | null | undefined): string {
@@ -74,9 +118,19 @@ function fmtSynced(ts: string | null | undefined): string {
 
 // ---- Row actions ------------------------------------------------------------
 
-function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
+function IntegrationRow({
+  integration,
+  editable,
+}: {
+  integration: IntegrationPublic
+  editable: boolean
+}) {
   const queryClient = useQueryClient()
   const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { connect, pending: reconnecting } = useConnectPlatform()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const label = PLATFORM_LABELS[integration.platform] ?? integration.platform
+  const needsReconnect = integration.status === "expired"
 
   const syncMut = useMutation({
     mutationFn: () =>
@@ -90,6 +144,7 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
       IntegrationsService.deleteIntegration({ integrationId: integration.id }),
     onSuccess: () => {
       showSuccessToast("Integration removed")
+      setConfirmDelete(false)
       queryClient.invalidateQueries({ queryKey: ["integrations"] })
     },
     onError: handleError.bind(showErrorToast),
@@ -98,9 +153,7 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
   return (
     <TableRow>
       <TableCell>
-        <div className="font-medium capitalize">
-          {PLATFORM_LABELS[integration.platform] ?? integration.platform}
-        </div>
+        <div className="font-medium">{label}</div>
       </TableCell>
       <TableCell className="text-muted-foreground text-sm">
         {integration.external_account_name}
@@ -121,13 +174,30 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
         )}
       </TableCell>
       <TableCell className="text-right">
+        {editable && (
         <div className="flex items-center justify-end gap-2">
+          {needsReconnect && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => connect(integration.platform)}
+              disabled={reconnecting !== null}
+            >
+              {reconnecting ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <Plug className="mr-1 size-4" />
+              )}
+              Reconnect
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => syncMut.mutate()}
-            disabled={syncMut.isPending}
+            disabled={syncMut.isPending || needsReconnect}
             title="Sync now"
+            aria-label={`Sync ${label} now`}
           >
             {syncMut.isPending ? (
               <Loader2 className="size-4 animate-spin" />
@@ -138,18 +208,29 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => deleteMut.mutate()}
-            disabled={deleteMut.isPending}
+            onClick={() => setConfirmDelete(true)}
             title="Disconnect"
+            aria-label={`Disconnect ${label}`}
             className="text-destructive hover:text-destructive"
           >
-            {deleteMut.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
-            )}
+            <Trash2 className="size-4" />
           </Button>
         </div>
+        )}
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={`Disconnect ${label}`}
+          description={
+            <>
+              <strong>{integration.external_account_name}</strong> will be
+              disconnected and all of its synced metrics deleted.
+            </>
+          }
+          confirmLabel="Disconnect"
+          loading={deleteMut.isPending}
+          onConfirm={() => deleteMut.mutate()}
+        />
       </TableCell>
     </TableRow>
   )
@@ -159,19 +240,34 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
 
 function IntegrationsPage() {
   const { currentWorkspace } = useWorkspace()
-  const { connected, error: oauthError } = useSearch({ from: "/_layout/integrations" })
+  const { connected, error: oauthError } = Route.useSearch()
+  const navigate = Route.useNavigate()
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const queryClient = useQueryClient()
+  const { connect, pending } = useConnectPlatform()
 
+  // Show the OAuth result once, then drop it from the URL so a refresh
+  // doesn't repeat the toast.
+  const oauthResultHandled = useRef(false)
   useEffect(() => {
+    if ((!connected && !oauthError) || oauthResultHandled.current) return
+    oauthResultHandled.current = true
     if (connected) {
-      showSuccessToast("Platform connected successfully")
+      showSuccessToast("Platform connected. The first sync has started.")
       queryClient.invalidateQueries({ queryKey: ["integrations"] })
     }
     if (oauthError) {
-      showErrorToast(oauthError)
+      showErrorToast(oauthErrorMessage(oauthError))
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    navigate({ search: {}, replace: true })
+  }, [
+    connected,
+    oauthError,
+    navigate,
+    queryClient,
+    showErrorToast,
+    showSuccessToast,
+  ])
 
   const integrationsQ = useQuery({
     queryKey: ["integrations", currentWorkspace?.id],
@@ -181,16 +277,6 @@ function IntegrationsPage() {
       }),
     enabled: !!currentWorkspace,
   })
-
-  async function connectPlatform(platform: Platform) {
-    if (!currentWorkspace) return
-    const resp = await OauthService.connect({
-      platform,
-      workspaceId: currentWorkspace.id,
-    })
-    const { authorization_url } = resp as { authorization_url: string }
-    window.location.href = authorization_url
-  }
 
   if (!currentWorkspace) {
     return (
@@ -203,6 +289,7 @@ function IntegrationsPage() {
 
   const integrations = integrationsQ.data?.data ?? []
   const connectedPlatforms = new Set(integrations.map((i) => i.platform))
+  const editable = canManage(currentWorkspace)
 
   return (
     <div className="space-y-6">
@@ -213,20 +300,21 @@ function IntegrationsPage() {
             {currentWorkspace.name}
           </p>
         </div>
+        {editable && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="mr-2 size-4" />
+            <Button disabled={pending !== null}>
+              {pending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 size-4" />
+              )}
               Connect platform
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {PLATFORMS.map((p) => (
-              <DropdownMenuItem
-                key={p}
-                onClick={() => connectPlatform(p)}
-                disabled={connectedPlatforms.has(p)}
-              >
+              <DropdownMenuItem key={p} onClick={() => connect(p)}>
                 {PLATFORM_LABELS[p]}
                 {connectedPlatforms.has(p) && (
                   <span className="ml-auto text-xs text-muted-foreground">
@@ -237,6 +325,7 @@ function IntegrationsPage() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       <Card>
@@ -255,7 +344,9 @@ function IntegrationsPage() {
               <Link2 className="size-8" />
               <p className="text-sm">No integrations yet.</p>
               <p className="text-xs">
-                Click "Connect platform" to add your first social media account.
+                {editable
+                  ? 'Click "Connect platform" to add your first social media account.'
+                  : "Ask a workspace owner or admin to connect a platform."}
               </p>
             </div>
           ) : (
@@ -275,6 +366,7 @@ function IntegrationsPage() {
                   <IntegrationRow
                     key={integration.id}
                     integration={integration}
+                    editable={editable}
                   />
                 ))}
               </TableBody>

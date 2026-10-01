@@ -188,14 +188,23 @@ def add_member(
         )
 
     # Check the target user exists
-    from app.models.user import User as UserModel
-    target_user = session.get(UserModel, member_in.user_id)
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if member_in.email is not None:
+        target_user = crud.get_user_by_email_case_insensitive(
+            session=session, email=member_in.email
+        )
+        if not target_user:
+            raise HTTPException(
+                status_code=404,
+                detail="No user with this email. Ask them to sign up first.",
+            )
+    else:
+        target_user = session.get(User, member_in.user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
 
     # Check not already a member
     existing = crud.get_member(
-        session=session, workspace_id=workspace.id, user_id=member_in.user_id
+        session=session, workspace_id=workspace.id, user_id=target_user.id
     )
     if existing:
         raise HTTPException(
@@ -203,7 +212,9 @@ def add_member(
         )
 
     member = crud.add_member(
-        session=session, workspace_id=workspace.id, member_in=member_in
+        session=session,
+        workspace_id=workspace.id,
+        member_in=WorkspaceMemberAdd(user_id=target_user.id, role=member_in.role),
     )
     return _make_member_public(member)
 

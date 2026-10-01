@@ -242,6 +242,52 @@ def test_add_member_duplicate_returns_409(client: TestClient, db: Session) -> No
     assert r.status_code == 409
 
 
+def test_add_member_by_email(client: TestClient, db: Session) -> None:
+    owner, _, owner_headers = _create_user_with_headers(client, db)
+    new_user, _, _ = _create_user_with_headers(client, db)
+    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Email WS"})
+    ws_id = r.json()["id"]
+
+    r = client.post(
+        f"{PREFIX}/{ws_id}/members",
+        headers=owner_headers,
+        json={"email": new_user.email.upper(), "role": "viewer"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["user_id"] == str(new_user.id)
+    assert r.json()["user_email"] == new_user.email
+
+
+def test_add_member_unknown_email_returns_404(client: TestClient, db: Session) -> None:
+    owner, _, owner_headers = _create_user_with_headers(client, db)
+    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Ghost Email WS"})
+    ws_id = r.json()["id"]
+
+    r = client.post(
+        f"{PREFIX}/{ws_id}/members",
+        headers=owner_headers,
+        json={"email": "nobody-here@example.com"},
+    )
+    assert r.status_code == 404
+    assert "sign up" in r.json()["detail"]
+
+
+def test_add_member_requires_exactly_one_identifier(
+    client: TestClient, db: Session
+) -> None:
+    owner, _, owner_headers = _create_user_with_headers(client, db)
+    new_user, _, _ = _create_user_with_headers(client, db)
+    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Both WS"})
+    ws_id = r.json()["id"]
+
+    for payload in (
+        {"role": "viewer"},
+        {"user_id": str(new_user.id), "email": new_user.email},
+    ):
+        r = client.post(f"{PREFIX}/{ws_id}/members", headers=owner_headers, json=payload)
+        assert r.status_code == 422
+
+
 def test_add_member_nonexistent_user(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Ghost Member WS"})
