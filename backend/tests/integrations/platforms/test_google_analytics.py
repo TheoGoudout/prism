@@ -8,15 +8,14 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
+from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.google_analytics import (
     _fetch_ga4_properties,
     _sync_property_report,
     sync_google_analytics,
 )
 from app.models.integration import Platform
-from app.worker.tasks.sync import _platform_sync
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -43,7 +42,7 @@ def _make_account() -> MagicMock:
 
 
 def test_google_analytics_registered_in_sync_registry():
-    assert _platform_sync.get(Platform.google_analytics.value) is not None
+    assert SYNC_FUNCTIONS[Platform.google_analytics] is sync_google_analytics
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +50,7 @@ def test_google_analytics_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.google_analytics.httpx.get")
+@patch("httpx.get")
 def test_fetch_ga4_properties_returns_list(mock_get):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -72,7 +71,7 @@ def test_fetch_ga4_properties_returns_list(mock_get):
     assert props[1]["property_id"] == "987654321"
 
 
-@patch("app.integrations.platforms.google_analytics.httpx.get")
+@patch("httpx.get")
 def test_fetch_ga4_properties_empty(mock_get):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"properties": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -86,7 +85,7 @@ def test_fetch_ga4_properties_empty(mock_get):
 
 
 @patch("app.integrations.platforms.google_analytics.crud")
-@patch("app.integrations.platforms.google_analytics.httpx.post")
+@patch("httpx.post")
 def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
     report_resp = {
         "dimensionHeaders": [{"name": "date"}],
@@ -146,7 +145,7 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
 
 
 @patch("app.integrations.platforms.google_analytics.crud")
-@patch("app.integrations.platforms.google_analytics.httpx.post")
+@patch("httpx.post")
 def test_sync_property_report_empty_rows(mock_post, mock_crud):
     report_resp = {
         "dimensionHeaders": [{"name": "date"}],
@@ -169,7 +168,6 @@ def test_sync_property_report_empty_rows(mock_post, mock_crud):
 @patch("app.integrations.platforms.google_analytics.crud")
 def test_sync_ga4_processes_all_properties(mock_crud, mock_report):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
 
     properties = [
         {"property_id": "1", "property_name": "properties/1", "display_name": "Site A"},
@@ -181,19 +179,10 @@ def test_sync_ga4_processes_all_properties(mock_crud, mock_report):
         "app.integrations.platforms.google_analytics._fetch_ga4_properties",
         return_value=properties,
     ):
-        sync_google_analytics(MagicMock(), integ)
+        sync_google_analytics(MagicMock(), integ, "token")
 
     assert mock_crud.upsert_platform_account.call_count == 2
     assert mock_report.call_count == 2
-
-
-@patch("app.integrations.platforms.google_analytics.crud")
-def test_sync_ga4_no_token_raises(mock_crud):
-    integ = _make_integration()
-    mock_crud.get_access_token.return_value = None
-
-    with pytest.raises(ValueError, match="No access token"):
-        sync_google_analytics(MagicMock(), integ)
 
 
 @patch(
@@ -202,9 +191,8 @@ def test_sync_ga4_no_token_raises(mock_crud):
 @patch("app.integrations.platforms.google_analytics.crud")
 def test_sync_ga4_no_properties_is_noop(mock_crud, _):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
 
-    sync_google_analytics(MagicMock(), integ)
+    sync_google_analytics(MagicMock(), integ, "token")
     mock_crud.upsert_platform_account.assert_not_called()
 
 
@@ -212,7 +200,6 @@ def test_sync_ga4_no_properties_is_noop(mock_crud, _):
 @patch("app.integrations.platforms.google_analytics.crud")
 def test_sync_ga4_report_error_continues_to_next_property(mock_crud, mock_report):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
     mock_crud.upsert_platform_account.side_effect = [_make_account(), _make_account()]
 
     call_count = 0
@@ -235,6 +222,6 @@ def test_sync_ga4_report_error_continues_to_next_property(mock_crud, mock_report
         "app.integrations.platforms.google_analytics._fetch_ga4_properties",
         return_value=properties,
     ):
-        sync_google_analytics(MagicMock(), integ)  # should not raise
+        sync_google_analytics(MagicMock(), integ, "token")  # should not raise
 
     assert mock_report.call_count == 2  # both properties attempted

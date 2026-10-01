@@ -3,8 +3,8 @@
 from sqlmodel import Session
 
 from app.crud import integration as icrud
-from app.models.integration import Platform, PlatformAccountCreate
-from tests.utils.integration import create_fake_integration
+from app.models.integration import Platform
+from tests.utils.integration import create_fake_account, create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
 
@@ -97,17 +97,8 @@ def test_get_refresh_token_none_when_not_set(db: Session) -> None:
 def test_get_accounts_for_workspace(db: Session) -> None:
     ws = _make_workspace(db)
     integration = create_fake_integration(db, ws)
+    create_fake_account(db, integration, external_id="page-ws-1")
 
-    icrud.create_platform_account(
-        session=db,
-        account_in=PlatformAccountCreate(
-            integration_id=integration.id,
-            workspace_id=ws.id,
-            platform=Platform.facebook,
-            external_id="page-ws-1",
-            name="WS Account",
-        ),
-    )
     accounts = icrud.get_accounts_for_workspace(session=db, workspace_id=ws.id)
     assert len(accounts) == 1
     assert accounts[0].external_id == "page-ws-1"
@@ -119,27 +110,8 @@ def test_get_accounts_for_workspace_platform_filter(db: Session) -> None:
     ig = create_fake_integration(
         db, ws, platform=Platform.instagram, external_account_id="ig-2"
     )
-
-    icrud.create_platform_account(
-        session=db,
-        account_in=PlatformAccountCreate(
-            integration_id=fb.id,
-            workspace_id=ws.id,
-            platform=Platform.facebook,
-            external_id="fb-page",
-            name="FB Page",
-        ),
-    )
-    icrud.create_platform_account(
-        session=db,
-        account_in=PlatformAccountCreate(
-            integration_id=ig.id,
-            workspace_id=ws.id,
-            platform=Platform.instagram,
-            external_id="ig-profile",
-            name="IG Profile",
-        ),
-    )
+    create_fake_account(db, fb, external_id="fb-page")
+    create_fake_account(db, ig, external_id="ig-profile")
 
     fb_accounts = icrud.get_accounts_for_workspace(
         session=db, workspace_id=ws.id, platform=Platform.facebook
@@ -153,37 +125,27 @@ def test_upsert_platform_account_creates(db: Session) -> None:
     integration = create_fake_integration(db, ws)
 
     account = icrud.upsert_platform_account(
-        session=db,
-        account_in=PlatformAccountCreate(
-            integration_id=integration.id,
-            workspace_id=ws.id,
-            platform=Platform.facebook,
-            external_id="upsert-new",
-            name="New Account",
-        ),
+        session=db, integration=integration, external_id="upsert-new", name="New"
     )
     assert account.external_id == "upsert-new"
-    assert account.name == "New Account"
+    assert account.name == "New"
+    # Ownership comes from the integration
+    assert account.workspace_id == ws.id
+    assert account.platform == integration.platform
 
 
 def test_upsert_platform_account_updates(db: Session) -> None:
     ws = _make_workspace(db)
     integration = create_fake_integration(db, ws)
 
-    account_in = PlatformAccountCreate(
-        integration_id=integration.id,
-        workspace_id=ws.id,
-        platform=Platform.facebook,
-        external_id="upsert-existing",
-        name="Original Name",
+    created = icrud.upsert_platform_account(
+        session=db, integration=integration, external_id="same", name="Original"
     )
-    created = icrud.upsert_platform_account(session=db, account_in=account_in)
-
-    account_in.name = "Updated Name"
-    updated = icrud.upsert_platform_account(session=db, account_in=account_in)
-
+    updated = icrud.upsert_platform_account(
+        session=db, integration=integration, external_id="same", name="Updated"
+    )
     assert updated.id == created.id  # same row
-    assert updated.name == "Updated Name"
+    assert updated.name == "Updated"
 
 
 def test_get_integrations_for_workspace_no_platform_filter(db: Session) -> None:

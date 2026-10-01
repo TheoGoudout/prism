@@ -7,9 +7,9 @@ from sqlmodel import Session, delete
 from app.core.config import settings
 from app.core.db import engine, init_db
 from app.main import app
-from app.models import User
 from app.models.integration import Integration, PlatformAccount
 from app.models.metrics import MetricSnapshot, Post
+from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers

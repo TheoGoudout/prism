@@ -5,36 +5,9 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.models.workspace import WorkspaceRole
+from tests.utils.user import create_user_with_headers
 
 PREFIX = f"{settings.API_V1_STR}/workspaces"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _auth(client: TestClient, email: str, password: str) -> dict[str, str]:
-    r = client.post(
-        f"{settings.API_V1_STR}/login/access-token",
-        data={"username": email, "password": password},
-    )
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
-
-
-def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    """Return (user, password, auth_headers)."""
-    from app.crud.user import create_user
-    from app.models.user import UserCreate
-    from tests.utils.utils import random_email, random_lower_string
-
-    email = random_email()
-    password = random_lower_string()
-    user = create_user(
-        session=db, user_create=UserCreate(email=email, password=password)
-    )
-    headers = _auth(client, email, password)
-    return user, password, headers
 
 
 # ---------------------------------------------------------------------------
@@ -99,8 +72,8 @@ def test_list_workspaces(
 
 
 def test_list_workspaces_only_own(client: TestClient, db: Session) -> None:
-    user_a, _, headers_a = _create_user_with_headers(client, db)
-    user_b, _, headers_b = _create_user_with_headers(client, db)
+    user_a, headers_a = create_user_with_headers(client, db)
+    user_b, headers_b = create_user_with_headers(client, db)
     client.post(PREFIX + "/", headers=headers_a, json={"name": "A only"})
     r = client.get(PREFIX + "/", headers=headers_b)
     assert r.status_code == 200
@@ -128,8 +101,8 @@ def test_get_workspace(
 
 
 def test_get_workspace_not_member_returns_404(client: TestClient, db: Session) -> None:
-    user_a, _, headers_a = _create_user_with_headers(client, db)
-    user_b, _, headers_b = _create_user_with_headers(client, db)
+    user_a, headers_a = create_user_with_headers(client, db)
+    user_b, headers_b = create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=headers_a, json={"name": "Private WS"})
     ws_id = r.json()["id"]
     r = client.get(f"{PREFIX}/{ws_id}", headers=headers_b)
@@ -167,8 +140,8 @@ def test_update_workspace_name(
 def test_update_workspace_requires_owner_or_admin(
     client: TestClient, db: Session
 ) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    viewer, _, viewer_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
 
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Owner WS"})
     ws_id = r.json()["id"]
@@ -192,7 +165,7 @@ def test_update_workspace_requires_owner_or_admin(
 
 
 def test_delete_workspace(client: TestClient, db: Session) -> None:
-    user, _, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=headers, json={"name": "To Delete"})
     ws_id = r.json()["id"]
 
@@ -205,8 +178,8 @@ def test_delete_workspace(client: TestClient, db: Session) -> None:
 
 
 def test_delete_workspace_requires_owner(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    admin, _, admin_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    admin, admin_headers = create_user_with_headers(client, db)
 
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Owner Only Delete"}
@@ -228,7 +201,7 @@ def test_delete_workspace_requires_owner(client: TestClient, db: Session) -> Non
 
 
 def test_list_members(client: TestClient, db: Session) -> None:
-    owner, _, headers = _create_user_with_headers(client, db)
+    owner, headers = create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=headers, json={"name": "Members WS"})
     ws_id = r.json()["id"]
 
@@ -240,8 +213,8 @@ def test_list_members(client: TestClient, db: Session) -> None:
 
 
 def test_add_member(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    new_user, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    new_user, _ = create_user_with_headers(client, db)
 
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Add Test WS"})
     ws_id = r.json()["id"]
@@ -258,8 +231,8 @@ def test_add_member(client: TestClient, db: Session) -> None:
 
 
 def test_add_member_duplicate_returns_409(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    new_user, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    new_user, _ = create_user_with_headers(client, db)
 
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Dup Member WS"})
     ws_id = r.json()["id"]
@@ -270,8 +243,8 @@ def test_add_member_duplicate_returns_409(client: TestClient, db: Session) -> No
 
 
 def test_add_member_by_email(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    new_user, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    new_user, _ = create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Email WS"})
     ws_id = r.json()["id"]
 
@@ -286,7 +259,7 @@ def test_add_member_by_email(client: TestClient, db: Session) -> None:
 
 
 def test_add_member_unknown_email_returns_404(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Ghost Email WS"}
     )
@@ -304,8 +277,8 @@ def test_add_member_unknown_email_returns_404(client: TestClient, db: Session) -
 def test_add_member_requires_exactly_one_identifier(
     client: TestClient, db: Session
 ) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    new_user, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    new_user, _ = create_user_with_headers(client, db)
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Both WS"})
     ws_id = r.json()["id"]
 
@@ -320,7 +293,7 @@ def test_add_member_requires_exactly_one_identifier(
 
 
 def test_add_member_nonexistent_user(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Ghost Member WS"}
     )
@@ -335,9 +308,9 @@ def test_add_member_nonexistent_user(client: TestClient, db: Session) -> None:
 
 
 def test_viewer_cannot_add_member(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    viewer, _, viewer_headers = _create_user_with_headers(client, db)
-    outsider, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
+    outsider, _ = create_user_with_headers(client, db)
 
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Viewer Perm WS"}
@@ -358,8 +331,8 @@ def test_viewer_cannot_add_member(client: TestClient, db: Session) -> None:
 
 
 def test_update_member_role(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    member, _, _ = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    member, _ = create_user_with_headers(client, db)
 
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Role Update WS"}
@@ -381,7 +354,7 @@ def test_update_member_role(client: TestClient, db: Session) -> None:
 
 
 def test_cannot_demote_last_owner(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Single Owner WS"}
     )
@@ -396,8 +369,8 @@ def test_cannot_demote_last_owner(client: TestClient, db: Session) -> None:
 
 
 def test_remove_member(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    member, _, member_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    member, member_headers = create_user_with_headers(client, db)
 
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Remove Test WS"}
@@ -418,8 +391,8 @@ def test_remove_member(client: TestClient, db: Session) -> None:
 
 
 def test_member_can_remove_themselves(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
-    member, _, member_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    member, member_headers = create_user_with_headers(client, db)
 
     r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Self Leave WS"})
     ws_id = r.json()["id"]
@@ -434,7 +407,7 @@ def test_member_can_remove_themselves(client: TestClient, db: Session) -> None:
 
 
 def test_cannot_remove_last_owner(client: TestClient, db: Session) -> None:
-    owner, _, owner_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
     r = client.post(
         PREFIX + "/", headers=owner_headers, json={"name": "Last Owner Leave"}
     )
@@ -442,3 +415,23 @@ def test_cannot_remove_last_owner(client: TestClient, db: Session) -> None:
 
     r = client.delete(f"{PREFIX}/{ws_id}/members/{owner.id}", headers=owner_headers)
     assert r.status_code == 409
+
+
+def test_update_workspace_to_taken_slug_gets_suffix(
+    client: TestClient, db: Session
+) -> None:
+    _, headers = create_user_with_headers(client, db)
+    taken = client.post(PREFIX + "/", headers=headers, json={"name": "Taken"}).json()
+    other = client.post(PREFIX + "/", headers=headers, json={"name": "Other"}).json()
+
+    r = client.patch(
+        f"{PREFIX}/{other['id']}", headers=headers, json={"slug": taken["slug"]}
+    )
+    assert r.status_code == 200
+    assert r.json()["slug"].startswith(taken["slug"] + "-")
+
+    # Keeping its own slug doesn't add a suffix
+    r = client.patch(
+        f"{PREFIX}/{taken['id']}", headers=headers, json={"slug": taken["slug"]}
+    )
+    assert r.json()["slug"] == taken["slug"]

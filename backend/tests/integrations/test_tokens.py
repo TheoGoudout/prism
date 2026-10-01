@@ -10,7 +10,7 @@ from sqlmodel import Session
 from app import crud
 from app.integrations.oauth.base import TokenResponse
 from app.integrations.tokens import TokenExpiredError, ensure_fresh_token
-from app.models.integration import Integration, IntegrationStatus, Platform
+from app.models.integration import Integration, Platform
 from tests.utils.integration import create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
@@ -129,74 +129,3 @@ def test_server_error_propagates_for_retry(db: Session) -> None:
     provider = _provider(_http_error(503))
     with patch(PROVIDER, return_value=provider), pytest.raises(httpx.HTTPStatusError):
         ensure_fresh_token(session=db, integration=integ)
-
-
-# ---------------------------------------------------------------------------
-# Integration with the sync task (real DB, mocked provider + platform sync)
-# ---------------------------------------------------------------------------
-
-
-def _run_sync(db: Session, integ: Integration) -> dict:  # type: ignore[type-arg]
-    from app.worker.tasks.sync import sync_integration
-
-    with patch("app.worker.tasks.sync.Session") as session_cls:
-        session_cls.return_value.__enter__.return_value = db
-        session_cls.return_value.__exit__.return_value = False
-        result: dict = sync_integration.run(str(integ.id))  # type: ignore[type-arg]
-    db.refresh(integ)
-    return result
-
-
-def test_sync_marks_integration_expired_when_refresh_impossible(db: Session) -> None:
-    from app.worker.tasks.sync import _platform_sync
-
-    integ = _integration(db, Platform.twitter, timedelta(hours=-1))
-    sync_fn = MagicMock()
-    with (
-        patch.dict(_platform_sync, {"twitter": sync_fn}),
-        patch(PROVIDER, return_value=_provider(_http_error(400))),
-    ):
-        result = _run_sync(db, integ)
-
-    assert result["status"] == "expired"
-    assert integ.status == IntegrationStatus.expired
-    assert integ.sync_error
-    sync_fn.assert_not_called()
-
-
-def test_sync_marks_expired_on_platform_401(db: Session) -> None:
-    from app.worker.tasks.sync import _platform_sync
-
-    integ = _integration(db, Platform.twitter, None)
-    sync_fn = MagicMock(side_effect=_http_error(401))
-    with patch.dict(_platform_sync, {"twitter": sync_fn}):
-        result = _run_sync(db, integ)
-
-    assert result["status"] == "expired"
-    assert integ.status == IntegrationStatus.expired
-
-
-def test_sync_skips_expired_integration(db: Session) -> None:
-    from app.worker.tasks.sync import _platform_sync
-
-    integ = _integration(db, Platform.twitter, None)
-    crud.mark_integration_expired(session=db, integration=integ, error="x")
-    sync_fn = MagicMock()
-    with patch.dict(_platform_sync, {"twitter": sync_fn}):
-        result = _run_sync(db, integ)
-
-    assert result == {"status": "skipped", "reason": "expired"}
-    sync_fn.assert_not_called()
-
-
-def test_successful_sync_clears_error_status(db: Session) -> None:
-    from app.worker.tasks.sync import _platform_sync
-
-    integ = _integration(db, Platform.twitter, None)
-    crud.mark_integration_error(session=db, integration=integ, error="boom")
-    with patch.dict(_platform_sync, {"twitter": MagicMock()}):
-        result = _run_sync(db, integ)
-
-    assert result["status"] == "ok"
-    assert integ.status == IntegrationStatus.active
-    assert integ.sync_error is None

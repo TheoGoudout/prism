@@ -205,25 +205,3 @@ class OAuthProvider(ABC):
 
     def _now_utc(self) -> datetime:
         return datetime.now(timezone.utc)
-
-
-# ---------------------------------------------------------------------------
-# Registry — maps Platform enum → provider instance
-# ---------------------------------------------------------------------------
-
-_registry: dict[Platform, OAuthProvider] = {}
-
-
-def register(provider: OAuthProvider) -> None:
-    _registry[provider.PLATFORM] = provider
-
-
-def get_provider(platform: Platform) -> OAuthProvider:
-    provider = _registry.get(platform)
-    if provider is None:
-        raise ValueError(f"No OAuth provider registered for platform '{platform}'")
-    return provider
-
-
-def available_platforms() -> list[Platform]:
-    return list(_registry.keys())

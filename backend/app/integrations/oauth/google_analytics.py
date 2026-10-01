@@ -9,7 +9,6 @@ from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
     TokenResponse,
-    register,
 )
 from app.models.integration import Platform
 
@@ -85,4 +84,3 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
 
 
 google_analytics_provider = GoogleAnalyticsOAuthProvider()
-register(google_analytics_provider)

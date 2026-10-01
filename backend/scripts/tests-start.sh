@@ -2,6 +2,7 @@
 set -e
 set -x
 
-python app/tests_pre_start.py
+# Let the DB start
+python app/backend_pre_start.py
 
 bash scripts/test.sh "$@"

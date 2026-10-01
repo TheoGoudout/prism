@@ -3,7 +3,7 @@ from datetime import date as date_type
 from datetime import datetime
 from typing import Literal
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.models.common import get_datetime_utc
 from app.models.integration import Platform
@@ -27,17 +27,9 @@ class Insight(SQLModel):
 
 class InsightsResponse(SQLModel):
     insights: list[Insight]
-    generated_at: datetime = None  # type: ignore[assignment]
-
-    def model_post_init(self, __context: object) -> None:
-        if self.generated_at is None:
-            self.generated_at = get_datetime_utc()
+    generated_at: datetime = Field(default_factory=get_datetime_utc)
 
 
 class ReportResponse(SQLModel):
     report: str  # markdown
-    generated_at: datetime = None  # type: ignore[assignment]
-
-    def model_post_init(self, __context: object) -> None:
-        if self.generated_at is None:
-            self.generated_at = get_datetime_utc()
+    generated_at: datetime = Field(default_factory=get_datetime_utc)

@@ -166,15 +166,3 @@ class IntegrationCreate(SQLModel):
     external_account_id: str
     external_account_name: str
     external_account_avatar: str | None = None
-
-
-class PlatformAccountCreate(SQLModel):
-    """Internal use only (called from sync, not directly by users)."""
-
-    integration_id: uuid.UUID
-    workspace_id: uuid.UUID
-    platform: Platform
-    external_id: str
-    name: str
-    avatar_url: str | None = None
-    account_type: str | None = None

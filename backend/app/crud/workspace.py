@@ -5,29 +5,28 @@ from collections.abc import Sequence
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
+from app.crud.common import save
 from app.models.workspace import (
     Workspace,
     WorkspaceCreate,
     WorkspaceMember,
-    WorkspaceMemberAdd,
-    WorkspaceMemberUpdate,
     WorkspaceRole,
     WorkspaceUpdate,
 )
 
 
-def _slugify(name: str) -> str:
-    """Convert a workspace name into a URL-safe slug."""
-    slug = name.lower().strip()
+def _slugify(text: str) -> str:
+    """Convert a workspace name (or requested slug) into a URL-safe slug."""
+    slug = text.lower().strip()
     slug = re.sub(r"[^a-z0-9\s-]", "", slug)
     slug = re.sub(r"[\s_]+", "-", slug)
     slug = re.sub(r"-+", "-", slug).strip("-")
     return slug or "workspace"
 
 
-def _unique_slug(session: Session, base: str) -> str:
-    """Ensure the slug is unique, appending a counter suffix if needed."""
-    slug = base
+def _unique_slug(session: Session, text: str) -> str:
+    """Slugify ``text``, appending a counter if the slug is already taken."""
+    base = slug = _slugify(text)
     counter = 1
     while session.exec(select(Workspace).where(Workspace.slug == slug)).first():
         slug = f"{base}-{counter}"
@@ -38,70 +37,44 @@ def _unique_slug(session: Session, base: str) -> str:
 def create_workspace(
     *, session: Session, workspace_in: WorkspaceCreate, owner_id: uuid.UUID
 ) -> Workspace:
-    if workspace_in.slug:
-        slug = workspace_in.slug.lower()
-    else:
-        slug = _slugify(workspace_in.name)
-    slug = _unique_slug(session, slug)
-
+    """Create a workspace with ``owner_id`` as its first owner."""
+    slug = _unique_slug(session, workspace_in.slug or workspace_in.name)
     workspace = Workspace(name=workspace_in.name, slug=slug)
-    session.add(workspace)
-    session.flush()  # populate workspace.id before creating the member
-
-    member = WorkspaceMember(
-        workspace_id=workspace.id, user_id=owner_id, role=WorkspaceRole.owner
+    workspace.members.append(
+        WorkspaceMember(user_id=owner_id, role=WorkspaceRole.owner)
     )
-    session.add(member)
-    session.commit()
-    session.refresh(workspace)
-    return workspace
+    return save(session, workspace)
 
 
 def get_workspace(*, session: Session, workspace_id: uuid.UUID) -> Workspace | None:
     return session.get(Workspace, workspace_id)
 
 
-def get_workspaces_for_user(
+def get_memberships_for_user(
     *, session: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 100
-) -> tuple[Sequence[Workspace], int]:
-    """Return workspaces the user is a member of, with total count."""
-    on_clause = col(WorkspaceMember.workspace_id) == col(Workspace.id)
+) -> tuple[Sequence[WorkspaceMember], int]:
+    """The user's memberships (oldest workspace first) and their total count."""
+    is_member = WorkspaceMember.user_id == user_id
     statement = (
-        select(Workspace)
-        .join(WorkspaceMember, on_clause)
-        .where(WorkspaceMember.user_id == user_id)
+        select(WorkspaceMember)
+        .join(Workspace)
+        .where(is_member)
         .order_by(col(Workspace.created_at))
         .offset(skip)
         .limit(limit)
     )
-    workspaces = session.exec(statement).all()
-
-    count_statement = (
-        select(func.count())
-        .select_from(Workspace)
-        .join(WorkspaceMember, on_clause)
-        .where(WorkspaceMember.user_id == user_id)
-    )
-    count = session.exec(count_statement).one()
-    return workspaces, count
+    count_statement = select(func.count()).select_from(WorkspaceMember).where(is_member)
+    return session.exec(statement).all(), session.exec(count_statement).one()
 
 
 def update_workspace(
     *, session: Session, workspace: Workspace, workspace_in: WorkspaceUpdate
 ) -> Workspace:
-    update_data = workspace_in.model_dump(exclude_unset=True)
-    if "slug" in update_data and update_data["slug"]:
-        update_data["slug"] = update_data["slug"].lower()
-    workspace.sqlmodel_update(update_data)
-    session.add(workspace)
-    session.commit()
-    session.refresh(workspace)
-    return workspace
-
-
-def delete_workspace(*, session: Session, workspace: Workspace) -> None:
-    session.delete(workspace)
-    session.commit()
+    if workspace_in.name is not None:
+        workspace.name = workspace_in.name
+    if workspace_in.slug is not None and workspace_in.slug != workspace.slug:
+        workspace.slug = _unique_slug(session, workspace_in.slug)
+    return save(session, workspace)
 
 
 # ---------------------------------------------------------------------------
@@ -124,35 +97,31 @@ def get_members(
     return session.exec(statement).all()
 
 
-def add_member(
-    *, session: Session, workspace_id: uuid.UUID, member_in: WorkspaceMemberAdd
-) -> WorkspaceMember:
-    if member_in.user_id is None:
-        raise ValueError("add_member requires a resolved user_id")
-    member = WorkspaceMember(
-        workspace_id=workspace_id,
-        user_id=member_in.user_id,
-        role=member_in.role,
+def count_owners(*, session: Session, workspace_id: uuid.UUID) -> int:
+    statement = (
+        select(func.count())
+        .select_from(WorkspaceMember)
+        .where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.role == WorkspaceRole.owner,
+        )
     )
-    session.add(member)
-    session.commit()
-    session.refresh(member)
-    return member
+    return session.exec(statement).one()
 
 
-def update_member(
+def add_member(
     *,
     session: Session,
-    member: WorkspaceMember,
-    member_in: WorkspaceMemberUpdate,
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    role: WorkspaceRole,
 ) -> WorkspaceMember:
-    member.role = member_in.role
-    session.add(member)
-    session.commit()
-    session.refresh(member)
-    return member
+    member = WorkspaceMember(workspace_id=workspace_id, user_id=user_id, role=role)
+    return save(session, member)
 
 
-def remove_member(*, session: Session, member: WorkspaceMember) -> None:
-    session.delete(member)
-    session.commit()
+def update_member_role(
+    *, session: Session, member: WorkspaceMember, role: WorkspaceRole
+) -> WorkspaceMember:
+    member.role = role
+    return save(session, member)

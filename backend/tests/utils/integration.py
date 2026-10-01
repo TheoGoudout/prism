@@ -6,7 +6,6 @@ from app.models.integration import (
     IntegrationCreate,
     Platform,
     PlatformAccount,
-    PlatformAccountCreate,
 )
 from app.models.workspace import Workspace
 
@@ -26,7 +25,7 @@ def create_fake_integration(
         external_account_id=external_account_id,
         external_account_name=external_account_name,
     )
-    return crud.create_integration(session=db, integration_in=integration_in)
+    return crud.upsert_integration(session=db, integration_in=integration_in)
 
 
 def create_fake_account(
@@ -35,12 +34,10 @@ def create_fake_account(
     external_id: str = "page-456",
     name: str = "Test Account",
 ) -> PlatformAccount:
-    account_in = PlatformAccountCreate(
-        integration_id=integration.id,
-        workspace_id=integration.workspace_id,
-        platform=integration.platform,
+    return crud.upsert_platform_account(
+        session=db,
+        integration=integration,
         external_id=external_id,
         name=name,
         account_type="page",
     )
-    return crud.create_platform_account(session=db, account_in=account_in)

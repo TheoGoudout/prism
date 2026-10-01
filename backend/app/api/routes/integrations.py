@@ -1,125 +1,84 @@
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import crud
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import (
+    CurrentMember,
+    CurrentUser,
+    SessionDep,
+    get_workspace_member,
+    require_manager,
+)
 from app.models.common import Message
 from app.models.integration import (
+    Integration,
     IntegrationPublic,
     IntegrationsPublic,
     Platform,
     PlatformAccountsPublic,
 )
-from app.models.workspace import WorkspaceRole
+from app.models.workspace import WorkspaceMember
+from app.worker.tasks import sync as sync_tasks
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _get_integration_or_404(
+def _get_integration(
     integration_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
-) -> Any:
+) -> tuple[Integration, WorkspaceMember]:
+    """The integration and the caller's membership of its workspace."""
     integration = crud.get_integration(session=session, integration_id=integration_id)
-    if not integration:
+    if integration is None:
         raise HTTPException(status_code=404, detail="Integration not found")
-    # Workspace membership check — non-members get 404 to avoid info leakage
-    member = crud.get_member(
-        session=session,
-        workspace_id=integration.workspace_id,
-        user_id=current_user.id,
-    )
-    if not member:
+    try:
+        member = get_workspace_member(session, current_user, integration.workspace_id)
+    except HTTPException:
+        # Same 404 for non-members, so they can't tell the integration exists
         raise HTTPException(status_code=404, detail="Integration not found")
     return integration, member
 
 
-# ---------------------------------------------------------------------------
-# Integrations
-# ---------------------------------------------------------------------------
+IntegrationAccess = Annotated[
+    tuple[Integration, WorkspaceMember], Depends(_get_integration)
+]
 
 
 @router.get("/", response_model=IntegrationsPublic)
 def list_integrations(
-    session: SessionDep,
-    current_user: CurrentUser,
-    workspace_id: uuid.UUID,
-    platform: Platform | None = None,
+    session: SessionDep, member: CurrentMember, platform: Platform | None = None
 ) -> Any:
-    """List all integrations for a workspace the user belongs to."""
-    member = crud.get_member(
-        session=session, workspace_id=workspace_id, user_id=current_user.id
-    )
-    if not member:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-
+    """List the integrations of a workspace the user belongs to."""
     integrations = crud.get_integrations_for_workspace(
-        session=session, workspace_id=workspace_id, platform=platform
+        session=session, workspace_id=member.workspace_id, platform=platform
     )
-    return IntegrationsPublic(
-        data=[IntegrationPublic.model_validate(i) for i in integrations],
-        count=len(integrations),
-    )
+    return IntegrationsPublic(data=integrations, count=len(integrations))
 
 
 @router.get("/{integration_id}", response_model=IntegrationPublic)
-def get_integration(
-    integration_id: uuid.UUID,
-    session: SessionDep,
-    current_user: CurrentUser,
-) -> Any:
-    """Get a single integration (must be workspace member)."""
-    integration, _ = _get_integration_or_404(integration_id, session, current_user)
-    return IntegrationPublic.model_validate(integration)
+def get_integration(access: IntegrationAccess) -> Any:
+    integration, _ = access
+    return integration
 
 
 @router.delete("/{integration_id}", response_model=Message)
-def delete_integration(
-    integration_id: uuid.UUID,
-    session: SessionDep,
-    current_user: CurrentUser,
-) -> Any:
-    """
-    Disconnect (delete) an integration and all its platform accounts.
-    Requires owner or admin role in the workspace.
-    """
-    integration, member = _get_integration_or_404(integration_id, session, current_user)
-    if member.role not in (WorkspaceRole.owner, WorkspaceRole.admin):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only workspace owners and admins can remove integrations",
-        )
-    crud.delete_integration(session=session, integration=integration)
+def delete_integration(session: SessionDep, access: IntegrationAccess) -> Any:
+    """Disconnect an integration and delete its accounts and synced metrics."""
+    integration, member = access
+    require_manager(member, "remove integrations")
+    crud.delete(session, integration)
     return Message(message="Integration disconnected successfully")
 
 
-# ---------------------------------------------------------------------------
-# Platform accounts
-# ---------------------------------------------------------------------------
-
-
 @router.get("/{integration_id}/accounts", response_model=PlatformAccountsPublic)
-def list_accounts(
-    integration_id: uuid.UUID,
-    session: SessionDep,
-    current_user: CurrentUser,
-) -> Any:
-    """List all platform accounts belonging to an integration."""
-    integration, _ = _get_integration_or_404(integration_id, session, current_user)
+def list_accounts(session: SessionDep, access: IntegrationAccess) -> Any:
+    """The pages / profiles / properties found by the last sync."""
+    integration, _ = access
     accounts = crud.get_accounts_for_integration(
         session=session, integration_id=integration.id
     )
-    return PlatformAccountsPublic(data=list(accounts), count=len(accounts))
-
-
-# ---------------------------------------------------------------------------
-# Manual sync (stub — will be wired to Celery in Step 5)
-# ---------------------------------------------------------------------------
+    return PlatformAccountsPublic(data=accounts, count=len(accounts))
 
 
 @router.post(
@@ -127,22 +86,9 @@ def list_accounts(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=Message,
 )
-def trigger_sync(
-    integration_id: uuid.UUID,
-    session: SessionDep,
-    current_user: CurrentUser,
-) -> Any:
-    """
-    Enqueue a manual sync for this integration.
-    Returns 202 immediately; the sync runs in the background.
-    """
-    integration, member = _get_integration_or_404(integration_id, session, current_user)
-    if member.role not in (WorkspaceRole.owner, WorkspaceRole.admin):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only workspace owners and admins can trigger syncs",
-        )
-    from app.worker.tasks.sync import sync_integration
-
-    sync_integration.delay(str(integration.id))
+def trigger_sync(access: IntegrationAccess) -> Any:
+    """Enqueue a sync now; it runs in the background."""
+    integration, member = access
+    require_manager(member, "trigger syncs")
+    sync_tasks.sync_integration.delay(str(integration.id))
     return Message(message="Sync enqueued")

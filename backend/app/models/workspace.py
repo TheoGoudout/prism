@@ -16,9 +16,14 @@ if TYPE_CHECKING:
 
 
 class WorkspaceRole(str, Enum):
-    owner = "owner"
-    admin = "admin"
-    viewer = "viewer"
+    owner = "owner"  # full control, including deleting the workspace
+    admin = "admin"  # manages integrations and members
+    viewer = "viewer"  # read-only
+
+    @property
+    def can_manage(self) -> bool:
+        """Whether this role may manage integrations, members and settings."""
+        return self in (WorkspaceRole.owner, WorkspaceRole.admin)
 
 
 # ---------------------------------------------------------------------------

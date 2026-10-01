@@ -1,14 +1,13 @@
 import uuid
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, status
 
 from app import crud
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentMember, CurrentUser, SessionDep, require_manager
 from app.models.common import Message
 from app.models.user import User
 from app.models.workspace import (
-    Workspace,
     WorkspaceCreate,
     WorkspaceMember,
     WorkspaceMemberAdd,
@@ -25,278 +24,199 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
 
 # ---------------------------------------------------------------------------
-# Shared dependencies
+# Helpers
 # ---------------------------------------------------------------------------
 
 
-def _get_workspace_or_404(workspace_id: uuid.UUID, session: SessionDep) -> Workspace:
-    workspace = crud.get_workspace(session=session, workspace_id=workspace_id)
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    return workspace
-
-
-def _require_membership(
-    workspace_id: uuid.UUID, current_user: CurrentUser, session: SessionDep
-) -> WorkspaceMember:
-    """Return the membership row or 404 (hides existence from non-members)."""
-    member = crud.get_member(
-        session=session, workspace_id=workspace_id, user_id=current_user.id
-    )
-    if not member:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    return member
-
-
-def _require_role(
-    member: WorkspaceMember,
-    *roles: WorkspaceRole,
-    detail: str = "Insufficient permissions",
-) -> None:
-    if member.role not in roles:
-        raise HTTPException(status_code=403, detail=detail)
-
-
-WorkspaceDep = Annotated[Workspace, Depends(_get_workspace_or_404)]
-MembershipDep = Annotated[WorkspaceMember, Depends(_require_membership)]
-
-
-def _make_workspace_public(
-    workspace: Workspace, role: WorkspaceRole
-) -> WorkspacePublic:
-    return WorkspacePublic(
-        id=workspace.id,
-        name=workspace.name,
-        slug=workspace.slug,
-        created_at=workspace.created_at,
-        role=role,
+def _workspace_public(member: WorkspaceMember) -> WorkspacePublic:
+    """The member's workspace, along with their role in it."""
+    assert member.workspace is not None  # guaranteed by the foreign key
+    return WorkspacePublic.model_validate(
+        member.workspace, update={"role": member.role}
     )
 
 
-def _make_member_public(member: WorkspaceMember) -> WorkspaceMemberPublic:
-    user: User = member.user  # type: ignore[assignment]
+def _member_public(member: WorkspaceMember) -> WorkspaceMemberPublic:
+    assert member.user is not None  # guaranteed by the foreign key
     return WorkspaceMemberPublic(
         user_id=member.user_id,
         role=member.role,
         created_at=member.created_at,
-        user_email=user.email,
-        user_full_name=user.full_name,
+        user_email=member.user.email,
+        user_full_name=member.user.full_name,
     )
 
 
+def _require_owner(member: WorkspaceMember, action: str) -> None:
+    if member.role != WorkspaceRole.owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Only workspace owners can {action}",
+        )
+
+
+def _get_target_member(
+    session: SessionDep, workspace_id: uuid.UUID, user_id: uuid.UUID
+) -> WorkspaceMember:
+    target = crud.get_member(
+        session=session, workspace_id=workspace_id, user_id=user_id
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return target
+
+
+def _keep_an_owner(session: SessionDep, target: WorkspaceMember, action: str) -> None:
+    """409 if ``target`` is the workspace's only owner: one must always remain."""
+    if (
+        target.role == WorkspaceRole.owner
+        and crud.count_owners(session=session, workspace_id=target.workspace_id) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot {action} the last owner of a workspace",
+        )
+
+
+def _find_user(session: SessionDep, member_in: WorkspaceMemberAdd) -> User:
+    if member_in.email is not None:
+        user = crud.get_user_by_email_case_insensitive(
+            session=session, email=member_in.email
+        )
+        if user is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No user with this email. Ask them to sign up first.",
+            )
+        return user
+    user = session.get(User, member_in.user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
 # ---------------------------------------------------------------------------
-# Workspace CRUD
+# Workspaces
 # ---------------------------------------------------------------------------
 
 
 @router.post("/", response_model=WorkspacePublic)
 def create_workspace(
-    *, session: SessionDep, current_user: CurrentUser, workspace_in: WorkspaceCreate
+    session: SessionDep, current_user: CurrentUser, workspace_in: WorkspaceCreate
 ) -> Any:
-    """Create a new workspace. The creator becomes the owner."""
+    """Create a workspace. The creator becomes its owner."""
     workspace = crud.create_workspace(
         session=session, workspace_in=workspace_in, owner_id=current_user.id
     )
-    return _make_workspace_public(workspace, WorkspaceRole.owner)
+    return _workspace_public(workspace.members[0])
 
 
 @router.get("/", response_model=WorkspacesPublic)
 def list_workspaces(
     session: SessionDep, current_user: CurrentUser, skip: int = 0, limit: int = 100
 ) -> Any:
-    """List all workspaces the current user belongs to."""
-    workspaces, count = crud.get_workspaces_for_user(
+    """The workspaces the current user belongs to."""
+    memberships, count = crud.get_memberships_for_user(
         session=session, user_id=current_user.id, skip=skip, limit=limit
     )
-    items = []
-    for ws in workspaces:
-        member = crud.get_member(
-            session=session, workspace_id=ws.id, user_id=current_user.id
-        )
-        items.append(_make_workspace_public(ws, member.role))  # type: ignore[union-attr]
-    return WorkspacesPublic(data=items, count=count)
+    return WorkspacesPublic(
+        data=[_workspace_public(m) for m in memberships], count=count
+    )
 
 
 @router.get("/{workspace_id}", response_model=WorkspacePublic)
-def get_workspace(
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
-) -> Any:
-    """Get a workspace by ID (must be a member)."""
-    return _make_workspace_public(workspace, membership.role)
+def get_workspace(member: CurrentMember) -> Any:
+    return _workspace_public(member)
 
 
 @router.patch("/{workspace_id}", response_model=WorkspacePublic)
 def update_workspace(
-    *,
-    session: SessionDep,
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
-    workspace_in: WorkspaceUpdate,
+    session: SessionDep, member: CurrentMember, workspace_in: WorkspaceUpdate
 ) -> Any:
-    """Update workspace name/slug. Requires owner or admin role."""
-    _require_role(membership, WorkspaceRole.owner, WorkspaceRole.admin)
-    workspace = crud.update_workspace(
-        session=session, workspace=workspace, workspace_in=workspace_in
+    """Rename the workspace or change its slug."""
+    require_manager(member, "update the workspace")
+    assert member.workspace is not None
+    crud.update_workspace(
+        session=session, workspace=member.workspace, workspace_in=workspace_in
     )
-    return _make_workspace_public(workspace, membership.role)
+    return _workspace_public(member)
 
 
 @router.delete("/{workspace_id}", response_model=Message)
-def delete_workspace(
-    *,
-    session: SessionDep,
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
-) -> Any:
-    """Delete a workspace. Only the owner can do this."""
-    _require_role(membership, WorkspaceRole.owner)
-    crud.delete_workspace(session=session, workspace=workspace)
+def delete_workspace(session: SessionDep, member: CurrentMember) -> Any:
+    """Delete the workspace with all its integrations and metrics."""
+    _require_owner(member, "delete the workspace")
+    assert member.workspace is not None
+    crud.delete(session, member.workspace)
     return Message(message="Workspace deleted successfully")
 
 
 # ---------------------------------------------------------------------------
-# Member management
+# Members
 # ---------------------------------------------------------------------------
 
 
 @router.get("/{workspace_id}/members", response_model=WorkspaceMembersPublic)
-def list_members(
-    _membership: MembershipDep,  # membership check only
-    workspace: WorkspaceDep,
-    session: SessionDep,
-) -> Any:
-    """List all members of a workspace."""
-    members = crud.get_members(session=session, workspace_id=workspace.id)
+def list_members(session: SessionDep, member: CurrentMember) -> Any:
+    members = crud.get_members(session=session, workspace_id=member.workspace_id)
     return WorkspaceMembersPublic(
-        data=[_make_member_public(m) for m in members],
-        count=len(members),
+        data=[_member_public(m) for m in members], count=len(members)
     )
 
 
 @router.post("/{workspace_id}/members", response_model=WorkspaceMemberPublic)
 def add_member(
-    *,
-    session: SessionDep,
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
-    member_in: WorkspaceMemberAdd,
+    session: SessionDep, member: CurrentMember, member_in: WorkspaceMemberAdd
 ) -> Any:
-    """Add a user to a workspace. Requires owner or admin role."""
-    _require_role(membership, WorkspaceRole.owner, WorkspaceRole.admin)
+    """Add an existing user, identified by id or email, to the workspace."""
+    require_manager(member, "add members")
+    if member_in.role == WorkspaceRole.owner:
+        _require_owner(member, "add other owners")
 
-    # Owners can only be set by existing owners
-    if member_in.role == WorkspaceRole.owner and membership.role != WorkspaceRole.owner:
-        raise HTTPException(status_code=403, detail="Only owners can add other owners")
-
-    # Check the target user exists
-    if member_in.email is not None:
-        target_user = crud.get_user_by_email_case_insensitive(
-            session=session, email=member_in.email
-        )
-        if not target_user:
-            raise HTTPException(
-                status_code=404,
-                detail="No user with this email. Ask them to sign up first.",
-            )
-    else:
-        target_user = session.get(User, member_in.user_id)
-        if not target_user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-    # Check not already a member
-    existing = crud.get_member(
-        session=session, workspace_id=workspace.id, user_id=target_user.id
-    )
-    if existing:
+    user = _find_user(session, member_in)
+    if crud.get_member(
+        session=session, workspace_id=member.workspace_id, user_id=user.id
+    ):
         raise HTTPException(
             status_code=409, detail="User is already a member of this workspace"
         )
-
-    member = crud.add_member(
+    new_member = crud.add_member(
         session=session,
-        workspace_id=workspace.id,
-        member_in=WorkspaceMemberAdd(user_id=target_user.id, role=member_in.role),
+        workspace_id=member.workspace_id,
+        user_id=user.id,
+        role=member_in.role,
     )
-    return _make_member_public(member)
+    return _member_public(new_member)
 
 
 @router.patch("/{workspace_id}/members/{user_id}", response_model=WorkspaceMemberPublic)
 def update_member(
-    *,
     session: SessionDep,
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
+    member: CurrentMember,
     user_id: uuid.UUID,
     member_in: WorkspaceMemberUpdate,
 ) -> Any:
-    """Update a member's role. Only owners can change roles."""
-    _require_role(membership, WorkspaceRole.owner)
-
-    target = crud.get_member(
-        session=session, workspace_id=workspace.id, user_id=user_id
+    """Change a member's role."""
+    _require_owner(member, "change roles")
+    target = _get_target_member(session, member.workspace_id, user_id)
+    if member_in.role != WorkspaceRole.owner:
+        _keep_an_owner(session, target, "demote")
+    target = crud.update_member_role(
+        session=session, member=target, role=member_in.role
     )
-    if not target:
-        raise HTTPException(status_code=404, detail="Member not found")
-
-    # Prevent removing the last owner
-    if target.role == WorkspaceRole.owner and member_in.role != WorkspaceRole.owner:
-        owners = [
-            m
-            for m in crud.get_members(session=session, workspace_id=workspace.id)
-            if m.role == WorkspaceRole.owner
-        ]
-        if len(owners) <= 1:
-            raise HTTPException(
-                status_code=409, detail="Cannot demote the last owner of a workspace"
-            )
-
-    member = crud.update_member(session=session, member=target, member_in=member_in)
-    return _make_member_public(member)
+    return _member_public(target)
 
 
 @router.delete("/{workspace_id}/members/{user_id}", response_model=Message)
 def remove_member(
-    *,
-    session: SessionDep,
-    current_user: CurrentUser,
-    membership: MembershipDep,
-    workspace: WorkspaceDep,
-    user_id: uuid.UUID,
+    session: SessionDep, member: CurrentMember, user_id: uuid.UUID
 ) -> Any:
-    """
-    Remove a member from the workspace.
-    Members can remove themselves; owners/admins can remove others.
-    """
-    target = crud.get_member(
-        session=session, workspace_id=workspace.id, user_id=user_id
-    )
-    if not target:
-        raise HTTPException(status_code=404, detail="Member not found")
-
-    is_self = user_id == current_user.id
-    if not is_self:
-        _require_role(membership, WorkspaceRole.owner, WorkspaceRole.admin)
-        # Admins cannot remove owners
-        if (
-            target.role == WorkspaceRole.owner
-            and membership.role != WorkspaceRole.owner
-        ):
-            raise HTTPException(
-                status_code=403, detail="Only owners can remove other owners"
-            )
-
-    # Prevent removing the last owner
-    if target.role == WorkspaceRole.owner:
-        owners = [
-            m
-            for m in crud.get_members(session=session, workspace_id=workspace.id)
-            if m.role == WorkspaceRole.owner
-        ]
-        if len(owners) <= 1:
-            raise HTTPException(
-                status_code=409, detail="Cannot remove the last owner of a workspace"
-            )
-
-    crud.remove_member(session=session, member=target)
+    """Remove a member. Anyone can leave; owners and admins can remove others."""
+    target = _get_target_member(session, member.workspace_id, user_id)
+    if target.user_id != member.user_id:
+        require_manager(member, "remove members")
+        if target.role == WorkspaceRole.owner:
+            _require_owner(member, "remove other owners")
+    _keep_an_owner(session, target, "remove")
+    crud.delete(session, target)
     return Message(message="Member removed successfully")
