@@ -19,8 +19,10 @@ from app.crud.integration import (
     get_platform_account,
     get_refresh_token,
     mark_integration_error,
+    mark_integration_expired,
     mark_integration_synced,
     update_integration_tokens,
+    upsert_integration,
     upsert_platform_account,
 )
 from app.crud.user import DUMMY_HASH, authenticate, create_user, get_user_by_email, update_user
@@ -63,8 +65,10 @@ __all__ = [
     "get_platform_account",
     "get_refresh_token",
     "mark_integration_error",
+    "mark_integration_expired",
     "mark_integration_synced",
     "update_integration_tokens",
+    "upsert_integration",
     "upsert_platform_account",
     # workspace
     "add_member",

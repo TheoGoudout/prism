@@ -20,7 +20,9 @@ class LinkedInOAuthProvider(OAuthProvider):
     def _client_secret(self) -> str:
         return settings.LINKEDIN_CLIENT_SECRET
 
-    def exchange_code(self, code: str, redirect_uri: str) -> TokenResponse:
+    def exchange_code(
+        self, code: str, redirect_uri: str, code_verifier: str | None = None
+    ) -> TokenResponse:
         data = self._post_token({
             "grant_type": "authorization_code",
             "code": code,

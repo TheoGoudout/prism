@@ -107,13 +107,6 @@ def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
     insight_data = {
         "data": [
             {
-                "name": "impressions",
-                "values": [
-                    {"end_time": "2024-02-01T08:00:00+0000", "value": 2000},
-                    {"end_time": "2024-02-02T08:00:00+0000", "value": 2500},
-                ],
-            },
-            {
                 "name": "reach",
                 "values": [
                     {"end_time": "2024-02-01T08:00:00+0000", "value": 1500},
@@ -123,8 +116,8 @@ def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
             {
                 "name": "follower_count",
                 "values": [
-                    {"end_time": "2024-02-01T08:00:00+0000", "value": 5000},
-                    {"end_time": "2024-02-02T08:00:00+0000", "value": 5020},
+                    {"end_time": "2024-02-01T08:00:00+0000", "value": 12},
+                    {"end_time": "2024-02-02T08:00:00+0000", "value": 20},
                 ],
             },
         ]
@@ -142,9 +135,23 @@ def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
     assert date(2024, 2, 2) in dates
 
     snap_feb1 = next(s for s in snapshots if s.date == date(2024, 2, 1))
-    assert snap_feb1.impressions == 2000
     assert snap_feb1.reach == 1500
-    assert snap_feb1.followers_count == 5000
+    # follower_count is daily *new* followers
+    assert snap_feb1.followers_gained == 12
+    assert snap_feb1.followers_count is None
+
+
+@patch("app.integrations.platforms.instagram.crud")
+@patch("app.integrations.platforms.instagram.httpx.get")
+def test_sync_account_insights_records_follower_total_today(mock_get, mock_crud):
+    mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
+    mock_get.return_value.raise_for_status = MagicMock()
+
+    _sync_account_insights(MagicMock(), uuid.uuid4(), "ig-111", "tok", 5000)
+
+    snap = mock_crud.upsert_metric_snapshot.call_args.kwargs["snapshot_in"]
+    assert snap.date == date.today()
+    assert snap.followers_count == 5000
 
 
 @patch("app.integrations.platforms.instagram.crud")
@@ -179,9 +186,9 @@ def test_sync_media_upserts_posts(mock_get, mock_crud):
     }
     insights_resp = {
         "data": [
-            {"name": "impressions", "values": [{"value": 3000}]},
+            {"name": "views", "values": [{"value": 3000}]},
             {"name": "reach", "values": [{"value": 2500}]},
-            {"name": "engagement", "values": [{"value": 150}]},
+            {"name": "total_interactions", "values": [{"value": 150}]},
             {"name": "likes", "values": [{"value": 120}]},
             {"name": "comments", "values": [{"value": 30}]},
             {"name": "saved", "values": [{"value": 40}]},
@@ -202,8 +209,9 @@ def test_sync_media_upserts_posts(mock_get, mock_crud):
     post_in = mock_crud.upsert_post.call_args.kwargs["post_in"]
     assert post_in.external_id == "media-1"
     assert post_in.content_type == ContentType.post
-    assert post_in.impressions == 3000
+    assert post_in.views == 3000
     assert post_in.reach == 2500
+    assert post_in.engagements == 150
     assert post_in.likes == 120
     assert post_in.saves == 40
     assert post_in.text == "Nice photo"
@@ -269,7 +277,7 @@ def test_sync_media_insights_error_still_upserts(mock_get, mock_crud):
     _sync_media(MagicMock(), uuid.uuid4(), "ig-111", "tok")
 
     mock_crud.upsert_post.assert_called_once()
-    assert mock_crud.upsert_post.call_args.kwargs["post_in"].impressions is None
+    assert mock_crud.upsert_post.call_args.kwargs["post_in"].views is None
 
 
 # ---------------------------------------------------------------------------

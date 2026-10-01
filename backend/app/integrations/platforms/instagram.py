@@ -6,7 +6,10 @@ Fetches:
   - Account-level daily insights (impressions, reach, follower count, profile views)
   - Media metrics for up to 100 recent posts/reels/stories
 
-Uses the Facebook Graph API (v19.0) with the user access token from the Integration.
+Uses the Facebook Graph API with the user access token from the Integration.
+
+Meta retired the Instagram `impressions`, `video_views` and `engagement`
+metrics in 2025; they are replaced by `views` and `total_interactions`.
 """
 import logging
 from datetime import date, datetime, timedelta, timezone
@@ -16,40 +19,32 @@ import httpx
 from sqlmodel import Session
 
 from app import crud
+from app.integrations.meta import GRAPH_API
 from app.models.integration import Integration, Platform, PlatformAccountCreate
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 from app.worker.tasks.sync import register_platform_sync
 
 logger = logging.getLogger(__name__)
 
-GRAPH_API = "https://graph.facebook.com/v19.0"
-
-_ACCOUNT_METRICS = ",".join(
-    [
-        "impressions",
-        "reach",
-        "profile_views",
-        "follower_count",
-        "accounts_engaged",
-    ]
-)
+# Account-level metrics that support a daily (period=day) time series.
+# `follower_count` is the number of *new* followers per day.
+_ACCOUNT_METRICS = ",".join(["reach", "follower_count"])
 
 # Media-level metrics available for feed posts and reels
 _MEDIA_METRICS = ",".join(
     [
-        "impressions",
+        "views",
         "reach",
-        "engagement",
+        "total_interactions",
         "likes",
         "comments",
         "shares",
         "saved",
-        "video_views",
     ]
 )
 
 # Metrics for stories (different endpoint, limited set)
-_STORY_METRICS = ",".join(["impressions", "reach"])
+_STORY_METRICS = ",".join(["views", "reach"])
 
 _MEDIA_TYPE_MAP: dict[str, ContentType] = {
     "IMAGE": ContentType.post,
@@ -69,7 +64,8 @@ def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[st
     p["access_token"] = token
     resp = httpx.get(f"{GRAPH_API}/{path}", params=p, timeout=15)
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +84,8 @@ def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
         {
             "fields": (
                 "id,access_token,"
-                "instagram_business_account{id,name,profile_picture_url,username}"
+                "instagram_business_account"
+                "{id,name,profile_picture_url,username,followers_count}"
             )
         },
     )
@@ -104,6 +101,7 @@ def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
                 "name": ig.get("name") or ig.get("username") or ig["id"],
                 "avatar_url": ig.get("profile_picture_url"),
                 "page_token": page.get("access_token", user_token),
+                "followers_count": ig.get("followers_count"),
             }
         )
     return accounts
@@ -119,6 +117,7 @@ def _sync_account_insights(
     platform_account_id: Any,
     ig_id: str,
     token: str,
+    followers_count: int | None = None,
 ) -> None:
     end = date.today()
     start = end - timedelta(days=30)
@@ -150,14 +149,17 @@ def _sync_account_insights(
                 continue
             by_date.setdefault(d, {})[metric_name] = val_item["value"]
 
+    # The API only exposes the current follower total, so record it on today's
+    # snapshot; over time this builds up a daily follower history.
+    if followers_count is not None:
+        by_date.setdefault(end, {})["followers_count"] = followers_count
+
     for d, vals in by_date.items():
         snapshot = MetricSnapshotUpsert(
             date=d,
-            impressions=vals.get("impressions"),
             reach=vals.get("reach"),
-            views=vals.get("profile_views"),
-            followers_count=vals.get("follower_count"),
-            engagements=vals.get("accounts_engaged"),
+            followers_count=vals.get("followers_count"),
+            followers_gained=vals.get("follower_count"),
             raw_data=vals,
         )
         crud.upsert_metric_snapshot(
@@ -227,14 +229,13 @@ def _sync_media(
             text=item.get("caption"),
             media_url=media_url,
             permalink=item.get("permalink"),
-            impressions=mvals.get("impressions"),
+            views=mvals.get("views"),
             reach=mvals.get("reach"),
-            engagements=mvals.get("engagement"),
+            engagements=mvals.get("total_interactions"),
             likes=mvals.get("likes"),
             comments=mvals.get("comments"),
             shares=mvals.get("shares"),
             saves=mvals.get("saved"),
-            views=mvals.get("video_views"),
             raw_data=mvals or None,
         )
         crud.upsert_post(
@@ -279,7 +280,9 @@ def sync_instagram(session: Session, integration: Integration) -> None:
         account = crud.upsert_platform_account(session=session, account_in=account_in)
 
         try:
-            _sync_account_insights(session, account.id, ig_id, token)
+            _sync_account_insights(
+                session, account.id, ig_id, token, acc.get("followers_count")
+            )
         except httpx.HTTPStatusError as exc:
             logger.error("sync_instagram: insights error for %s: %s", ig_id, exc)
 

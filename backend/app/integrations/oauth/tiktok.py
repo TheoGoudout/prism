@@ -13,6 +13,9 @@ class TikTokOAuthProvider(OAuthProvider):
     SCOPES = ["user.info.basic", "video.list", "video.insights", "tiktok.user.insights.creator"]
     AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
     TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+    # TikTok names the client identifier `client_key` and comma-separates scopes
+    CLIENT_ID_PARAM = "client_key"
+    SCOPE_SEPARATOR = ","
 
     def _client_id(self) -> str:
         return settings.TIKTOK_CLIENT_KEY
@@ -20,10 +23,12 @@ class TikTokOAuthProvider(OAuthProvider):
     def _client_secret(self) -> str:
         return settings.TIKTOK_CLIENT_SECRET
 
-    def exchange_code(self, code: str, redirect_uri: str) -> TokenResponse:
+    def exchange_code(
+        self, code: str, redirect_uri: str, code_verifier: str | None = None
+    ) -> TokenResponse:
         resp = httpx.post(
             self.TOKEN_URL,
-            json={
+            data={
                 "client_key": self._client_id(),
                 "client_secret": self._client_secret(),
                 "code": code,
@@ -45,7 +50,7 @@ class TikTokOAuthProvider(OAuthProvider):
     def refresh(self, refresh_token: str) -> TokenResponse:
         resp = httpx.post(
             self.TOKEN_URL,
-            json={
+            data={
                 "client_key": self._client_id(),
                 "client_secret": self._client_secret(),
                 "grant_type": "refresh_token",
@@ -64,9 +69,9 @@ class TikTokOAuthProvider(OAuthProvider):
         )
 
     def get_account_info(self, access_token: str) -> AccountInfo:
-        resp = httpx.post(
+        resp = httpx.get(
             "https://open.tiktokapis.com/v2/user/info/",
-            json={"fields": ["open_id", "display_name", "avatar_url"]},
+            params={"fields": "open_id,display_name,avatar_url"},
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
         )

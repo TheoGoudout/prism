@@ -95,21 +95,21 @@ def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
     insight_data = {
         "data": [
             {
-                "name": "page_impressions",
+                "name": "page_media_view",
                 "values": [
                     {"end_time": "2024-01-15T08:00:00+0000", "value": 500},
                     {"end_time": "2024-01-16T08:00:00+0000", "value": 600},
                 ],
             },
             {
-                "name": "page_impressions_unique",
+                "name": "page_total_media_view_unique",
                 "values": [
                     {"end_time": "2024-01-15T08:00:00+0000", "value": 300},
                     {"end_time": "2024-01-16T08:00:00+0000", "value": 350},
                 ],
             },
             {
-                "name": "page_fans",
+                "name": "page_follows",
                 "values": [
                     {"end_time": "2024-01-15T08:00:00+0000", "value": 1000},
                     {"end_time": "2024-01-16T08:00:00+0000", "value": 1010},
@@ -134,9 +134,53 @@ def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
 
     # Spot-check first snapshot
     first = next(c.kwargs["snapshot_in"] for c in call_args_list if c.kwargs["snapshot_in"].date == date(2024, 1, 15))
-    assert first.impressions == 500
+    assert first.views == 500
     assert first.reach == 300
     assert first.followers_count == 1000
+
+
+@patch("app.integrations.platforms.facebook.crud")
+@patch("app.integrations.platforms.facebook.httpx.get")
+def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(mock_get, mock_crud):
+    """If Meta rejects one metric, the others are still synced."""
+
+    def _side_effect(url, params, **kwargs):
+        metric = params["metric"]
+        if "," in metric or metric == "page_follows":
+            raise httpx.HTTPStatusError(
+                "400", request=MagicMock(), response=MagicMock(status_code=400)
+            )
+        r = MagicMock()
+        r.raise_for_status = MagicMock()
+        r.json.return_value = {
+            "data": [
+                {
+                    "name": metric,
+                    "values": [{"end_time": "2024-01-15T08:00:00+0000", "value": 7}],
+                }
+            ]
+        }
+        return r
+
+    mock_get.side_effect = _side_effect
+
+    _sync_page_insights(MagicMock(), uuid.uuid4(), "page-111", "page-token")
+
+    snap = mock_crud.upsert_metric_snapshot.call_args.kwargs["snapshot_in"]
+    assert snap.views == 7
+    assert snap.engagements == 7
+    assert snap.followers_gained == 7
+    assert snap.followers_count is None
+
+
+@patch("app.integrations.platforms.facebook.crud")
+@patch("app.integrations.platforms.facebook.httpx.get")
+def test_sync_page_insights_server_error_propagates(mock_get, mock_crud):
+    mock_get.side_effect = httpx.HTTPStatusError(
+        "500", request=MagicMock(), response=MagicMock(status_code=500)
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        _sync_page_insights(MagicMock(), uuid.uuid4(), "page-111", "page-token")
 
 
 @patch("app.integrations.platforms.facebook.crud")
@@ -166,14 +210,15 @@ def test_sync_page_posts_upserts_posts(mock_get, mock_crud):
                 "created_time": "2024-01-15T12:00:00+0000",
                 "permalink_url": "https://fb.com/post-1",
                 "full_picture": "https://cdn.fb.com/img.jpg",
+                "shares": {"count": 4},
+                "comments": {"data": [], "summary": {"total_count": 6}},
             }
         ]
     }
     insights_resp = {
         "data": [
-            {"name": "post_impressions", "values": [{"value": 1000, "end_time": "x"}]},
-            {"name": "post_impressions_unique", "values": [{"value": 600, "end_time": "x"}]},
-            {"name": "post_engaged_users", "values": [{"value": 50, "end_time": "x"}]},
+            {"name": "post_media_view", "values": [{"value": 1000, "end_time": "x"}]},
+            {"name": "post_total_media_view_unique", "values": [{"value": 600, "end_time": "x"}]},
             {"name": "post_reactions_like_total", "values": [{"value": 30, "end_time": "x"}]},
             {"name": "post_clicks", "values": [{"value": 20, "end_time": "x"}]},
         ]
@@ -195,9 +240,12 @@ def test_sync_page_posts_upserts_posts(mock_get, mock_crud):
     mock_crud.upsert_post.assert_called_once()
     post_in = mock_crud.upsert_post.call_args.kwargs["post_in"]
     assert post_in.external_id == "post-1"
-    assert post_in.impressions == 1000
+    assert post_in.views == 1000
     assert post_in.reach == 600
     assert post_in.likes == 30
+    assert post_in.comments == 6
+    assert post_in.shares == 4
+    assert post_in.engagements == 40  # likes + comments + shares
     assert post_in.clicks == 20
     assert post_in.text == "Hello world"
 
@@ -232,7 +280,8 @@ def test_sync_page_posts_insight_error_skips_gracefully(mock_get, mock_crud):
     # Post should still be upserted even without insights
     mock_crud.upsert_post.assert_called_once()
     post_in = mock_crud.upsert_post.call_args.kwargs["post_in"]
-    assert post_in.impressions is None
+    assert post_in.views is None
+    assert post_in.engagements is None
 
 
 @patch("app.integrations.platforms.facebook.crud")

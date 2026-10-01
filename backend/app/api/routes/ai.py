@@ -22,6 +22,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.models.ai import AIRequest, Insight, InsightsResponse, ReportResponse
 from app.models.integration import Platform
 from app.models.metrics import PostPublic
+from app.services import metrics as metrics_service
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -49,6 +50,11 @@ def _get_workspace(session: Any, workspace_id: uuid.UUID) -> Any:
     return ws
 
 
+def _resolve_range(body: AIRequest) -> tuple[date, date]:
+    date_from, date_to = _default_range()
+    return body.date_from or date_from, body.date_to or date_to
+
+
 def _collect_metrics(
     session: Any,
     workspace_id: uuid.UUID,
@@ -57,55 +63,31 @@ def _collect_metrics(
     date_to: date,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """Return (totals, by_platform, top_posts) as plain dicts."""
-    from collections import defaultdict
+    summary = metrics_service.summarize(
+        session=session,
+        workspace_id=workspace_id,
+        platform=platform,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    if not summary.by_platform:
+        return {}, {}, []
 
     accounts = crud.get_accounts_for_workspace(
         session=session, workspace_id=workspace_id, platform=platform
     )
-    account_platform = {a.id: a.platform.value for a in accounts}
-
-    if not account_platform:
-        return {}, {}, []
-
-    snapshots = crud.get_snapshots_for_accounts(
-        session=session,
-        platform_account_ids=list(account_platform.keys()),
-        start_date=date_from,
-        end_date=date_to,
-    )
-
-    _SUM_FIELDS = (
-        "impressions", "reach", "views", "clicks", "engagements",
-        "likes", "comments", "shares", "saves", "followers_gained",
-    )
-    totals: dict[str, int] = defaultdict(int)
-    by_platform: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    latest_followers: dict[uuid.UUID, int] = {}
-
-    for snap in snapshots:
-        plat = account_platform.get(snap.platform_account_id, "unknown")
-        for field in _SUM_FIELDS:
-            val = getattr(snap, field) or 0
-            totals[field] += val
-            by_platform[plat][field] += val
-        if snap.followers_count is not None:
-            latest_followers[snap.platform_account_id] = snap.followers_count
-
-    totals_dict: dict[str, Any] = dict(totals)
-    totals_dict["followers_count"] = (
-        sum(latest_followers.values()) if latest_followers else None
-    )
-
     posts = crud.get_top_posts(
         session=session,
-        platform_account_ids=list(account_platform.keys()),
+        platform_account_ids=[a.id for a in accounts],
         start_date=date_from,
         end_date=date_to,
         limit=10,
     )
-    posts_list = [PostPublic.model_validate(p).model_dump() for p in posts]
-
-    return totals_dict, {k: dict(v) for k, v in by_platform.items()}, posts_list
+    return (
+        summary.totals.model_dump(),
+        {plat: t.model_dump() for plat, t in summary.by_platform.items()},
+        [PostPublic.model_validate(p).model_dump() for p in posts],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,15 +107,10 @@ def generate_insights(
     Calls the configured LLM (AI_PROVIDER / AI_MODEL) with the aggregated
     metrics data and returns 4–6 structured, actionable insights.
     """
-    ws_id = uuid.UUID(body.workspace_id)
+    ws_id = body.workspace_id
     _require_member(session, ws_id, current_user)
     ws = _get_workspace(session, ws_id)
-
-    date_from, date_to = _default_range()
-    if body.date_from:
-        date_from = body.date_from
-    if body.date_to:
-        date_to = body.date_to
+    date_from, date_to = _resolve_range(body)
 
     totals, by_platform, _ = _collect_metrics(
         session, ws_id, body.platform, date_from, date_to
@@ -180,15 +157,10 @@ def generate_report(
     Includes executive summary, per-platform analysis, top content, and
     recommendations based on the requested date range.
     """
-    ws_id = uuid.UUID(body.workspace_id)
+    ws_id = body.workspace_id
     _require_member(session, ws_id, current_user)
     ws = _get_workspace(session, ws_id)
-
-    date_from, date_to = _default_range()
-    if body.date_from:
-        date_from = body.date_from
-    if body.date_to:
-        date_to = body.date_to
+    date_from, date_to = _resolve_range(body)
 
     totals, by_platform, posts = _collect_metrics(
         session, ws_id, body.platform, date_from, date_to

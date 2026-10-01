@@ -7,8 +7,12 @@ Fetches:
   - Post metrics for the 100 most recent posts per page
 
 Uses the user long-lived access token stored in Integration.
-Each page's own short-lived token (from /me/accounts) is used for
-page-specific Graph API calls.
+Each page's own token (from /me/accounts) is used for page-specific Graph API
+calls.
+
+Metric names follow Meta's November 2025 Page Insights changes, which retired
+the "impressions" and "page fans" metrics in favour of "media views" and
+"follows": https://developers.facebook.com/docs/graph-api/reference/insights/
 """
 import logging
 from datetime import date, datetime, timedelta, timezone
@@ -18,33 +22,37 @@ import httpx
 from sqlmodel import Session
 
 from app import crud
+from app.integrations.meta import GRAPH_API
 from app.models.integration import Integration, Platform, PlatformAccountCreate
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 from app.worker.tasks.sync import register_platform_sync
 
 logger = logging.getLogger(__name__)
 
-GRAPH_API = "https://graph.facebook.com/v19.0"
-
-_PAGE_METRICS = ",".join(
-    [
-        "page_impressions",
-        "page_impressions_unique",
-        "page_engaged_users",
-        "page_fan_adds",
-        "page_fan_removes",
-        "page_fans",
-    ]
-)
+# Page-level daily metrics → MetricSnapshot field
+_PAGE_METRIC_FIELDS = {
+    "page_media_view": "views",
+    "page_total_media_view_unique": "reach",
+    "page_post_engagements": "engagements",
+    "page_follows": "followers_count",
+    "page_daily_follows_unique": "followers_gained",
+    "page_daily_unfollows_unique": "followers_lost",
+}
+_PAGE_METRICS = ",".join(_PAGE_METRIC_FIELDS)
 
 _POST_METRICS = ",".join(
     [
-        "post_impressions",
-        "post_impressions_unique",
-        "post_engaged_users",
+        "post_media_view",
+        "post_total_media_view_unique",
         "post_reactions_like_total",
         "post_clicks",
     ]
+)
+
+# Post fields; comment and share counts come from the post object itself
+_POST_FIELDS = (
+    "id,message,created_time,permalink_url,full_picture,"
+    "shares,comments.limit(0).summary(true)"
 )
 
 
@@ -69,7 +77,8 @@ def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[st
 def _fetch_managed_pages(user_token: str) -> list[dict[str, Any]]:
     """Return the pages managed by the authenticated user."""
     data = _get("me/accounts", user_token, {"fields": "id,name,access_token,picture"})
-    return data.get("data", [])
+    pages: list[dict[str, Any]] = data.get("data", [])
+    return pages
 
 
 # ---------------------------------------------------------------------------
@@ -85,25 +94,39 @@ def _sync_page_insights(
 ) -> None:
     end = date.today()
     start = end - timedelta(days=30)
+    params: dict[str, Any] = {
+        "period": "day",
+        "since": int(
+            datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()
+        ),
+        "until": int(
+            datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()
+        ),
+    }
 
-    resp = _get(
-        f"{page_id}/insights",
-        page_token,
-        {
-            "metric": _PAGE_METRICS,
-            "period": "day",
-            "since": int(
-                datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()
-            ),
-            "until": int(
-                datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()
-            ),
-        },
-    )
+    entries: list[dict[str, Any]]
+    try:
+        resp = _get(f"{page_id}/insights", page_token, {**params, "metric": _PAGE_METRICS})
+        entries = resp.get("data", [])
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 400:
+            raise
+        # Meta rejects the whole request if any one metric is invalid (e.g.
+        # newly deprecated, or not available for this Page). Fall back to one
+        # request per metric so the others still sync.
+        entries = []
+        for metric in _PAGE_METRIC_FIELDS:
+            try:
+                single = _get(f"{page_id}/insights", page_token, {**params, "metric": metric})
+                entries.extend(single.get("data", []))
+            except httpx.HTTPStatusError as metric_exc:
+                logger.warning(
+                    "Page %s: metric %s unavailable: %s", page_id, metric, metric_exc
+                )
 
     # Build date → {metric_name: value}
     by_date: dict[date, dict[str, Any]] = {}
-    for entry in resp.get("data", []):
+    for entry in entries:
         metric_name: str = entry["name"]
         for val_item in entry.get("values", []):
             try:
@@ -115,16 +138,10 @@ def _sync_page_insights(
             by_date.setdefault(d, {})[metric_name] = val_item["value"]
 
     for d, vals in by_date.items():
-        snapshot = MetricSnapshotUpsert(
-            date=d,
-            impressions=vals.get("page_impressions"),
-            reach=vals.get("page_impressions_unique"),
-            engagements=vals.get("page_engaged_users"),
-            followers_count=vals.get("page_fans"),
-            followers_gained=vals.get("page_fan_adds"),
-            followers_lost=vals.get("page_fan_removes"),
-            raw_data=vals,
-        )
+        fields = {
+            field: vals.get(metric) for metric, field in _PAGE_METRIC_FIELDS.items()
+        }
+        snapshot = MetricSnapshotUpsert(date=d, raw_data=vals, **fields)
         crud.upsert_metric_snapshot(
             session=session,
             platform_account_id=platform_account_id,
@@ -146,10 +163,7 @@ def _sync_page_posts(
     resp = _get(
         f"{page_id}/posts",
         page_token,
-        {
-            "fields": "id,message,created_time,permalink_url,full_picture",
-            "limit": 100,
-        },
+        {"fields": _POST_FIELDS, "limit": 100},
     )
 
     for post_data in resp.get("data", []):
@@ -176,6 +190,14 @@ def _sync_page_posts(
             logger.warning("Skipping post %s: missing or invalid created_time", post_id)
             continue
 
+        likes = pvals.get("post_reactions_like_total")
+        comments = ((post_data.get("comments") or {}).get("summary") or {}).get(
+            "total_count"
+        )
+        shares = (post_data.get("shares") or {}).get("count")
+        counted = [v for v in (likes, comments, shares) if isinstance(v, int)]
+        engagements = sum(counted) if counted else None
+
         post = PostUpsert(
             external_id=post_id,
             published_at=published_at,
@@ -183,10 +205,12 @@ def _sync_page_posts(
             text=post_data.get("message"),
             media_url=post_data.get("full_picture"),
             permalink=post_data.get("permalink_url"),
-            impressions=pvals.get("post_impressions"),
-            reach=pvals.get("post_impressions_unique"),
-            engagements=pvals.get("post_engaged_users"),
-            likes=pvals.get("post_reactions_like_total"),
+            views=pvals.get("post_media_view"),
+            reach=pvals.get("post_total_media_view_unique"),
+            engagements=engagements,
+            likes=likes,
+            comments=comments,
+            shares=shares,
             clicks=pvals.get("post_clicks"),
             raw_data=pvals or None,
         )

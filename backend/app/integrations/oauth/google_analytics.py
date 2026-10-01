@@ -20,13 +20,15 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
     def _client_secret(self) -> str:
         return settings.GOOGLE_CLIENT_SECRET
 
-    def get_auth_url(self, redirect_uri: str, workspace_id: str, extra_params: dict | None = None) -> str:
-        params = extra_params or {}
-        params["access_type"] = "offline"   # request refresh token
-        params["prompt"] = "consent"         # force consent screen to always get refresh token
-        return super().get_auth_url(redirect_uri, workspace_id, params)
+    def _extra_auth_params(self) -> dict[str, str]:
+        return {
+            "access_type": "offline",  # request refresh token
+            "prompt": "consent",  # force consent screen to always get refresh token
+        }
 
-    def exchange_code(self, code: str, redirect_uri: str) -> TokenResponse:
+    def exchange_code(
+        self, code: str, redirect_uri: str, code_verifier: str | None = None
+    ) -> TokenResponse:
         data = self._post_token({
             "grant_type": "authorization_code",
             "code": code,
