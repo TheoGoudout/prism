@@ -1,4 +1,5 @@
-import { Building2, ChevronsUpDown, Plus } from "lucide-react"
+import { useNavigate } from "@tanstack/react-router"
+import { Building2, ChevronsUpDown, Plus, Users } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -15,11 +16,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useWorkspace } from "@/contexts/WorkspaceContext"
 import CreateWorkspaceModal from "@/components/Workspaces/CreateWorkspaceModal"
+import { useWorkspace } from "@/contexts/WorkspaceContext"
 
 export function WorkspaceSelector() {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
+  const navigate = useNavigate()
   const { workspaces, currentWorkspace, setCurrentWorkspace } = useWorkspace()
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -76,6 +78,20 @@ export function WorkspaceSelector() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 p-2"
+                onClick={() => {
+                  setOpenMobile(false)
+                  navigate({ to: "/settings", search: { tab: "members" } })
+                }}
+              >
+                <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                  <Users className="size-4" />
+                </div>
+                <div className="font-medium text-muted-foreground">
+                  Members & settings
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="gap-2 p-2"
                 onClick={() => setCreateOpen(true)}

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { subDays, format } from "date-fns"
 import {
   BarChart2,
+  Eye,
   Link2,
   Loader2,
   RefreshCw,
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { canManage } from "@/components/Workspaces/roles"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
@@ -46,7 +48,7 @@ function statusVariant(
   status: string,
 ): "default" | "secondary" | "destructive" | "outline" {
   if (status === "active") return "default"
-  if (status === "error") return "destructive"
+  if (status === "error" || status === "expired") return "destructive"
   return "secondary"
 }
 
@@ -93,7 +95,13 @@ function KpiCard({
 
 // ---- Integration row --------------------------------------------------------
 
-function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
+function IntegrationRow({
+  integration,
+  editable,
+}: {
+  integration: IntegrationPublic
+  editable: boolean
+}) {
   const queryClient = useQueryClient()
   const { showSuccessToast, showErrorToast } = useCustomToast()
 
@@ -125,20 +133,23 @@ function IntegrationRow({ integration }: { integration: IntegrationPublic }) {
         <Badge variant={statusVariant(integration.status)} className="capitalize text-xs">
           {integration.status}
         </Badge>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => syncMut.mutate()}
-          disabled={syncMut.isPending}
-          title="Sync now"
-        >
-          {syncMut.isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="size-3.5" />
-          )}
-        </Button>
+        {editable && integration.status !== "expired" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => syncMut.mutate()}
+            disabled={syncMut.isPending}
+            title="Sync now"
+            aria-label="Sync now"
+          >
+            {syncMut.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3.5" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -185,11 +196,17 @@ function Dashboard() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           title="Impressions"
           value={fmt(totals?.impressions)}
           icon={BarChart2}
+          loading={summaryQ.isLoading}
+        />
+        <KpiCard
+          title="Views"
+          value={fmt(totals?.views)}
+          icon={Eye}
           loading={summaryQ.isLoading}
         />
         <KpiCard
@@ -234,13 +251,13 @@ function Dashboard() {
               <Link2 className="size-8" />
               <p className="text-sm">No platforms connected yet.</p>
               <Button asChild variant="outline" size="sm">
-                <Link to="/integrations" search={{ connected: undefined, error: undefined }}>Connect a platform</Link>
+                <Link to="/integrations">Connect a platform</Link>
               </Button>
             </div>
           ) : (
             <div className="divide-y">
               {integrations.map((i) => (
-                <IntegrationRow key={i.id} integration={i} />
+                <IntegrationRow key={i.id} integration={i} editable={canManage(currentWorkspace)} />
               ))}
             </div>
           )}
@@ -256,7 +273,7 @@ function Dashboard() {
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link to="/integrations" search={{ connected: undefined, error: undefined }}>
+          <Link to="/integrations">
             <Link2 className="mr-2 size-4" />
             Manage integrations
           </Link>

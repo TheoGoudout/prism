@@ -32,9 +32,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const workspaces = data?.data ?? []
 
-  // Restore from localStorage or fall back to first workspace
+  // Restore from localStorage or fall back to first workspace. Re-runs when
+  // the list changes, so a renamed workspace is refreshed and a deleted (or
+  // left) one is replaced.
   useEffect(() => {
-    if (workspaces.length === 0) return
+    if (workspaces.length === 0) {
+      setCurrentWorkspaceState(null)
+      return
+    }
     const saved = localStorage.getItem(STORAGE_KEY)
     const match = saved ? workspaces.find((w) => w.id === saved) : null
     setCurrentWorkspaceState(match ?? workspaces[0])

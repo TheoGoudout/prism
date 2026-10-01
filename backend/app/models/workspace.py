@@ -2,8 +2,10 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
+from pydantic import EmailStr, model_validator
 from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
+from typing_extensions import Self
 
 from app.models.common import get_datetime_utc
 from app.models.user import User
@@ -98,8 +100,17 @@ class WorkspaceMembersPublic(SQLModel):
 
 
 class WorkspaceMemberAdd(SQLModel):
-    user_id: uuid.UUID
+    """Identify the user to add by id or by the email they signed up with."""
+
+    user_id: uuid.UUID | None = None
+    email: EmailStr | None = Field(default=None, max_length=255)
     role: WorkspaceRole = WorkspaceRole.viewer
+
+    @model_validator(mode="after")
+    def _exactly_one_identifier(self) -> Self:
+        if (self.user_id is None) == (self.email is None):
+            raise ValueError("Provide exactly one of user_id or email")
+        return self
 
 
 class WorkspaceMemberUpdate(SQLModel):

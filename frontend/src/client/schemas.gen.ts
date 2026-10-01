@@ -4,6 +4,7 @@ export const AIRequestSchema = {
     properties: {
         workspace_id: {
             type: 'string',
+            format: 'uuid',
             title: 'Workspace Id'
         },
         platform: {
@@ -1130,9 +1131,29 @@ export const WorkspaceCreateSchema = {
 export const WorkspaceMemberAddSchema = {
     properties: {
         user_id: {
-            type: 'string',
-            format: 'uuid',
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'User Id'
+        },
+        email: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 255,
+                    format: 'email'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Email'
         },
         role: {
             '$ref': '#/components/schemas/WorkspaceRole',
@@ -1140,8 +1161,8 @@ export const WorkspaceMemberAddSchema = {
         }
     },
     type: 'object',
-    required: ['user_id'],
-    title: 'WorkspaceMemberAdd'
+    title: 'WorkspaceMemberAdd',
+    description: 'Identify the user to add by id or by the email they signed up with.'
 } as const;
 
 export const WorkspaceMemberPublicSchema = {

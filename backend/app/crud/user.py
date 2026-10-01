@@ -1,5 +1,6 @@
 from typing import Any
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.security import get_password_hash, verify_password
@@ -38,6 +39,11 @@ def get_user_by_email(*, session: Session, email: str) -> User | None:
     statement = select(User).where(User.email == email)
     session_user = session.exec(statement).first()
     return session_user
+
+
+def get_user_by_email_case_insensitive(*, session: Session, email: str) -> User | None:
+    statement = select(User).where(func.lower(User.email) == email.lower())
+    return session.exec(statement).first()
 
 
 def authenticate(*, session: Session, email: str, password: str) -> User | None:

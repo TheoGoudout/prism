@@ -123,6 +123,8 @@ def get_members(
 def add_member(
     *, session: Session, workspace_id: uuid.UUID, member_in: WorkspaceMemberAdd
 ) -> WorkspaceMember:
+    if member_in.user_id is None:
+        raise ValueError("add_member requires a resolved user_id")
     member = WorkspaceMember(
         workspace_id=workspace_id,
         user_id=member_in.user_id,

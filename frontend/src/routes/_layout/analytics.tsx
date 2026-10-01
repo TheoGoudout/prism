@@ -242,6 +242,7 @@ function AnalyticsPage() {
     timeseriesQ.data?.data.map((p) => ({
       date: p.date.slice(5), // MM-DD
       impressions: p.impressions ?? 0,
+      views: p.views ?? 0,
       engagements: p.engagements ?? 0,
       reach: p.reach ?? 0,
     })) ?? []
@@ -356,6 +357,13 @@ function AnalyticsPage() {
                 />
                 <Line
                   type="monotone"
+                  dataKey="views"
+                  stroke="hsl(32 95% 44%)"
+                  dot={false}
+                  strokeWidth={2}
+                />
+                <Line
+                  type="monotone"
                   dataKey="engagements"
                   stroke="hsl(221 83% 53%)"
                   dot={false}
@@ -387,6 +395,7 @@ function AnalyticsPage() {
                   <TableRow>
                     <TableHead>Platform</TableHead>
                     <TableHead className="text-right">Impressions</TableHead>
+                    <TableHead className="text-right">Views</TableHead>
                     <TableHead className="text-right">Reach</TableHead>
                     <TableHead className="text-right">Engagements</TableHead>
                     <TableHead className="text-right">Followers</TableHead>
@@ -403,6 +412,9 @@ function AnalyticsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {fmt(m.impressions)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {fmt(m.views)}
                         </TableCell>
                         <TableCell className="text-right">
                           {fmt(m.reach)}
@@ -445,6 +457,7 @@ function AnalyticsPage() {
                   <TableHead>Content</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Impressions</TableHead>
+                  <TableHead className="text-right">Views</TableHead>
                   <TableHead className="text-right">Engagements</TableHead>
                   <TableHead className="text-right">Likes</TableHead>
                   <TableHead className="text-right">Comments</TableHead>
@@ -476,6 +489,9 @@ function AnalyticsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {fmt(post.impressions)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {fmt(post.views)}
                     </TableCell>
                     <TableCell className="text-right">
                       {fmt(post.engagements)}
