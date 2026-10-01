@@ -1,8 +1,9 @@
 import re
 import uuid
-from typing import Sequence
+from collections.abc import Sequence
 
-from sqlmodel import Session, select
+from sqlalchemy import func
+from sqlmodel import Session, col, select
 
 from app.models.workspace import (
     Workspace,
@@ -64,21 +65,24 @@ def get_workspaces_for_user(
     *, session: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 100
 ) -> tuple[Sequence[Workspace], int]:
     """Return workspaces the user is a member of, with total count."""
+    on_clause = col(WorkspaceMember.workspace_id) == col(Workspace.id)
     statement = (
         select(Workspace)
-        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
+        .join(WorkspaceMember, on_clause)
         .where(WorkspaceMember.user_id == user_id)
+        .order_by(col(Workspace.created_at))
         .offset(skip)
         .limit(limit)
     )
     workspaces = session.exec(statement).all()
 
     count_statement = (
-        select(Workspace)
-        .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
+        select(func.count())
+        .select_from(Workspace)
+        .join(WorkspaceMember, on_clause)
         .where(WorkspaceMember.user_id == user_id)
     )
-    count = len(session.exec(count_statement).all())
+    count = session.exec(count_statement).one()
     return workspaces, count
 
 

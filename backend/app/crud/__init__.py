@@ -1,12 +1,3 @@
-from app.crud.metrics import (
-    get_latest_snapshot,
-    get_posts,
-    get_snapshots,
-    get_snapshots_for_accounts,
-    get_top_posts,
-    upsert_metric_snapshot,
-    upsert_post,
-)
 from app.crud.integration import (
     create_integration,
     create_platform_account,
@@ -24,6 +15,15 @@ from app.crud.integration import (
     update_integration_tokens,
     upsert_integration,
     upsert_platform_account,
+)
+from app.crud.metrics import (
+    get_latest_snapshot,
+    get_posts,
+    get_snapshots,
+    get_snapshots_for_accounts,
+    get_top_posts,
+    upsert_metric_snapshot,
+    upsert_post,
 )
 from app.crud.user import (
     DUMMY_HASH,

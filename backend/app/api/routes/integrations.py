@@ -143,5 +143,6 @@ def trigger_sync(
             detail="Only workspace owners and admins can trigger syncs",
         )
     from app.worker.tasks.sync import sync_integration
+
     sync_integration.delay(str(integration.id))
     return Message(message="Sync enqueued")

@@ -8,6 +8,7 @@ Fetches:
 Uses the OAuth2 Bearer token (access token) stored in the Integration.
 The Twitter API v2 user metrics endpoint requires OAuth 2.0 with user context.
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -38,7 +39,8 @@ def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[st
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -51,13 +53,10 @@ def _fetch_user_info(token: str) -> dict[str, Any]:
     data = _get(
         "users/me",
         token,
-        {
-            "user.fields": (
-                "id,name,username,profile_image_url,public_metrics"
-            )
-        },
+        {"user.fields": ("id,name,username,profile_image_url,public_metrics")},
     )
-    return data.get("data", {})
+    user: dict[str, Any] = data.get("data", {})
+    return user
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ Fetches:
 
 Uses the LinkedIn REST API v2 with the Bearer token from the Integration.
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -41,7 +42,8 @@ def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[st
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -79,11 +81,22 @@ def _fetch_admin_organizations(token: str) -> list[dict[str, Any]]:
             logo_elements = (
                 org_detail.get("logoV2", {}).get("original~", {}).get("elements", [])
             )
-            avatar_url = logo_elements[0]["identifiers"][0]["identifier"] if logo_elements else None
+            avatar_url = (
+                logo_elements[0]["identifiers"][0]["identifier"]
+                if logo_elements
+                else None
+            )
         except (KeyError, IndexError):
             avatar_url = None
 
-        orgs.append({"org_id": org_id, "org_urn": org_urn, "name": name, "avatar_url": avatar_url})
+        orgs.append(
+            {
+                "org_id": org_id,
+                "org_urn": org_urn,
+                "name": name,
+                "avatar_url": avatar_url,
+            }
+        )
     return orgs
 
 
@@ -132,9 +145,7 @@ def _sync_org_posts(
     org_urn: str,
     token: str,
 ) -> None:
-    start_ms = int(
-        (datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000
-    )
+    start_ms = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
 
     # Fetch recent shares/posts
     shares_resp = _get(
@@ -185,12 +196,10 @@ def _sync_org_posts(
         # Extract text from share content
         text: str | None = None
         try:
-            text = (
-                share.get("text", {}).get("text")
-                or share.get("specificContent", {})
-                .get("com.linkedin.ugc.ShareContent", {})
-                .get("shareCommentary", {})
-                .get("text")
+            text = share.get("text", {}).get("text") or share.get(
+                "specificContent", {}
+            ).get("com.linkedin.ugc.ShareContent", {}).get("shareCommentary", {}).get(
+                "text"
             )
         except (AttributeError, KeyError):
             pass

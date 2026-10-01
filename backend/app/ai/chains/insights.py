@@ -3,6 +3,7 @@ Insights chain — generates actionable bullet-point insights from metrics data.
 
 Returns a JSON array of insight objects parsed directly from the LLM response.
 """
+
 from __future__ import annotations
 
 import json
@@ -62,11 +63,11 @@ def _fmt_platforms(by_platform: dict[str, dict[str, Any]]) -> str:
     return "\n".join(blocks)
 
 
-def build_insights_chain() -> RunnableSerializable[dict[str, Any], list[dict[str, Any]]]:
+def build_insights_chain() -> RunnableSerializable[
+    dict[str, Any], list[dict[str, Any]]
+]:
     """Return a chain that accepts a dict of template vars and returns parsed insights."""
-    prompt = ChatPromptTemplate.from_messages(
-        [("system", _SYSTEM), ("human", _HUMAN)]
-    )
+    prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("human", _HUMAN)])
     llm = get_llm()
 
     def parse_json(text: str) -> list[dict[str, Any]]:
@@ -76,7 +77,7 @@ def build_insights_chain() -> RunnableSerializable[dict[str, Any], list[dict[str
             text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         return json.loads(text)  # type: ignore[no-any-return]
 
-    return prompt | llm | StrOutputParser() | parse_json  # type: ignore[return-value]
+    return prompt | llm | StrOutputParser() | parse_json
 
 
 def build_insights_input(

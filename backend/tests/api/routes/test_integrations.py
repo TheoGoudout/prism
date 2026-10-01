@@ -17,13 +17,15 @@ PREFIX = f"{settings.API_V1_STR}/integrations"
 
 
 def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from tests.utils.utils import random_lower_string, random_email
     from app.crud.user import create_user
     from app.models.user import UserCreate
+    from tests.utils.utils import random_email, random_lower_string
 
     email = random_email()
     password = random_lower_string()
-    user = create_user(session=db, user_create=UserCreate(email=email, password=password))
+    user = create_user(
+        session=db, user_create=UserCreate(email=email, password=password)
+    )
     r = client.post(
         f"{settings.API_V1_STR}/login/access-token",
         data={"username": email, "password": password},
@@ -52,18 +54,24 @@ def test_list_integrations(client: TestClient, db: Session) -> None:
     user, headers = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     create_fake_integration(db, ws, platform=Platform.facebook)
-    create_fake_integration(db, ws, platform=Platform.instagram, external_account_id="ig-1")
+    create_fake_integration(
+        db, ws, platform=Platform.instagram, external_account_id="ig-1"
+    )
 
     r = client.get(PREFIX + "/", headers=headers, params={"workspace_id": str(ws.id)})
     assert r.status_code == 200
     assert r.json()["count"] == 2
 
 
-def test_list_integrations_filtered_by_platform(client: TestClient, db: Session) -> None:
+def test_list_integrations_filtered_by_platform(
+    client: TestClient, db: Session
+) -> None:
     user, headers = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     create_fake_integration(db, ws, platform=Platform.facebook)
-    create_fake_integration(db, ws, platform=Platform.twitter, external_account_id="tw-1")
+    create_fake_integration(
+        db, ws, platform=Platform.twitter, external_account_id="tw-1"
+    )
 
     r = client.get(
         PREFIX + "/",
@@ -76,7 +84,9 @@ def test_list_integrations_filtered_by_platform(client: TestClient, db: Session)
     assert body["data"][0]["platform"] == "facebook"
 
 
-def test_list_integrations_non_member_returns_404(client: TestClient, db: Session) -> None:
+def test_list_integrations_non_member_returns_404(
+    client: TestClient, db: Session
+) -> None:
     owner, _ = _create_user_with_headers(client, db)
     outsider, outsider_headers = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
@@ -94,7 +104,9 @@ def test_list_integrations_workspace_isolation(client: TestClient, db: Session) 
     ws_b = create_random_workspace(db, user_b)
     create_fake_integration(db, ws_a)
 
-    r = client.get(PREFIX + "/", headers=headers_b, params={"workspace_id": str(ws_b.id)})
+    r = client.get(
+        PREFIX + "/", headers=headers_b, params={"workspace_id": str(ws_b.id)}
+    )
     assert r.status_code == 200
     assert r.json()["count"] == 0
 
@@ -133,7 +145,9 @@ def test_get_integration_tokens_never_exposed(client: TestClient, db: Session) -
     assert "fake-refresh-token" not in body_str
 
 
-def test_get_integration_non_member_returns_404(client: TestClient, db: Session) -> None:
+def test_get_integration_non_member_returns_404(
+    client: TestClient, db: Session
+) -> None:
     owner, _ = _create_user_with_headers(client, db)
     outsider, outsider_headers = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
@@ -143,7 +157,9 @@ def test_get_integration_non_member_returns_404(client: TestClient, db: Session)
     assert r.status_code == 404
 
 
-def test_get_integration_not_found(client: TestClient, normal_user_token_headers: dict) -> None:
+def test_get_integration_not_found(
+    client: TestClient, normal_user_token_headers: dict
+) -> None:
     r = client.get(f"{PREFIX}/{uuid.uuid4()}", headers=normal_user_token_headers)
     assert r.status_code == 404
 

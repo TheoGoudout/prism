@@ -4,6 +4,7 @@ Celery application instance.
 Import this module wherever a Celery app reference is needed.
 Tasks are auto-discovered from app.worker.tasks.
 """
+
 from celery import Celery
 from celery.schedules import crontab
 

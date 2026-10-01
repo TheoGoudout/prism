@@ -10,6 +10,7 @@ Uses the Google Analytics Data API v1 with the Bearer token.
 The token may be short-lived; the sync task should refresh it before calling
 (token refresh is handled at the Celery layer via crud.update_integration_tokens).
 """
+
 import logging
 from datetime import date, timedelta
 from typing import Any
@@ -40,18 +41,25 @@ def _get(path: str, token: str, base: str = GA_ADMIN_API) -> dict[str, Any]:
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
-def _post(path: str, token: str, body: dict[str, Any], base: str = GA_DATA_API) -> dict[str, Any]:
+def _post(
+    path: str, token: str, body: dict[str, Any], base: str = GA_DATA_API
+) -> dict[str, Any]:
     resp = httpx.post(
         f"{base}/{path}",
         json=body,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
         timeout=30,
     )
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +138,9 @@ def _sync_property_report(
         except (IndexError, KeyError, ValueError):
             continue
 
-        def _metric(name: str) -> float | None:
+        def _metric(
+            name: str, met_vals: list[dict[str, Any]] = met_vals
+        ) -> float | None:
             try:
                 idx = metric_headers.index(name)
                 return float(met_vals[idx]["value"])
@@ -183,7 +193,8 @@ def sync_google_analytics(session: Session, integration: Integration) -> None:
     properties = _fetch_ga4_properties(token)
     if not properties:
         logger.info(
-            "sync_google_analytics: no GA4 properties for integration %s", integration.id
+            "sync_google_analytics: no GA4 properties for integration %s",
+            integration.id,
         )
         return
 

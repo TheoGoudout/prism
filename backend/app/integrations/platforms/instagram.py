@@ -11,6 +11,7 @@ Uses the Facebook Graph API with the user access token from the Integration.
 Meta retired the Instagram `impressions`, `video_views` and `engagement`
 metrics in 2025; they are replaced by `views` and `total_interactions`.
 """
+
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -129,7 +130,9 @@ def _sync_account_insights(
             "metric": _ACCOUNT_METRICS,
             "period": "day",
             "since": int(
-                datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()
+                datetime(
+                    start.year, start.month, start.day, tzinfo=timezone.utc
+                ).timestamp()
             ),
             "until": int(
                 datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()
@@ -185,8 +188,7 @@ def _sync_media(
         token,
         {
             "fields": (
-                "id,media_type,timestamp,caption,permalink,"
-                "media_url,thumbnail_url"
+                "id,media_type,timestamp,caption,permalink,media_url,thumbnail_url"
             ),
             "limit": 100,
         },

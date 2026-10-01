@@ -5,6 +5,7 @@ Platform-specific sync functions are registered via `register_platform_sync`
 (each module in app.integrations.platforms calls it once on import), so this
 task dispatcher never needs to know about individual platforms.
 """
+
 import logging
 import uuid
 from collections.abc import Callable
@@ -81,7 +82,10 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
                 "sync_integration: no sync registered for platform %s",
                 integration.platform,
             )
-            return {"status": "skipped", "reason": f"no sync for {integration.platform}"}
+            return {
+                "status": "skipped",
+                "reason": f"no sync for {integration.platform}",
+            }
 
         try:
             ensure_fresh_token(session=session, integration=integration)

@@ -1,10 +1,16 @@
 """LinkedIn OAuth2 provider."""
+
 from datetime import timedelta
 
 import httpx
 
 from app.core.config import settings
-from app.integrations.oauth.base import AccountInfo, OAuthProvider, TokenResponse, register
+from app.integrations.oauth.base import (
+    AccountInfo,
+    OAuthProvider,
+    TokenResponse,
+    register,
+)
 from app.models.integration import Platform
 
 
@@ -23,14 +29,18 @@ class LinkedInOAuthProvider(OAuthProvider):
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None
     ) -> TokenResponse:
-        data = self._post_token({
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": redirect_uri,
-            "client_id": self._client_id(),
-            "client_secret": self._client_secret(),
-        })
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 5184000))
+        data = self._post_token(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "client_id": self._client_id(),
+                "client_secret": self._client_secret(),
+            }
+        )
+        expires_at = self._now_utc() + timedelta(
+            seconds=data.get("expires_in", 5184000)
+        )
         return TokenResponse(
             access_token=data["access_token"],
             refresh_token=data.get("refresh_token"),
@@ -39,13 +49,17 @@ class LinkedInOAuthProvider(OAuthProvider):
         )
 
     def refresh(self, refresh_token: str) -> TokenResponse:
-        data = self._post_token({
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": self._client_id(),
-            "client_secret": self._client_secret(),
-        })
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 5184000))
+        data = self._post_token(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": self._client_id(),
+                "client_secret": self._client_secret(),
+            }
+        )
+        expires_at = self._now_utc() + timedelta(
+            seconds=data.get("expires_in", 5184000)
+        )
         return TokenResponse(
             access_token=data["access_token"],
             refresh_token=data.get("refresh_token", refresh_token),
@@ -56,7 +70,9 @@ class LinkedInOAuthProvider(OAuthProvider):
     def get_account_info(self, access_token: str) -> AccountInfo:
         resp = httpx.get(
             "https://api.linkedin.com/v2/me",
-            params={"projection": "(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))"},
+            params={
+                "projection": "(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))"
+            },
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
         )

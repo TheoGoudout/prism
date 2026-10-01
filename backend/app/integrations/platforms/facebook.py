@@ -14,6 +14,7 @@ Metric names follow Meta's November 2025 Page Insights changes, which retired
 the "impressions" and "page fans" metrics in favour of "media views" and
 "follows": https://developers.facebook.com/docs/graph-api/reference/insights/
 """
+
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -66,7 +67,8 @@ def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[st
     p["access_token"] = token
     resp = httpx.get(f"{GRAPH_API}/{path}", params=p, timeout=15)
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +99,9 @@ def _sync_page_insights(
     params: dict[str, Any] = {
         "period": "day",
         "since": int(
-            datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()
+            datetime(
+                start.year, start.month, start.day, tzinfo=timezone.utc
+            ).timestamp()
         ),
         "until": int(
             datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()
@@ -106,7 +110,9 @@ def _sync_page_insights(
 
     entries: list[dict[str, Any]]
     try:
-        resp = _get(f"{page_id}/insights", page_token, {**params, "metric": _PAGE_METRICS})
+        resp = _get(
+            f"{page_id}/insights", page_token, {**params, "metric": _PAGE_METRICS}
+        )
         entries = resp.get("data", [])
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code != 400:
@@ -117,7 +123,9 @@ def _sync_page_insights(
         entries = []
         for metric in _PAGE_METRIC_FIELDS:
             try:
-                single = _get(f"{page_id}/insights", page_token, {**params, "metric": metric})
+                single = _get(
+                    f"{page_id}/insights", page_token, {**params, "metric": metric}
+                )
                 entries.extend(single.get("data", []))
             except httpx.HTTPStatusError as metric_exc:
                 logger.warning(
@@ -234,7 +242,9 @@ def sync_facebook(session: Session, integration: Integration) -> None:
 
     pages = _fetch_managed_pages(user_token)
     if not pages:
-        logger.info("sync_facebook: no managed pages for integration %s", integration.id)
+        logger.info(
+            "sync_facebook: no managed pages for integration %s", integration.id
+        )
         return
 
     for page in pages:

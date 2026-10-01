@@ -1,4 +1,5 @@
 """Instagram Business OAuth2 provider (shares the Facebook/Meta Graph API app)."""
+
 from app.integrations.oauth.base import AccountInfo, register
 from app.integrations.oauth.facebook import FacebookOAuthProvider
 from app.models.integration import Platform
@@ -24,7 +25,9 @@ class InstagramOAuthProvider(FacebookOAuthProvider):
         data = self._graph_get(
             "me/accounts",
             access_token,
-            {"fields": "instagram_business_account{id,name,username,profile_picture_url}"},
+            {
+                "fields": "instagram_business_account{id,name,username,profile_picture_url}"
+            },
         )
         for page in data.get("data", []):
             ig = page.get("instagram_business_account")

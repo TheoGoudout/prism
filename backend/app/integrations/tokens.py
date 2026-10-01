@@ -5,6 +5,7 @@ Called by the sync task before each platform sync. Most providers issue
 short-lived access tokens (Google ~1h, Twitter ~2h, TikTok ~24h) so without
 this every nightly sync after the first would fail.
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 

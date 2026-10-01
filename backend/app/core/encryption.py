@@ -8,6 +8,7 @@ a timestamp, making ciphertexts tamper-evident and unique per encryption call.
 Each use gets its own key (domain separation), so a ciphertext produced for
 one purpose can never be replayed as another.
 """
+
 import base64
 import hashlib
 import json

@@ -1,4 +1,5 @@
 """Tests for access-token refresh before sync (app.integrations.tokens)."""
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -31,7 +32,9 @@ def _integration(
     return integ
 
 
-def _provider(refresh_result: TokenResponse | Exception, credential: str | None = "cred") -> MagicMock:
+def _provider(
+    refresh_result: TokenResponse | Exception, credential: str | None = "cred"
+) -> MagicMock:
     provider = MagicMock()
     provider.refresh_credential.return_value = credential
     if isinstance(refresh_result, Exception):
@@ -91,7 +94,9 @@ def test_expired_token_is_refreshed_and_stored(db: Session) -> None:
 def test_meta_token_renewed_a_week_ahead(db: Session) -> None:
     integ = _integration(db, Platform.facebook, timedelta(days=3))
     provider = _provider(
-        TokenResponse(access_token="renewed", refresh_token=None, expires_at=None, raw={})
+        TokenResponse(
+            access_token="renewed", refresh_token=None, expires_at=None, raw={}
+        )
     )
     with patch(PROVIDER, return_value=provider):
         ensure_fresh_token(session=db, integration=integ)

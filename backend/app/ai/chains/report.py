@@ -1,6 +1,7 @@
 """
 Report chain — generates a markdown performance report from full metrics data.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -76,9 +77,7 @@ def _fmt_posts(posts: list[dict[str, Any]]) -> str:
 
 
 def build_report_chain() -> RunnableSerializable[dict[str, Any], str]:
-    prompt = ChatPromptTemplate.from_messages(
-        [("system", _SYSTEM), ("human", _HUMAN)]
-    )
+    prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("human", _HUMAN)])
     llm = get_llm()
     return prompt | llm | StrOutputParser()
 

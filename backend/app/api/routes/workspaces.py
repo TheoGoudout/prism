@@ -5,9 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app import crud
 from app.api.deps import CurrentUser, SessionDep
+from app.models.common import Message
 from app.models.user import User
 from app.models.workspace import (
+    Workspace,
     WorkspaceCreate,
+    WorkspaceMember,
     WorkspaceMemberAdd,
     WorkspaceMemberPublic,
     WorkspaceMembersPublic,
@@ -16,10 +19,7 @@ from app.models.workspace import (
     WorkspaceRole,
     WorkspacesPublic,
     WorkspaceUpdate,
-    WorkspaceMember,
-    Workspace,
 )
-from app.models.common import Message
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -49,7 +49,9 @@ def _require_membership(
 
 
 def _require_role(
-    member: WorkspaceMember, *roles: WorkspaceRole, detail: str = "Insufficient permissions"
+    member: WorkspaceMember,
+    *roles: WorkspaceRole,
+    detail: str = "Insufficient permissions",
 ) -> None:
     if member.role not in roles:
         raise HTTPException(status_code=403, detail=detail)
@@ -59,7 +61,9 @@ WorkspaceDep = Annotated[Workspace, Depends(_get_workspace_or_404)]
 MembershipDep = Annotated[WorkspaceMember, Depends(_require_membership)]
 
 
-def _make_workspace_public(workspace: Workspace, role: WorkspaceRole) -> WorkspacePublic:
+def _make_workspace_public(
+    workspace: Workspace, role: WorkspaceRole
+) -> WorkspacePublic:
     return WorkspacePublic(
         id=workspace.id,
         name=workspace.name,
@@ -158,7 +162,7 @@ def delete_workspace(
 
 @router.get("/{workspace_id}/members", response_model=WorkspaceMembersPublic)
 def list_members(
-    membership: MembershipDep,
+    _membership: MembershipDep,  # membership check only
     workspace: WorkspaceDep,
     session: SessionDep,
 ) -> Any:
@@ -183,9 +187,7 @@ def add_member(
 
     # Owners can only be set by existing owners
     if member_in.role == WorkspaceRole.owner and membership.role != WorkspaceRole.owner:
-        raise HTTPException(
-            status_code=403, detail="Only owners can add other owners"
-        )
+        raise HTTPException(status_code=403, detail="Only owners can add other owners")
 
     # Check the target user exists
     if member_in.email is not None:
@@ -240,7 +242,8 @@ def update_member(
     # Prevent removing the last owner
     if target.role == WorkspaceRole.owner and member_in.role != WorkspaceRole.owner:
         owners = [
-            m for m in crud.get_members(session=session, workspace_id=workspace.id)
+            m
+            for m in crud.get_members(session=session, workspace_id=workspace.id)
             if m.role == WorkspaceRole.owner
         ]
         if len(owners) <= 1:
@@ -275,7 +278,10 @@ def remove_member(
     if not is_self:
         _require_role(membership, WorkspaceRole.owner, WorkspaceRole.admin)
         # Admins cannot remove owners
-        if target.role == WorkspaceRole.owner and membership.role != WorkspaceRole.owner:
+        if (
+            target.role == WorkspaceRole.owner
+            and membership.role != WorkspaceRole.owner
+        ):
             raise HTTPException(
                 status_code=403, detail="Only owners can remove other owners"
             )
@@ -283,7 +289,8 @@ def remove_member(
     # Prevent removing the last owner
     if target.role == WorkspaceRole.owner:
         owners = [
-            m for m in crud.get_members(session=session, workspace_id=workspace.id)
+            m
+            for m in crud.get_members(session=session, workspace_id=workspace.id)
             if m.role == WorkspaceRole.owner
         ]
         if len(owners) <= 1:

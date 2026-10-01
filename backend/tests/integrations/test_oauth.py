@@ -2,6 +2,7 @@
 OAuth2 provider unit tests and connect/callback route tests.
 All external HTTP calls are mocked — no real provider is contacted.
 """
+
 import urllib.parse
 import uuid
 from datetime import datetime, timezone
@@ -14,10 +15,10 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.integrations.oauth.base import OAuthState, get_provider
 from app.integrations.oauth.facebook import facebook_provider
-from app.integrations.oauth.instagram import instagram_provider
-from app.integrations.oauth.twitter import twitter_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
+from app.integrations.oauth.instagram import instagram_provider
 from app.integrations.oauth.tiktok import tiktok_provider
+from app.integrations.oauth.twitter import twitter_provider
 from app.models.integration import Platform
 
 PREFIX = f"{settings.API_V1_STR}/oauth"
@@ -29,13 +30,15 @@ PREFIX = f"{settings.API_V1_STR}/oauth"
 
 
 def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from tests.utils.utils import random_lower_string, random_email
     from app.crud.user import create_user
     from app.models.user import UserCreate
+    from tests.utils.utils import random_email, random_lower_string
 
     email = random_email()
     password = random_lower_string()
-    user = create_user(session=db, user_create=UserCreate(email=email, password=password))
+    user = create_user(
+        session=db, user_create=UserCreate(email=email, password=password)
+    )
     r = client.post(
         f"{settings.API_V1_STR}/login/access-token",
         data={"username": email, "password": password},
@@ -94,9 +97,7 @@ def test_state_decode_invalid_raises() -> None:
 
 def test_state_decode_forged_plain_json_raises() -> None:
     """The pre-fix format (plain URL-encoded JSON) must be rejected."""
-    forged = urllib.parse.quote(
-        '{"workspace_id": "%s", "csrf": "x"}' % uuid.uuid4()
-    )
+    forged = urllib.parse.quote(f'{{"workspace_id": "{uuid.uuid4()}", "csrf": "x"}}')
     with pytest.raises(ValueError):
         OAuthState.decode(forged)
 
@@ -171,7 +172,9 @@ def test_facebook_refresh() -> None:
     mock_response.json.return_value = {"access_token": "fb-long", "expires_in": 5184000}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("app.integrations.oauth.facebook.httpx.post", return_value=mock_response):
+    with patch(
+        "app.integrations.oauth.facebook.httpx.post", return_value=mock_response
+    ):
         result = facebook_provider.refresh("old-token")
 
     assert result.access_token == "fb-long"
@@ -202,14 +205,16 @@ def test_facebook_get_account_info() -> None:
 def test_instagram_get_account_info_with_ig_account() -> None:
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "data": [{
-            "id": "page-1",
-            "instagram_business_account": {
-                "id": "ig-789",
-                "name": "My IG",
-                "profile_picture_url": "https://example.com/ig.jpg",
+        "data": [
+            {
+                "id": "page-1",
+                "instagram_business_account": {
+                    "id": "ig-789",
+                    "name": "My IG",
+                    "profile_picture_url": "https://example.com/ig.jpg",
+                },
             }
-        }]
+        ]
     }
     mock_response.raise_for_status = MagicMock()
 
@@ -281,7 +286,11 @@ def test_twitter_exchange_code() -> None:
 def test_twitter_get_account_info() -> None:
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "data": {"id": "tw-uid", "name": "Twitter User", "profile_image_url": "https://pbs.twimg.com/img.jpg"}
+        "data": {
+            "id": "tw-uid",
+            "name": "Twitter User",
+            "profile_image_url": "https://pbs.twimg.com/img.jpg",
+        }
     }
     mock_response.raise_for_status = MagicMock()
 
@@ -309,7 +318,9 @@ def test_google_analytics_refresh_keeps_same_refresh_token() -> None:
     mock_response.json.return_value = {"access_token": "new-ga-tok", "expires_in": 3600}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("app.integrations.oauth.google_analytics.httpx.post", return_value=mock_response):
+    with patch(
+        "app.integrations.oauth.google_analytics.httpx.post", return_value=mock_response
+    ):
         result = google_analytics_provider.refresh("original-refresh")
 
     assert result.refresh_token == "original-refresh"
@@ -323,6 +334,7 @@ def test_google_analytics_refresh_keeps_same_refresh_token() -> None:
 def test_connect_returns_authorization_url(client: TestClient, db: Session) -> None:
     user, headers = _create_user_with_headers(client, db)
     from tests.utils.workspace import create_random_workspace
+
     ws = create_random_workspace(db, user)
 
     r = client.get(
@@ -411,6 +423,7 @@ def test_connect_non_member_returns_404(client: TestClient, db: Session) -> None
 
 def _mock_token_response():  # type: ignore[no-untyped-def]
     from app.integrations.oauth.base import TokenResponse
+
     return TokenResponse(
         access_token="cb-access-tok",
         refresh_token="cb-refresh-tok",
@@ -421,6 +434,7 @@ def _mock_token_response():  # type: ignore[no-untyped-def]
 
 def _mock_account_info():  # type: ignore[no-untyped-def]
     from app.integrations.oauth.base import AccountInfo
+
     return AccountInfo(external_id="ext-cb-123", name="Callback Page", avatar_url=None)
 
 
@@ -445,7 +459,10 @@ def test_callback_creates_integration(client: TestClient, db: Session) -> None:
     state = _make_state(ws.id, user.id)
 
     with (
-        patch("app.integrations.oauth.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "app.integrations.oauth.registry.get_provider",
+            return_value=_mock_provider(),
+        ),
         patch("app.worker.tasks.sync.sync_integration") as mock_task,
     ):
         r = _callback(client, code="auth-code", state=state)
@@ -473,7 +490,10 @@ def test_callback_reconnect_updates_existing_integration(
     ws = create_random_workspace(db, user)
 
     with (
-        patch("app.integrations.oauth.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "app.integrations.oauth.registry.get_provider",
+            return_value=_mock_provider(),
+        ),
         patch("app.worker.tasks.sync.sync_integration"),
     ):
         _callback(client, code="c1", state=_make_state(ws.id, user.id))
@@ -517,9 +537,7 @@ def test_callback_forged_state_does_not_create_integration(
 
     victim, _ = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, victim)
-    forged = urllib.parse.quote(
-        '{"workspace_id": "%s", "csrf": "anything"}' % ws.id
-    )
+    forged = urllib.parse.quote(f'{{"workspace_id": "{ws.id}", "csrf": "anything"}}')
     provider = _mock_provider()
 
     with patch("app.integrations.oauth.registry.get_provider", return_value=provider):
@@ -573,7 +591,9 @@ def test_callback_rejects_user_no_longer_admin(client: TestClient, db: Session) 
     provider.exchange_code.assert_not_called()
 
 
-def test_callback_provider_error_redirects_with_error(client: TestClient, db: Session) -> None:
+def test_callback_provider_error_redirects_with_error(
+    client: TestClient, db: Session
+) -> None:
     from tests.utils.workspace import create_random_workspace
 
     user, _ = _create_user_with_headers(client, db)
@@ -583,7 +603,9 @@ def test_callback_provider_error_redirects_with_error(client: TestClient, db: Se
     mock_provider = MagicMock()
     mock_provider.exchange_code.side_effect = Exception("secret internal detail")
 
-    with patch("app.integrations.oauth.registry.get_provider", return_value=mock_provider):
+    with patch(
+        "app.integrations.oauth.registry.get_provider", return_value=mock_provider
+    ):
         r = _callback(client, code="bad-code", state=state)
 
     assert r.status_code == 302

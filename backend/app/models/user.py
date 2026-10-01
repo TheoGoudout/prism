@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
 from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.common import get_datetime_utc
+
+if TYPE_CHECKING:
+    from app.models.workspace import WorkspaceMember
 
 
 # Shared properties
@@ -51,7 +55,9 @@ class User(UserBase, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
-    workspace_memberships: list["WorkspaceMember"] = Relationship(back_populates="user", cascade_delete=True)  # type: ignore[name-defined]
+    workspace_memberships: list["WorkspaceMember"] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
 
 
 # Properties to return via API, id is always required

@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.common import get_datetime_utc
 from app.models.workspace import Workspace
+
+if TYPE_CHECKING:
+    from app.models.metrics import MetricSnapshot, Post
 
 
 class Platform(str, Enum):
@@ -44,7 +48,8 @@ class Integration(SQLModel, table=True):
     access_token_encrypted: str | None = Field(default=None)
     refresh_token_encrypted: str | None = Field(default=None)
     token_expires_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)  # type: ignore
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
 
     # External account snapshot (cached at connect time)
@@ -54,7 +59,8 @@ class Integration(SQLModel, table=True):
 
     # Sync state
     last_synced_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)  # type: ignore
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
     sync_error: str | None = Field(default=None, max_length=1024)
 
@@ -98,8 +104,12 @@ class PlatformAccount(SQLModel, table=True):
 
     integration: Integration | None = Relationship(back_populates="accounts")
     workspace: Workspace | None = Relationship(back_populates="platform_accounts")
-    metric_snapshots: list["MetricSnapshot"] = Relationship(back_populates="platform_account", cascade_delete=True)  # type: ignore[name-defined]
-    posts: list["Post"] = Relationship(back_populates="platform_account", cascade_delete=True)  # type: ignore[name-defined]
+    metric_snapshots: list["MetricSnapshot"] = Relationship(
+        back_populates="platform_account", cascade_delete=True
+    )
+    posts: list["Post"] = Relationship(
+        back_populates="platform_account", cascade_delete=True
+    )
 
 
 # ---------------------------------------------------------------------------

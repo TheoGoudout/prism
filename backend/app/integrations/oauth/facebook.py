@@ -1,4 +1,5 @@
 """Facebook / Meta OAuth2 provider (also the base for Instagram Business)."""
+
 from datetime import timedelta
 from typing import Any
 
@@ -73,9 +74,7 @@ class FacebookOAuthProvider(OAuthProvider):
         return access_token
 
     def get_account_info(self, access_token: str) -> AccountInfo:
-        data = self._graph_get(
-            "me", access_token, {"fields": "id,name,picture"}
-        )
+        data = self._graph_get("me", access_token, {"fields": "id,name,picture"})
         return AccountInfo(
             external_id=data["id"],
             name=data["name"],

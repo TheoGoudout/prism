@@ -2,8 +2,8 @@
 Tests for the Twitter/X sync module.
 All HTTP calls are mocked — no real Twitter API calls.
 """
+
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -18,7 +18,6 @@ from app.integrations.platforms.twitter import (
 from app.models.integration import Platform
 from app.models.metrics import ContentType
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

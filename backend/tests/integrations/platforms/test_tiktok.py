@@ -2,6 +2,7 @@
 Tests for the TikTok sync module.
 All HTTP calls are mocked — no real TikTok API calls.
 """
+
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -18,7 +19,6 @@ from app.integrations.platforms.tiktok import (
 from app.models.integration import Platform
 from app.models.metrics import ContentType
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -54,9 +54,9 @@ def test_tiktok_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.tiktok.httpx.post")
-def test_fetch_user_info_returns_data(mock_post):
-    mock_post.return_value = MagicMock(
+@patch("app.integrations.platforms.tiktok.httpx.get")
+def test_fetch_user_info_returns_data(mock_get):
+    mock_get.return_value = MagicMock(
         status_code=200,
         json=lambda: {
             "data": {
@@ -69,9 +69,10 @@ def test_fetch_user_info_returns_data(mock_post):
             }
         },
     )
-    mock_post.return_value.raise_for_status = MagicMock()
+    mock_get.return_value.raise_for_status = MagicMock()
 
     info = _fetch_user_info("token")
+    assert mock_get.call_args.kwargs["params"]["fields"].startswith("open_id,")
     assert info["open_id"] == "oid-1"
     assert info["follower_count"] == 50000
 
@@ -114,7 +115,6 @@ def test_sync_videos_upserts_recent_videos(mock_post, mock_crud):
                     "like_count": 5000,
                     "comment_count": 300,
                     "share_count": 200,
-                    "play_count": 100000,
                 }
             ]
         }
@@ -124,6 +124,9 @@ def test_sync_videos_upserts_recent_videos(mock_post, mock_crud):
 
     _sync_videos(MagicMock(), uuid.uuid4(), "token")
 
+    # Fields go in the query string, options in the JSON body
+    assert "view_count" in mock_post.call_args.kwargs["params"]["fields"]
+    assert mock_post.call_args.kwargs["json"] == {"max_count": 20}
     mock_crud.upsert_post.assert_called_once()
     post = mock_crud.upsert_post.call_args.kwargs["post_in"]
     assert post.external_id == "vid-1"
@@ -137,13 +140,7 @@ def test_sync_videos_upserts_recent_videos(mock_post, mock_crud):
 @patch("app.integrations.platforms.tiktok.httpx.post")
 def test_sync_videos_skips_old_videos(mock_post, mock_crud):
     old_ts = int((datetime.now(timezone.utc) - timedelta(days=35)).timestamp())
-    videos_resp = {
-        "data": {
-            "videos": [
-                {"id": "old-vid", "create_time": old_ts}
-            ]
-        }
-    }
+    videos_resp = {"data": {"videos": [{"id": "old-vid", "create_time": old_ts}]}}
     mock_post.return_value = MagicMock(status_code=200, json=lambda: videos_resp)
     mock_post.return_value.raise_for_status = MagicMock()
 
@@ -185,7 +182,9 @@ def test_sync_tiktok_upserts_account_and_calls_sub_syncs(
         "follower_count": 5000,
         "video_count": 40,
     }
-    with patch("app.integrations.platforms.tiktok._fetch_user_info", return_value=user_info):
+    with patch(
+        "app.integrations.platforms.tiktok._fetch_user_info", return_value=user_info
+    ):
         sync_tiktok(MagicMock(), integ)
 
     mock_crud.upsert_platform_account.assert_called_once()
@@ -214,7 +213,9 @@ def test_sync_tiktok_video_error_does_not_raise(mock_crud, mock_snapshot, mock_v
     )
 
     user_info = {"open_id": "oid-1", "display_name": "X", "follower_count": 100}
-    with patch("app.integrations.platforms.tiktok._fetch_user_info", return_value=user_info):
+    with patch(
+        "app.integrations.platforms.tiktok._fetch_user_info", return_value=user_info
+    ):
         sync_tiktok(MagicMock(), integ)  # should not raise
 
     mock_snapshot.assert_called_once()

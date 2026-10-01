@@ -2,8 +2,9 @@
 Tests for the Instagram Business sync module.
 All HTTP calls are mocked — no real Graph API calls.
 """
+
 import uuid
-from datetime import date, datetime
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -18,7 +19,6 @@ from app.integrations.platforms.instagram import (
 from app.models.integration import Platform
 from app.models.metrics import ContentType
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -129,7 +129,9 @@ def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
     _sync_account_insights(MagicMock(), account_id, "ig-111", "tok")
 
     assert mock_crud.upsert_metric_snapshot.call_count == 2
-    snapshots = [c.kwargs["snapshot_in"] for c in mock_crud.upsert_metric_snapshot.call_args_list]
+    snapshots = [
+        c.kwargs["snapshot_in"] for c in mock_crud.upsert_metric_snapshot.call_args_list
+    ]
     dates = {s.date for s in snapshots}
     assert date(2024, 2, 1) in dates
     assert date(2024, 2, 2) in dates
@@ -296,7 +298,10 @@ def test_sync_instagram_processes_all_accounts(mock_crud, mock_insights, mock_me
         {"ig_id": "ig-A", "name": "Brand A", "avatar_url": None, "page_token": "tok-A"},
         {"ig_id": "ig-B", "name": "Brand B", "avatar_url": None, "page_token": "tok-B"},
     ]
-    mock_crud.upsert_platform_account.side_effect = [_make_account("ig-A"), _make_account("ig-B")]
+    mock_crud.upsert_platform_account.side_effect = [
+        _make_account("ig-A"),
+        _make_account("ig-B"),
+    ]
 
     with patch(
         "app.integrations.platforms.instagram._fetch_instagram_accounts",
@@ -318,7 +323,9 @@ def test_sync_instagram_no_token_raises(mock_crud):
         sync_instagram(MagicMock(), integ)
 
 
-@patch("app.integrations.platforms.instagram._fetch_instagram_accounts", return_value=[])
+@patch(
+    "app.integrations.platforms.instagram._fetch_instagram_accounts", return_value=[]
+)
 @patch("app.integrations.platforms.instagram.crud")
 def test_sync_instagram_no_accounts_is_noop(mock_crud, _):
     integ = _make_integration()
@@ -332,7 +339,9 @@ def test_sync_instagram_no_accounts_is_noop(mock_crud, _):
 @patch("app.integrations.platforms.instagram._sync_media")
 @patch("app.integrations.platforms.instagram._sync_account_insights")
 @patch("app.integrations.platforms.instagram.crud")
-def test_sync_instagram_insights_error_continues_to_media(mock_crud, mock_insights, mock_media):
+def test_sync_instagram_insights_error_continues_to_media(
+    mock_crud, mock_insights, mock_media
+):
     integ = _make_integration()
     mock_crud.get_access_token.return_value = "user-tok"
     mock_crud.upsert_platform_account.return_value = _make_account()
@@ -342,7 +351,9 @@ def test_sync_instagram_insights_error_continues_to_media(mock_crud, mock_insigh
 
     with patch(
         "app.integrations.platforms.instagram._fetch_instagram_accounts",
-        return_value=[{"ig_id": "ig-X", "name": "X", "avatar_url": None, "page_token": "tok"}],
+        return_value=[
+            {"ig_id": "ig-X", "name": "X", "avatar_url": None, "page_token": "tok"}
+        ],
     ):
         sync_instagram(MagicMock(), integ)
 

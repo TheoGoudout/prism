@@ -5,6 +5,7 @@ Switching providers is a one-line change in .env (AI_PROVIDER / AI_MODEL).
 LangSmith tracing is enabled automatically when LANGCHAIN_TRACING_V2=true and
 LANGCHAIN_API_KEY are set in the environment; no code changes needed.
 """
+
 from langchain_core.language_models import BaseChatModel
 
 from app.core.config import settings
@@ -27,7 +28,7 @@ def get_llm() -> BaseChatModel:
 
         return ChatGoogleGenerativeAI(
             model=settings.AI_MODEL,
-            google_api_key=settings.GOOGLE_API_KEY or None,  # type: ignore[arg-type]
+            google_api_key=settings.GOOGLE_API_KEY or None,
         )
 
     # Default: OpenAI

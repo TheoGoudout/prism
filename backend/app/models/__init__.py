@@ -1,29 +1,12 @@
-from app.models.common import Message, NewPassword, Token, TokenPayload, get_datetime_utc
-from app.models.user import (
-    UpdatePassword,
-    User,
-    UserBase,
-    UserCreate,
-    UserPublic,
-    UserRegister,
-    UsersPublic,
-    UserUpdate,
-    UserUpdateMe,
-)
-from app.models.metrics import (
-    ContentType,
-    MetricSnapshot,
-    MetricSnapshotPublic,
-    MetricSnapshotsPublic,
-    MetricSnapshotUpsert,
-    MetricsSummary,
-    MetricTotals,
-    MetricsTimeSeries,
-    TimeSeriesPoint,
-    Post,
-    PostPublic,
-    PostsPublic,
-    PostUpsert,
+# Re-export SQLModel so alembic env.py can do `from app.models import SQLModel`
+from sqlmodel import SQLModel
+
+from app.models.common import (
+    Message,
+    NewPassword,
+    Token,
+    TokenPayload,
+    get_datetime_utc,
 )
 from app.models.integration import (
     Integration,
@@ -36,6 +19,32 @@ from app.models.integration import (
     PlatformAccountCreate,
     PlatformAccountPublic,
     PlatformAccountsPublic,
+)
+from app.models.metrics import (
+    ContentType,
+    MetricSnapshot,
+    MetricSnapshotPublic,
+    MetricSnapshotsPublic,
+    MetricSnapshotUpsert,
+    MetricsSummary,
+    MetricsTimeSeries,
+    MetricTotals,
+    Post,
+    PostPublic,
+    PostsPublic,
+    PostUpsert,
+    TimeSeriesPoint,
+)
+from app.models.user import (
+    UpdatePassword,
+    User,
+    UserBase,
+    UserCreate,
+    UserPublic,
+    UserRegister,
+    UsersPublic,
+    UserUpdate,
+    UserUpdateMe,
 )
 from app.models.workspace import (
     Workspace,
@@ -50,9 +59,6 @@ from app.models.workspace import (
     WorkspacesPublic,
     WorkspaceUpdate,
 )
-
-# Re-export SQLModel so alembic env.py can do `from app.models import SQLModel`
-from sqlmodel import SQLModel
 
 __all__ = [
     "SQLModel",

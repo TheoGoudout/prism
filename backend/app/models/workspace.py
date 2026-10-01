@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from pydantic import EmailStr, model_validator
 from sqlalchemy import DateTime
@@ -9,6 +10,9 @@ from typing_extensions import Self
 
 from app.models.common import get_datetime_utc
 from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.integration import Integration, PlatformAccount
 
 
 class WorkspaceRole(str, Enum):
@@ -33,8 +37,12 @@ class Workspace(SQLModel, table=True):
     members: list["WorkspaceMember"] = Relationship(
         back_populates="workspace", cascade_delete=True
     )
-    integrations: list["Integration"] = Relationship(back_populates="workspace", cascade_delete=True)  # type: ignore[name-defined]
-    platform_accounts: list["PlatformAccount"] = Relationship(back_populates="workspace", cascade_delete=True)  # type: ignore[name-defined]
+    integrations: list["Integration"] = Relationship(
+        back_populates="workspace", cascade_delete=True
+    )
+    platform_accounts: list["PlatformAccount"] = Relationship(
+        back_populates="workspace", cascade_delete=True
+    )
 
 
 class WorkspaceMember(SQLModel, table=True):

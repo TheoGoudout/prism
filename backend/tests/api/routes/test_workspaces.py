@@ -5,9 +5,6 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.models.workspace import WorkspaceRole
-from tests.utils.user import create_random_user
-from tests.utils.workspace import create_random_workspace
-
 
 PREFIX = f"{settings.API_V1_STR}/workspaces"
 
@@ -27,13 +24,15 @@ def _auth(client: TestClient, email: str, password: str) -> dict[str, str]:
 
 def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
     """Return (user, password, auth_headers)."""
-    from tests.utils.utils import random_lower_string, random_email
     from app.crud.user import create_user
     from app.models.user import UserCreate
+    from tests.utils.utils import random_email, random_lower_string
 
     email = random_email()
     password = random_lower_string()
-    user = create_user(session=db, user_create=UserCreate(email=email, password=password))
+    user = create_user(
+        session=db, user_create=UserCreate(email=email, password=password)
+    )
     headers = _auth(client, email, password)
     return user, password, headers
 
@@ -43,7 +42,9 @@ def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def test_create_workspace(client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
+def test_create_workspace(
+    client: TestClient, normal_user_token_headers: dict, db: Session
+) -> None:
     data = {"name": "My Brand"}
     r = client.post(PREFIX + "/", headers=normal_user_token_headers, json=data)
     assert r.status_code == 200
@@ -53,7 +54,9 @@ def test_create_workspace(client: TestClient, normal_user_token_headers: dict, d
     assert body["role"] == WorkspaceRole.owner
 
 
-def test_create_workspace_custom_slug(client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
+def test_create_workspace_custom_slug(
+    client: TestClient, normal_user_token_headers: dict, db: Session
+) -> None:
     data = {"name": "My Brand", "slug": "custom-slug"}
     r = client.post(PREFIX + "/", headers=normal_user_token_headers, json=data)
     assert r.status_code == 200
@@ -81,9 +84,13 @@ def test_create_workspace_requires_auth(client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_list_workspaces(client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
+def test_list_workspaces(
+    client: TestClient, normal_user_token_headers: dict, db: Session
+) -> None:
     # ensure at least one workspace exists for this user
-    client.post(PREFIX + "/", headers=normal_user_token_headers, json={"name": "Listed WS"})
+    client.post(
+        PREFIX + "/", headers=normal_user_token_headers, json={"name": "Listed WS"}
+    )
     r = client.get(PREFIX + "/", headers=normal_user_token_headers)
     assert r.status_code == 200
     body = r.json()
@@ -108,8 +115,12 @@ def test_list_workspaces_only_own(client: TestClient, db: Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_get_workspace(client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
-    r_create = client.post(PREFIX + "/", headers=normal_user_token_headers, json={"name": "Get Me"})
+def test_get_workspace(
+    client: TestClient, normal_user_token_headers: dict, db: Session
+) -> None:
+    r_create = client.post(
+        PREFIX + "/", headers=normal_user_token_headers, json={"name": "Get Me"}
+    )
     ws_id = r_create.json()["id"]
     r = client.get(f"{PREFIX}/{ws_id}", headers=normal_user_token_headers)
     assert r.status_code == 200
@@ -125,7 +136,9 @@ def test_get_workspace_not_member_returns_404(client: TestClient, db: Session) -
     assert r.status_code == 404
 
 
-def test_get_workspace_nonexistent(client: TestClient, normal_user_token_headers: dict) -> None:
+def test_get_workspace_nonexistent(
+    client: TestClient, normal_user_token_headers: dict
+) -> None:
     r = client.get(f"{PREFIX}/{uuid.uuid4()}", headers=normal_user_token_headers)
     assert r.status_code == 404
 
@@ -135,15 +148,25 @@ def test_get_workspace_nonexistent(client: TestClient, normal_user_token_headers
 # ---------------------------------------------------------------------------
 
 
-def test_update_workspace_name(client: TestClient, normal_user_token_headers: dict, db: Session) -> None:
-    r = client.post(PREFIX + "/", headers=normal_user_token_headers, json={"name": "Old Name"})
+def test_update_workspace_name(
+    client: TestClient, normal_user_token_headers: dict, db: Session
+) -> None:
+    r = client.post(
+        PREFIX + "/", headers=normal_user_token_headers, json={"name": "Old Name"}
+    )
     ws_id = r.json()["id"]
-    r = client.patch(f"{PREFIX}/{ws_id}", headers=normal_user_token_headers, json={"name": "New Name"})
+    r = client.patch(
+        f"{PREFIX}/{ws_id}",
+        headers=normal_user_token_headers,
+        json={"name": "New Name"},
+    )
     assert r.status_code == 200
     assert r.json()["name"] == "New Name"
 
 
-def test_update_workspace_requires_owner_or_admin(client: TestClient, db: Session) -> None:
+def test_update_workspace_requires_owner_or_admin(
+    client: TestClient, db: Session
+) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
     viewer, _, viewer_headers = _create_user_with_headers(client, db)
 
@@ -157,7 +180,9 @@ def test_update_workspace_requires_owner_or_admin(client: TestClient, db: Sessio
         json={"user_id": str(viewer.id), "role": "viewer"},
     )
 
-    r = client.patch(f"{PREFIX}/{ws_id}", headers=viewer_headers, json={"name": "Hacked"})
+    r = client.patch(
+        f"{PREFIX}/{ws_id}", headers=viewer_headers, json={"name": "Hacked"}
+    )
     assert r.status_code == 403
 
 
@@ -183,7 +208,9 @@ def test_delete_workspace_requires_owner(client: TestClient, db: Session) -> Non
     owner, _, owner_headers = _create_user_with_headers(client, db)
     admin, _, admin_headers = _create_user_with_headers(client, db)
 
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Owner Only Delete"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Owner Only Delete"}
+    )
     ws_id = r.json()["id"]
     client.post(
         f"{PREFIX}/{ws_id}/members",
@@ -260,7 +287,9 @@ def test_add_member_by_email(client: TestClient, db: Session) -> None:
 
 def test_add_member_unknown_email_returns_404(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Ghost Email WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Ghost Email WS"}
+    )
     ws_id = r.json()["id"]
 
     r = client.post(
@@ -284,13 +313,17 @@ def test_add_member_requires_exactly_one_identifier(
         {"role": "viewer"},
         {"user_id": str(new_user.id), "email": new_user.email},
     ):
-        r = client.post(f"{PREFIX}/{ws_id}/members", headers=owner_headers, json=payload)
+        r = client.post(
+            f"{PREFIX}/{ws_id}/members", headers=owner_headers, json=payload
+        )
         assert r.status_code == 422
 
 
 def test_add_member_nonexistent_user(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Ghost Member WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Ghost Member WS"}
+    )
     ws_id = r.json()["id"]
 
     r = client.post(
@@ -306,7 +339,9 @@ def test_viewer_cannot_add_member(client: TestClient, db: Session) -> None:
     viewer, _, viewer_headers = _create_user_with_headers(client, db)
     outsider, _, _ = _create_user_with_headers(client, db)
 
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Viewer Perm WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Viewer Perm WS"}
+    )
     ws_id = r.json()["id"]
     client.post(
         f"{PREFIX}/{ws_id}/members",
@@ -326,7 +361,9 @@ def test_update_member_role(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
     member, _, _ = _create_user_with_headers(client, db)
 
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Role Update WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Role Update WS"}
+    )
     ws_id = r.json()["id"]
     client.post(
         f"{PREFIX}/{ws_id}/members",
@@ -345,7 +382,9 @@ def test_update_member_role(client: TestClient, db: Session) -> None:
 
 def test_cannot_demote_last_owner(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Single Owner WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Single Owner WS"}
+    )
     ws_id = r.json()["id"]
 
     r = client.patch(
@@ -360,7 +399,9 @@ def test_remove_member(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
     member, _, member_headers = _create_user_with_headers(client, db)
 
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Remove Test WS"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Remove Test WS"}
+    )
     ws_id = r.json()["id"]
     client.post(
         f"{PREFIX}/{ws_id}/members",
@@ -394,7 +435,9 @@ def test_member_can_remove_themselves(client: TestClient, db: Session) -> None:
 
 def test_cannot_remove_last_owner(client: TestClient, db: Session) -> None:
     owner, _, owner_headers = _create_user_with_headers(client, db)
-    r = client.post(PREFIX + "/", headers=owner_headers, json={"name": "Last Owner Leave"})
+    r = client.post(
+        PREFIX + "/", headers=owner_headers, json={"name": "Last Owner Leave"}
+    )
     ws_id = r.json()["id"]
 
     r = client.delete(f"{PREFIX}/{ws_id}/members/{owner.id}", headers=owner_headers)

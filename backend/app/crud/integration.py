@@ -14,7 +14,6 @@ from app.models.integration import (
     PlatformAccountCreate,
 )
 
-
 # ---------------------------------------------------------------------------
 # Integration CRUD
 # ---------------------------------------------------------------------------
@@ -88,9 +87,7 @@ def get_integration(
 def get_integrations_for_workspace(
     *, session: Session, workspace_id: uuid.UUID, platform: Platform | None = None
 ) -> Sequence[Integration]:
-    statement = select(Integration).where(
-        Integration.workspace_id == workspace_id
-    )
+    statement = select(Integration).where(Integration.workspace_id == workspace_id)
     if platform is not None:
         statement = statement.where(Integration.platform == platform)
     return session.exec(statement).all()
