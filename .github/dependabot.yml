@@ -1,14 +1,22 @@
 version: 2
+
+# Minor and patch updates are grouped into one PR per ecosystem to keep the
+# noise down; major updates get their own PR since they may need code changes.
+# The labels satisfy the PR label check (.github/workflows/labeler.yml).
 updates:
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
+      interval: weekly
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
-  # Python uv
+    groups:
+      github-actions:
+        update-types: [minor, patch]
+
+  # Python (uv workspace: backend)
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -16,7 +24,11 @@ updates:
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
-  # bun
+    groups:
+      python:
+        update-types: [minor, patch]
+
+  # JavaScript (bun workspace: frontend)
   - package-ecosystem: bun
     directory: /
     schedule:
@@ -25,8 +37,13 @@ updates:
       prefix: ⬆
     labels: [dependencies, internal]
     ignore:
+      # Pinned: newer versions change the generated client's output
       - dependency-name: "@hey-api/openapi-ts"
-  # Docker
+    groups:
+      javascript:
+        update-types: [minor, patch]
+
+  # Dockerfiles
   - package-ecosystem: docker
     directories:
       - /backend
@@ -36,7 +53,11 @@ updates:
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
-  # Docker Compose
+    groups:
+      docker:
+        update-types: [minor, patch]
+
+  # Images in compose*.yml
   - package-ecosystem: docker-compose
     directory: /
     schedule:
@@ -44,3 +65,6 @@ updates:
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
+    groups:
+      docker-compose:
+        update-types: [minor, patch]

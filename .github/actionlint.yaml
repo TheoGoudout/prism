@@ -1,0 +1,5 @@
+# Labels of the self-hosted runners used by the deploy workflows
+self-hosted-runner:
+  labels:
+    - staging
+    - production

@@ -5,8 +5,15 @@ on:
     workflows: [Test Backend]
     types: [completed]
 
+env:
+  # Publishing needs an auth key (generate one with `smokeshow generate-key`
+  # and store it as the SMOKESHOW_AUTH_KEY repository secret)
+  HAS_AUTH_KEY: ${{ secrets.SMOKESHOW_AUTH_KEY != '' }}
+
 jobs:
   smokeshow:
+    # Only publish coverage when the tests produced it
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -25,6 +32,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
       - run: smokeshow upload backend/htmlcov
+        if: env.HAS_AUTH_KEY == 'true'
         env:
           SMOKESHOW_GITHUB_STATUS_DESCRIPTION: Coverage {coverage-percentage}
           SMOKESHOW_GITHUB_COVERAGE_THRESHOLD: 90

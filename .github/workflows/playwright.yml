@@ -49,42 +49,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Create .env
+    # CI only talks to throwaway containers, so the example settings
+    # (and their dummy credentials) are fine, and need no repository secrets.
+    # That also lets Dependabot and fork PRs, which can't read secrets, run CI.
+    - name: Create .env files from the examples
       run: |
-        cat > .env << 'EOF'
-        DOMAIN=localhost
-        FRONTEND_HOST=http://localhost:5173
-        ENVIRONMENT=local
-        PROJECT_NAME=Prism
-        STACK_NAME=prism
-        BACKEND_CORS_ORIGINS=http://localhost,http://localhost:5173
-        API_BASE_URL=http://localhost:8000
-        REDIS_URL=redis://redis:6379/0
-        POSTGRES_SERVER=db
-        POSTGRES_PORT=5432
-        POSTGRES_DB=app
-        POSTGRES_USER=postgres
-        EMAILS_FROM_EMAIL=info@example.com
-        SMTP_TLS=True
-        SMTP_SSL=False
-        SMTP_PORT=587
-        DOCKER_IMAGE_BACKEND=prism/backend
-        DOCKER_IMAGE_FRONTEND=prism/frontend
-        AI_PROVIDER=openai
-        AI_MODEL=gpt-4o-mini
-        LANGCHAIN_TRACING_V2=false
-        EOF
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-        echo "FIRST_SUPERUSER=${{ secrets.FIRST_SUPERUSER }}" >> .env
-        echo "FIRST_SUPERUSER_PASSWORD=${{ secrets.FIRST_SUPERUSER_PASSWORD }}" >> .env
-        echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-
-    - name: Create frontend/.env
-      run: |
-        cat > frontend/.env << 'EOF'
-        VITE_API_URL=http://localhost:8000
-        MAILCATCHER_HOST=http://localhost:1080
-        EOF
+        cp .env.example .env
+        cp frontend/.env.example frontend/.env
 
     - uses: oven-sh/setup-bun@v2
     - uses: actions/setup-python@v6
