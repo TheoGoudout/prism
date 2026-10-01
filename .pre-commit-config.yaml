@@ -1,30 +1,43 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
+# Git hooks, run with prek (https://prek.j178.dev), a drop-in replacement for
+# pre-commit. Install them with `uv run prek install`; CI runs them on PRs.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
       - id: check-toml
       - id: check-yaml
         args:
           - --unsafe
+      - id: detect-private-key
       - id: end-of-file-fixer
         exclude: |
             (?x)^(
                 frontend/src/client/.*|
                 backend/app/email-templates/build/.*
             )$
+      - id: mixed-line-ending
+        args: [--fix=lf]
       - id: trailing-whitespace
         exclude: ^frontend/src/client/.*
+
+  # Lint GitHub Actions workflows
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.25
+    hooks:
+      - id: actionlint
+
   - repo: local
     hooks:
       - id: local-biome-check
         name: biome check
-        entry: npm run lint
+        entry: bun run lint
         language: system
         types: [text]
         files: ^frontend/
+        pass_filenames: false
 
       - id: local-ruff-check
         name: ruff check
@@ -46,6 +59,14 @@ repos:
         require_serial: true
         language: unsupported
         pass_filenames: false
+        types: [python]
+
+      - id: local-uv-lock
+        name: uv.lock is up to date
+        entry: uv lock --check
+        language: unsupported
+        pass_filenames: false
+        files: (^|/)(pyproject\.toml|uv\.lock)$
 
       - id: generate-frontend-sdk
         name: Generate Frontend SDK

@@ -57,8 +57,17 @@ frontend/src/
 
 ## Getting started
 
-1. Create a `.env` file at the repository root. The variables are listed
-   below. Generate secrets with:
+1. Copy the example settings and adjust them (the variables are described
+   below):
+
+   ```bash
+   cp .env.example .env
+   cp frontend/.env.example frontend/.env
+   ```
+
+   The examples work as-is for local development (CI uses them unchanged).
+   For any shared deployment, replace every `changethis` value; generate
+   secrets with:
 
    ```bash
    python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -128,7 +137,9 @@ bun run --filter frontend build
 cd frontend && bunx playwright test  # end-to-end; needs the stack running
 ```
 
-The pre-commit hooks (`.pre-commit-config.yaml`) run the same checks.
+The git hooks in `.pre-commit-config.yaml` (run with
+[prek](https://prek.j178.dev); install them with `uv run prek install`) run the
+same checks plus workflow linting, and run on every pull request.
 
 ## Security
 
