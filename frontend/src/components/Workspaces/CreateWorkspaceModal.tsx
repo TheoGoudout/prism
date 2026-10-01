@@ -25,7 +25,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import useCustomToast from "@/hooks/useCustomToast"
-import { handleError } from "@/utils"
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
@@ -43,7 +42,7 @@ export default function CreateWorkspaceModal({
   onClose,
 }: CreateWorkspaceModalProps) {
   const queryClient = useQueryClient()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -58,7 +57,7 @@ export default function CreateWorkspaceModal({
       form.reset()
       onClose()
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] })
     },

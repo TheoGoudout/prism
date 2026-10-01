@@ -107,6 +107,13 @@ export type NewPassword = {
     new_password: string;
 };
 
+/**
+ * Where to send the user to authorize the platform.
+ */
+export type OAuthConnectResponse = {
+    authorization_url: string;
+};
+
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
 
 export type PlatformAccountPublic = {
@@ -128,14 +135,6 @@ export type PlatformAccountsPublic = {
 };
 
 export type PostPublic = {
-    id: string;
-    platform_account_id: string;
-    external_id: string;
-    published_at: string;
-    content_type: ContentType;
-    text?: (string | null);
-    media_url?: (string | null);
-    permalink?: (string | null);
     impressions?: (number | null);
     reach?: (number | null);
     views?: (number | null);
@@ -145,6 +144,14 @@ export type PostPublic = {
     shares?: (number | null);
     clicks?: (number | null);
     saves?: (number | null);
+    external_id: string;
+    content_type: ContentType;
+    text?: (string | null);
+    media_url?: (string | null);
+    permalink?: (string | null);
+    id: string;
+    platform_account_id: string;
+    published_at: string;
     engagement_rate?: (number | null);
 };
 
@@ -356,8 +363,8 @@ export type LoginRecoverPasswordHtmlContentData = {
 export type LoginRecoverPasswordHtmlContentResponse = (string);
 
 export type MetricsGetSummaryData = {
-    dateFrom?: string;
-    dateTo?: string;
+    dateFrom?: (string | null);
+    dateTo?: (string | null);
     platform?: (Platform | null);
     workspaceId: string;
 };
@@ -365,8 +372,8 @@ export type MetricsGetSummaryData = {
 export type MetricsGetSummaryResponse = (MetricsSummary);
 
 export type MetricsGetTimeseriesData = {
-    dateFrom?: string;
-    dateTo?: string;
+    dateFrom?: (string | null);
+    dateTo?: (string | null);
     platform?: (Platform | null);
     workspaceId: string;
 };
@@ -374,8 +381,8 @@ export type MetricsGetTimeseriesData = {
 export type MetricsGetTimeseriesResponse = (MetricsTimeSeries);
 
 export type MetricsGetTopPostsData = {
-    dateFrom?: string;
-    dateTo?: string;
+    dateFrom?: (string | null);
+    dateTo?: (string | null);
     limit?: number;
     platform?: (Platform | null);
     workspaceId: string;
@@ -388,7 +395,7 @@ export type OauthConnectData = {
     workspaceId: string;
 };
 
-export type OauthConnectResponse = (unknown);
+export type OauthConnectResponse = (OAuthConnectResponse);
 
 export type PrivateCreateUserData = {
     requestBody: PrivateUserCreate;

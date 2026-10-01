@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_layout")({
 })
 
 function LayoutInner() {
-  const { workspaces, isLoading } = useWorkspace()
+  const { currentWorkspace, isLoading } = useWorkspace()
 
   if (isLoading) {
     return (
@@ -34,7 +34,8 @@ function LayoutInner() {
     )
   }
 
-  if (workspaces.length === 0) {
+  // Pages below can rely on a workspace being selected (useCurrentWorkspace)
+  if (!currentWorkspace) {
     return <NoWorkspace />
   }
 
@@ -63,5 +64,3 @@ function Layout() {
     </WorkspaceProvider>
   )
 }
-
-export default Layout

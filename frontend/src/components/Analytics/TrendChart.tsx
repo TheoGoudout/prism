@@ -1,0 +1,69 @@
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+
+import type { TimeSeriesPoint } from "@/client"
+import { Skeleton } from "@/components/ui/skeleton"
+import { formatCompact } from "@/lib/format"
+
+// Theme chart colours (defined in index.css; they adapt to dark mode)
+const SERIES: { key: keyof TimeSeriesPoint; color: string }[] = [
+  { key: "impressions", color: "var(--chart-1)" },
+  { key: "views", color: "var(--chart-4)" },
+  { key: "engagements", color: "var(--chart-2)" },
+  { key: "reach", color: "var(--chart-3)" },
+]
+
+export function TrendChart({
+  points,
+  loading,
+}: {
+  points: TimeSeriesPoint[]
+  loading: boolean
+}) {
+  if (loading) return <Skeleton className="h-64 w-full" />
+
+  const data = points.map((point) => ({ ...point, day: point.date.slice(5) })) // MM-DD
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+        <XAxis
+          dataKey="day"
+          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          tickFormatter={formatCompact}
+          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={48}
+        />
+        <Tooltip
+          formatter={(value) => formatCompact(value as number)}
+          contentStyle={{ fontSize: 12, borderRadius: 6 }}
+        />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        {SERIES.map(({ key, color }) => (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            stroke={color}
+            dot={false}
+            strokeWidth={2}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}

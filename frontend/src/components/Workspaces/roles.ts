@@ -1,5 +1,8 @@
 import type { WorkspacePublic, WorkspaceRole } from "@/client"
 
+/** In order of increasing permissions. */
+export const ROLES: WorkspaceRole[] = ["viewer", "admin", "owner"]
+
 export const ROLE_LABELS: Record<WorkspaceRole, string> = {
   owner: "Owner",
   admin: "Admin",
@@ -13,6 +16,6 @@ export const ROLE_DESCRIPTIONS: Record<WorkspaceRole, string> = {
 }
 
 /** Owners and admins can manage integrations, members and settings. */
-export function canManage(workspace: WorkspacePublic | null): boolean {
-  return workspace?.role === "owner" || workspace?.role === "admin"
+export function canManage(workspace: WorkspacePublic): boolean {
+  return workspace.role === "owner" || workspace.role === "admin"
 }

@@ -20,7 +20,7 @@ const baseItems: Item[] = [
   { icon: Link2, title: "Integrations", path: "/integrations" },
 ]
 
-export function AppSidebar() {
+function AppSidebar() {
   const { user: currentUser } = useAuth()
 
   const items = currentUser?.is_superuser

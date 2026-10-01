@@ -1,0 +1,69 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState } from "react"
+
+import type { IntegrationPublic, Platform } from "@/client"
+import { IntegrationsService, OauthService } from "@/client"
+import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
+import useCustomToast from "@/hooks/useCustomToast"
+
+/** The current workspace's integrations. */
+export function useIntegrations() {
+  const workspace = useCurrentWorkspace()
+  return useQuery({
+    queryKey: ["integrations", workspace.id],
+    queryFn: () =>
+      IntegrationsService.listIntegrations({ workspaceId: workspace.id }),
+  })
+}
+
+export function useSyncIntegration(integration: IntegrationPublic) {
+  const queryClient = useQueryClient()
+  const { showSuccessToast, showApiError } = useCustomToast()
+  return useMutation({
+    mutationFn: () =>
+      IntegrationsService.triggerSync({ integrationId: integration.id }),
+    onSuccess: () => showSuccessToast("Sync enqueued"),
+    onError: showApiError,
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  })
+}
+
+export function useDeleteIntegration(integration: IntegrationPublic) {
+  const queryClient = useQueryClient()
+  const { showSuccessToast, showApiError } = useCustomToast()
+  return useMutation({
+    mutationFn: () =>
+      IntegrationsService.deleteIntegration({ integrationId: integration.id }),
+    onSuccess: () => showSuccessToast("Integration removed"),
+    onError: showApiError,
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  })
+}
+
+/**
+ * Start the OAuth flow: fetch the provider's authorization URL and send the
+ * browser there. `pending` is the platform being connected, if any.
+ */
+export function useConnectPlatform() {
+  const workspace = useCurrentWorkspace()
+  const { showApiError } = useCustomToast()
+  const [pending, setPending] = useState<Platform | null>(null)
+
+  async function connect(platform: Platform) {
+    setPending(platform)
+    try {
+      const { authorization_url } = await OauthService.connect({
+        platform,
+        workspaceId: workspace.id,
+      })
+      window.location.href = authorization_url
+    } catch (err) {
+      setPending(null)
+      showApiError(err)
+    }
+  }
+
+  return { connect, pending }
+}

@@ -26,7 +26,12 @@ from app.api.deps import CurrentMember, CurrentUser, SessionDep, require_manager
 from app.core.config import settings
 from app.integrations.oauth import registry
 from app.integrations.oauth.base import OAuthState, generate_pkce_pair
-from app.models.integration import Integration, IntegrationCreate, Platform
+from app.models.integration import (
+    Integration,
+    IntegrationCreate,
+    OAuthConnectResponse,
+    Platform,
+)
 from app.worker.tasks import sync as sync_tasks
 
 logger = logging.getLogger(__name__)
@@ -48,7 +53,7 @@ def _back_to_frontend(**params: str) -> RedirectResponse:
     )
 
 
-@router.get("/connect/{platform}")
+@router.get("/connect/{platform}", response_model=OAuthConnectResponse)
 def connect(
     platform: Platform, member: CurrentMember, current_user: CurrentUser
 ) -> Any:
@@ -69,7 +74,7 @@ def connect(
     auth_url = provider.get_auth_url(
         redirect_uri=_redirect_uri(platform), state=state, code_challenge=challenge
     )
-    return {"authorization_url": auth_url}
+    return OAuthConnectResponse(authorization_url=auth_url)
 
 
 @router.get("/callback/{platform}", include_in_schema=False)

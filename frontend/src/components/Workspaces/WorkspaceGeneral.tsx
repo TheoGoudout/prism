@@ -24,9 +24,8 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
-import { useWorkspace } from "@/contexts/WorkspaceContext"
+import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
-import { handleError } from "@/utils"
 import { canManage } from "./roles"
 
 const formSchema = z.object({
@@ -36,41 +35,39 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>
 
 export default function WorkspaceGeneral() {
-  const { currentWorkspace } = useWorkspace()
+  const workspace = useCurrentWorkspace()
   const queryClient = useQueryClient()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    values: { name: currentWorkspace?.name ?? "" },
+    values: { name: workspace.name },
   })
 
   const renameMut = useMutation({
     mutationFn: (data: FormData) =>
       WorkspacesService.updateWorkspace({
-        workspaceId: currentWorkspace!.id,
+        workspaceId: workspace.id,
         requestBody: data,
       }),
     onSuccess: () => showSuccessToast("Workspace updated"),
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
   })
 
   const deleteMut = useMutation({
     mutationFn: () =>
-      WorkspacesService.deleteWorkspace({ workspaceId: currentWorkspace!.id }),
+      WorkspacesService.deleteWorkspace({ workspaceId: workspace.id }),
     onSuccess: () => {
       showSuccessToast("Workspace deleted")
       setConfirmDelete(false)
       queryClient.invalidateQueries({ queryKey: ["workspaces"] })
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
   })
-
-  if (!currentWorkspace) return null
-  const editable = canManage(currentWorkspace)
+  const editable = canManage(workspace)
 
   return (
     <div className="flex flex-col gap-6 max-w-xl">
@@ -117,7 +114,7 @@ export default function WorkspaceGeneral() {
         </CardContent>
       </Card>
 
-      {currentWorkspace.role === "owner" && (
+      {workspace.role === "owner" && (
         <Card className="border-destructive/50">
           <CardHeader>
             <CardTitle className="text-base text-destructive">
@@ -145,7 +142,7 @@ export default function WorkspaceGeneral() {
         title="Delete workspace"
         description={
           <>
-            <strong>{currentWorkspace.name}</strong> and all of its data will be
+            <strong>{workspace.name}</strong> and all of its data will be
             permanently deleted. This cannot be undone.
           </>
         }

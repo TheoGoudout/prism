@@ -29,7 +29,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import useCustomToast from "@/hooks/useCustomToast"
-import { handleError } from "@/utils"
 
 const formSchema = z
   .object({
@@ -55,7 +54,7 @@ type FormData = z.infer<typeof formSchema>
 const AddUser = () => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -79,7 +78,7 @@ const AddUser = () => {
       form.reset()
       setIsOpen(false)
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
     },
