@@ -5,6 +5,7 @@ All endpoints require workspace membership. The caller identifies the workspace
 via the `workspace_id` query parameter, and optionally narrows results to a
 single platform via `platform`.
 """
+
 import uuid
 from collections import defaultdict
 from datetime import date, timedelta
@@ -15,7 +16,6 @@ from fastapi import APIRouter, HTTPException, Query
 from app import crud
 from app.api.deps import CurrentUser, SessionDep
 from app.models.integration import Platform
-from app.services import metrics as metrics_service
 from app.models.metrics import (
     MetricsSummary,
     MetricsTimeSeries,
@@ -23,6 +23,7 @@ from app.models.metrics import (
     PostsPublic,
     TimeSeriesPoint,
 )
+from app.services import metrics as metrics_service
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -172,4 +173,6 @@ def get_top_posts(
         end_date=date_to,
         limit=limit,
     )
-    return PostsPublic(data=[PostPublic.model_validate(p) for p in posts], count=len(posts))
+    return PostsPublic(
+        data=[PostPublic.model_validate(p) for p in posts], count=len(posts)
+    )

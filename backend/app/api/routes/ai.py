@@ -9,6 +9,7 @@ Both endpoints:
 LangSmith tracing is automatically enabled when LANGCHAIN_TRACING_V2=true
 and LANGCHAIN_API_KEY are set in the environment.
 """
+
 import uuid
 from datetime import date, timedelta
 from typing import Any

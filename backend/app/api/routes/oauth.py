@@ -12,6 +12,7 @@ Flow:
        code for tokens, creates or refreshes the Integration row, and
        redirects the user back to the frontend.
 """
+
 import logging
 import uuid
 from typing import Any
@@ -36,7 +37,9 @@ _CONNECT_ROLES = (WorkspaceRole.owner, WorkspaceRole.admin)
 
 
 def _redirect_uri(platform: Platform) -> str:
-    return f"{settings.API_BASE_URL}{settings.API_V1_STR}/oauth/callback/{platform.value}"
+    return (
+        f"{settings.API_BASE_URL}{settings.API_V1_STR}/oauth/callback/{platform.value}"
+    )
 
 
 def _frontend_redirect(**params: str) -> RedirectResponse:

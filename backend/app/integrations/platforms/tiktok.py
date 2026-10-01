@@ -9,6 +9,7 @@ Fetches:
 Uses the TikTok Research API (open.tiktokapis.com/v2) with the Bearer token
 from the Integration.
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -31,15 +32,38 @@ TIKTOK_API = "https://open.tiktokapis.com/v2"
 # ---------------------------------------------------------------------------
 
 
-def _post(path: str, token: str, body: dict[str, Any]) -> dict[str, Any]:
-    resp = httpx.post(
+# The Display API takes the requested `fields` as a comma-separated query
+# parameter; request options (e.g. max_count) go in the JSON body.
+
+
+def _get(path: str, token: str, fields: list[str]) -> dict[str, Any]:
+    resp = httpx.get(
         f"{TIKTOK_API}/{path}",
-        json=body,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        params={"fields": ",".join(fields)},
+        headers={"Authorization": f"Bearer {token}"},
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json()
+    result: dict[str, Any] = resp.json()
+    return result
+
+
+def _post(
+    path: str, token: str, fields: list[str], body: dict[str, Any]
+) -> dict[str, Any]:
+    resp = httpx.post(
+        f"{TIKTOK_API}/{path}",
+        params={"fields": ",".join(fields)},
+        json=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    result: dict[str, Any] = resp.json()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -48,12 +72,13 @@ def _post(path: str, token: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fetch_user_info(token: str) -> dict[str, Any]:
-    data = _post(
+    data = _get(
         "user/info/",
         token,
-        {"fields": ["open_id", "display_name", "avatar_url", "follower_count", "video_count"]},
+        ["open_id", "display_name", "avatar_url", "follower_count", "video_count"],
     )
-    return data.get("data", {}).get("user", {})
+    user: dict[str, Any] = data.get("data", {}).get("user", {})
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +96,9 @@ def _sync_account_snapshot(
         date=today,
         followers_count=user_info.get("follower_count"),
         posts_count=user_info.get("video_count"),
-        raw_data={k: user_info[k] for k in ("follower_count", "video_count") if k in user_info},
+        raw_data={
+            k: user_info[k] for k in ("follower_count", "video_count") if k in user_info
+        },
     )
     crud.upsert_metric_snapshot(
         session=session,
@@ -96,23 +123,20 @@ def _sync_videos(
     resp = _post(
         "video/list/",
         token,
-        {
-            "fields": [
-                "id",
-                "title",
-                "create_time",
-                "share_url",
-                "cover_image_url",
-                "video_description",
-                "duration",
-                "view_count",
-                "like_count",
-                "comment_count",
-                "share_count",
-                "play_count",
-            ],
-            "max_count": 20,
-        },
+        [
+            "id",
+            "title",
+            "create_time",
+            "share_url",
+            "cover_image_url",
+            "video_description",
+            "duration",
+            "view_count",
+            "like_count",
+            "comment_count",
+            "share_count",
+        ],
+        {"max_count": 20},
     )
 
     for video in resp.get("data", {}).get("videos", []):
@@ -130,7 +154,7 @@ def _sync_videos(
         if published_at < start:
             continue
 
-        view_count = video.get("view_count") or video.get("play_count")
+        view_count = video.get("view_count")
         like_count = video.get("like_count")
         comment_count = video.get("comment_count")
         share_count = video.get("share_count")
@@ -153,7 +177,7 @@ def _sync_videos(
             shares=share_count,
             raw_data={
                 k: video[k]
-                for k in ("view_count", "like_count", "comment_count", "share_count", "play_count")
+                for k in ("view_count", "like_count", "comment_count", "share_count")
                 if k in video
             }
             or None,

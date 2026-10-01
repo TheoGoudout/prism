@@ -1,8 +1,9 @@
 """Unit tests for integration CRUD helpers that aren't reachable via HTTP yet."""
+
 from sqlmodel import Session
 
 from app.crud import integration as icrud
-from app.models.integration import IntegrationCreate, Platform, PlatformAccountCreate
+from app.models.integration import Platform, PlatformAccountCreate
 from tests.utils.integration import create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
@@ -115,7 +116,9 @@ def test_get_accounts_for_workspace(db: Session) -> None:
 def test_get_accounts_for_workspace_platform_filter(db: Session) -> None:
     ws = _make_workspace(db)
     fb = create_fake_integration(db, ws, platform=Platform.facebook)
-    ig = create_fake_integration(db, ws, platform=Platform.instagram, external_account_id="ig-2")
+    ig = create_fake_integration(
+        db, ws, platform=Platform.instagram, external_account_id="ig-2"
+    )
 
     icrud.create_platform_account(
         session=db,

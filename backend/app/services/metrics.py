@@ -1,6 +1,7 @@
 """
 Metrics aggregation shared by the dashboard API and the AI endpoints.
 """
+
 import uuid
 from collections import defaultdict
 from datetime import date
@@ -73,7 +74,9 @@ def summarize(
     return MetricsSummary(
         totals=MetricTotals(
             **totals,
-            followers_count=sum(latest_followers.values()) if latest_followers else None,
+            followers_count=sum(latest_followers.values())
+            if latest_followers
+            else None,
         ),
         by_platform={
             plat: MetricTotals(**d, followers_count=plat_followers.get(plat))

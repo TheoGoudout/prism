@@ -2,9 +2,10 @@
 Tests for the Facebook Pages sync module.
 All HTTP calls are mocked with unittest.mock — no real Graph API calls.
 """
+
 import uuid
-from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, call, patch
+from datetime import date
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -17,7 +18,6 @@ from app.integrations.platforms.facebook import (
 )
 from app.models.integration import Platform
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -75,9 +75,7 @@ def test_fetch_managed_pages_returns_list(mock_get):
 
 @patch("app.integrations.platforms.facebook.httpx.get")
 def test_fetch_managed_pages_empty(mock_get):
-    mock_get.return_value = MagicMock(
-        status_code=200, json=lambda: {"data": []}
-    )
+    mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
 
     pages = _fetch_managed_pages("user-token")
@@ -133,7 +131,11 @@ def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
     assert date(2024, 1, 16) in dates_seen
 
     # Spot-check first snapshot
-    first = next(c.kwargs["snapshot_in"] for c in call_args_list if c.kwargs["snapshot_in"].date == date(2024, 1, 15))
+    first = next(
+        c.kwargs["snapshot_in"]
+        for c in call_args_list
+        if c.kwargs["snapshot_in"].date == date(2024, 1, 15)
+    )
     assert first.views == 500
     assert first.reach == 300
     assert first.followers_count == 1000
@@ -141,7 +143,9 @@ def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
 
 @patch("app.integrations.platforms.facebook.crud")
 @patch("app.integrations.platforms.facebook.httpx.get")
-def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(mock_get, mock_crud):
+def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(
+    mock_get, mock_crud
+):
     """If Meta rejects one metric, the others are still synced."""
 
     def _side_effect(url, params, **kwargs):
@@ -218,8 +222,14 @@ def test_sync_page_posts_upserts_posts(mock_get, mock_crud):
     insights_resp = {
         "data": [
             {"name": "post_media_view", "values": [{"value": 1000, "end_time": "x"}]},
-            {"name": "post_total_media_view_unique", "values": [{"value": 600, "end_time": "x"}]},
-            {"name": "post_reactions_like_total", "values": [{"value": 30, "end_time": "x"}]},
+            {
+                "name": "post_total_media_view_unique",
+                "values": [{"value": 600, "end_time": "x"}],
+            },
+            {
+                "name": "post_reactions_like_total",
+                "values": [{"value": 30, "end_time": "x"}],
+            },
             {"name": "post_clicks", "values": [{"value": 20, "end_time": "x"}]},
         ]
     }

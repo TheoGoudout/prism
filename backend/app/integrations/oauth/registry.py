@@ -2,6 +2,7 @@
 Import every OAuth provider so each registers itself, and re-export the
 registry lookups. Import from here (not from base) when you need a provider.
 """
+
 import app.integrations.oauth.facebook  # noqa: F401
 import app.integrations.oauth.google_analytics  # noqa: F401
 import app.integrations.oauth.instagram  # noqa: F401

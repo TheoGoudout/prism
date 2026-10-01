@@ -13,6 +13,7 @@ Each platform implements a concrete subclass and overrides:
 The connect / callback HTTP handlers live in api/routes/oauth.py and
 delegate to the appropriate provider via the registry below.
 """
+
 import base64
 import hashlib
 import secrets

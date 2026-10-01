@@ -1,4 +1,5 @@
 """Tests for GET /metrics/summary, /metrics/timeseries, /metrics/posts."""
+
 import uuid
 from datetime import date, timedelta
 
@@ -236,9 +237,7 @@ def test_timeseries_non_member_returns_404(client: TestClient, db: Session) -> N
     assert r.status_code == 404
 
 
-def test_timeseries_returns_all_days_in_range(
-    client: TestClient, db: Session
-) -> None:
+def test_timeseries_returns_all_days_in_range(client: TestClient, db: Session) -> None:
     user, headers = _create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     # Need at least one account so the endpoint queries and fills the date range

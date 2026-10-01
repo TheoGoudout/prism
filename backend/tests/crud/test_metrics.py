@@ -1,4 +1,5 @@
 """Tests for MetricSnapshot and Post CRUD helpers."""
+
 from datetime import date, datetime, timezone
 
 from sqlmodel import Session
@@ -51,7 +52,9 @@ def test_upsert_snapshot_updates_existing(db: Session) -> None:
     updated = mcrud.upsert_metric_snapshot(
         session=db,
         platform_account_id=account.id,
-        snapshot_in=MetricSnapshotUpsert(date=d, followers_count=1100, impressions=2000),
+        snapshot_in=MetricSnapshotUpsert(
+            date=d, followers_count=1100, impressions=2000
+        ),
     )
     assert updated.followers_count == 1100
     assert updated.impressions == 2000
@@ -82,7 +85,9 @@ def test_get_snapshots_date_range(db: Session) -> None:
         mcrud.upsert_metric_snapshot(
             session=db,
             platform_account_id=account.id,
-            snapshot_in=MetricSnapshotUpsert(date=date(2024, 4, day), followers_count=day * 100),
+            snapshot_in=MetricSnapshotUpsert(
+                date=date(2024, 4, day), followers_count=day * 100
+            ),
         )
 
     rows = mcrud.get_snapshots(
@@ -105,11 +110,13 @@ def test_get_snapshots_for_accounts(db: Session) -> None:
 
     d = date(2024, 5, 1)
     mcrud.upsert_metric_snapshot(
-        session=db, platform_account_id=acc1.id,
+        session=db,
+        platform_account_id=acc1.id,
         snapshot_in=MetricSnapshotUpsert(date=d, followers_count=10),
     )
     mcrud.upsert_metric_snapshot(
-        session=db, platform_account_id=acc2.id,
+        session=db,
+        platform_account_id=acc2.id,
         snapshot_in=MetricSnapshotUpsert(date=d, followers_count=20),
     )
 
@@ -124,7 +131,10 @@ def test_get_snapshots_for_accounts(db: Session) -> None:
 
 def test_get_snapshots_for_accounts_empty_list(db: Session) -> None:
     rows = mcrud.get_snapshots_for_accounts(
-        session=db, platform_account_ids=[], start_date=date(2024, 1, 1), end_date=date(2024, 1, 31)
+        session=db,
+        platform_account_ids=[],
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 1, 31),
     )
     assert list(rows) == []
 
@@ -174,7 +184,9 @@ def test_upsert_post_creates(db: Session) -> None:
         reach=4000,
         engagements=320,
     )
-    post = mcrud.upsert_post(session=db, platform_account_id=account.id, post_in=post_in)
+    post = mcrud.upsert_post(
+        session=db, platform_account_id=account.id, post_in=post_in
+    )
     assert post.id is not None
     assert post.content_type == ContentType.reel
     assert post.engagement_rate == round(320 / 4000, 6)
@@ -188,9 +200,13 @@ def test_upsert_post_updates_existing(db: Session) -> None:
         content_type=ContentType.post,
         likes=100,
     )
-    created = mcrud.upsert_post(session=db, platform_account_id=account.id, post_in=post_in)
+    created = mcrud.upsert_post(
+        session=db, platform_account_id=account.id, post_in=post_in
+    )
     post_in.likes = 250
-    updated = mcrud.upsert_post(session=db, platform_account_id=account.id, post_in=post_in)
+    updated = mcrud.upsert_post(
+        session=db, platform_account_id=account.id, post_in=post_in
+    )
 
     assert updated.id == created.id
     assert updated.likes == 250
@@ -220,7 +236,11 @@ def test_get_posts_basic(db: Session) -> None:
 
 def test_get_posts_content_type_filter(db: Session) -> None:
     account = _make_account(db)
-    for ct, ext_id in [(ContentType.reel, "reel-1"), (ContentType.post, "post-1"), (ContentType.story, "story-1")]:
+    for ct, ext_id in [
+        (ContentType.reel, "reel-1"),
+        (ContentType.post, "post-1"),
+        (ContentType.story, "story-1"),
+    ]:
         mcrud.upsert_post(
             session=db,
             platform_account_id=account.id,
@@ -249,8 +269,12 @@ def test_get_posts_pagination(db: Session) -> None:
                 content_type=ContentType.tweet,
             ),
         )
-    page1, total = mcrud.get_posts(session=db, platform_account_id=account.id, limit=5, offset=0)
-    page2, _ = mcrud.get_posts(session=db, platform_account_id=account.id, limit=5, offset=5)
+    page1, total = mcrud.get_posts(
+        session=db, platform_account_id=account.id, limit=5, offset=0
+    )
+    page2, _ = mcrud.get_posts(
+        session=db, platform_account_id=account.id, limit=5, offset=5
+    )
     assert total == 10
     assert len(page1) == 5
     assert len(page2) == 5

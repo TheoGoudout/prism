@@ -4,12 +4,13 @@ CRUD helpers for MetricSnapshot and Post.
 These are called by sync tasks (Steps 6-11), not by users directly.
 The read helpers will be used by the dashboard API (Step 12+).
 """
+
 import uuid
+from collections.abc import Sequence
 from datetime import date as date_type
-from typing import Sequence
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.models.metrics import (
     ContentType,
@@ -78,7 +79,7 @@ def get_snapshots(
         .where(MetricSnapshot.platform_account_id == platform_account_id)
         .where(MetricSnapshot.date >= start_date)
         .where(MetricSnapshot.date <= end_date)
-        .order_by(MetricSnapshot.date)
+        .order_by(col(MetricSnapshot.date))
     )
     return session.exec(statement).all()
 
@@ -95,10 +96,10 @@ def get_snapshots_for_accounts(
         return []
     statement = (
         select(MetricSnapshot)
-        .where(MetricSnapshot.platform_account_id.in_(platform_account_ids))  # type: ignore[attr-defined]
+        .where(col(MetricSnapshot.platform_account_id).in_(platform_account_ids))
         .where(MetricSnapshot.date >= start_date)
         .where(MetricSnapshot.date <= end_date)
-        .order_by(MetricSnapshot.date)
+        .order_by(col(MetricSnapshot.date))
     )
     return session.exec(statement).all()
 
@@ -109,7 +110,7 @@ def get_latest_snapshot(
     statement = (
         select(MetricSnapshot)
         .where(MetricSnapshot.platform_account_id == platform_account_id)
-        .order_by(MetricSnapshot.date.desc())  # type: ignore[attr-defined]
+        .order_by(col(MetricSnapshot.date).desc())
         .limit(1)
     )
     return session.exec(statement).first()
@@ -177,10 +178,10 @@ def get_posts(
         base = base.where(Post.content_type == content_type)
 
     # Ordering
-    col = getattr(Post, order_by, Post.published_at)
-    base = base.order_by(col.desc() if descending else col.asc())  # type: ignore[union-attr]
+    count = session.exec(select(func.count()).select_from(base.subquery())).one()
 
-    count = len(session.exec(base).all())
+    sort_column = col(getattr(Post, order_by, Post.published_at))
+    base = base.order_by(sort_column.desc() if descending else sort_column.asc())
     rows = session.exec(base.offset(offset).limit(limit)).all()
     return rows, count
 
@@ -197,14 +198,14 @@ def get_top_posts(
     """Return the top-performing posts across a set of accounts."""
     if not platform_account_ids:
         return []
-    col = getattr(Post, metric, Post.engagements)
+    sort_column = col(getattr(Post, metric, Post.engagements))
     statement = (
         select(Post)
-        .where(Post.platform_account_id.in_(platform_account_ids))  # type: ignore[attr-defined]
+        .where(col(Post.platform_account_id).in_(platform_account_ids))
         .where(func.date(Post.published_at) >= start_date)
         .where(func.date(Post.published_at) <= end_date)
-        .where(col.isnot(None))  # type: ignore[union-attr]
-        .order_by(col.desc())  # type: ignore[union-attr]
+        .where(sort_column.is_not(None))
+        .order_by(sort_column.desc())
         .limit(limit)
     )
     return session.exec(statement).all()

@@ -1,16 +1,27 @@
 """TikTok Business API OAuth2 provider."""
+
 from datetime import timedelta
 
 import httpx
 
 from app.core.config import settings
-from app.integrations.oauth.base import AccountInfo, OAuthProvider, TokenResponse, register
+from app.integrations.oauth.base import (
+    AccountInfo,
+    OAuthProvider,
+    TokenResponse,
+    register,
+)
 from app.models.integration import Platform
 
 
 class TikTokOAuthProvider(OAuthProvider):
     PLATFORM = Platform.tiktok
-    SCOPES = ["user.info.basic", "video.list", "video.insights", "tiktok.user.insights.creator"]
+    SCOPES = [
+        "user.info.basic",
+        "video.list",
+        "video.insights",
+        "tiktok.user.insights.creator",
+    ]
     AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
     TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
     # TikTok names the client identifier `client_key` and comma-separates scopes

@@ -2,6 +2,7 @@
 Tests for the Google Analytics 4 sync module.
 All HTTP calls are mocked — no real GA4 API calls.
 """
+
 import uuid
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -16,7 +17,6 @@ from app.integrations.platforms.google_analytics import (
 )
 from app.models.integration import Platform
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -130,16 +130,18 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
     _sync_property_report(MagicMock(), account_id, "properties/123", "token")
 
     assert mock_crud.upsert_metric_snapshot.call_count == 2
-    snapshots = [c.kwargs["snapshot_in"] for c in mock_crud.upsert_metric_snapshot.call_args_list]
+    snapshots = [
+        c.kwargs["snapshot_in"] for c in mock_crud.upsert_metric_snapshot.call_args_list
+    ]
     dates = {s.date for s in snapshots}
     assert date(2024, 3, 1) in dates
     assert date(2024, 3, 2) in dates
 
     snap_mar1 = next(s for s in snapshots if s.date == date(2024, 3, 1))
-    assert snap_mar1.impressions == 1200   # sessions → impressions
-    assert snap_mar1.reach == 900          # totalUsers → reach
-    assert snap_mar1.views == 3500         # screenPageViews → views
-    assert snap_mar1.clicks == 80          # conversions → clicks
+    assert snap_mar1.impressions == 1200  # sessions → impressions
+    assert snap_mar1.reach == 900  # totalUsers → reach
+    assert snap_mar1.views == 3500  # screenPageViews → views
+    assert snap_mar1.clicks == 80  # conversions → clicks
     assert snap_mar1.raw_data["bounceRate"] == 0.42
 
 
@@ -194,7 +196,9 @@ def test_sync_ga4_no_token_raises(mock_crud):
         sync_google_analytics(MagicMock(), integ)
 
 
-@patch("app.integrations.platforms.google_analytics._fetch_ga4_properties", return_value=[])
+@patch(
+    "app.integrations.platforms.google_analytics._fetch_ga4_properties", return_value=[]
+)
 @patch("app.integrations.platforms.google_analytics.crud")
 def test_sync_ga4_no_properties_is_noop(mock_crud, _):
     integ = _make_integration()

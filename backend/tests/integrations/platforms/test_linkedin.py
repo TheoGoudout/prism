@@ -2,6 +2,7 @@
 Tests for the LinkedIn sync module.
 All HTTP calls are mocked — no real LinkedIn API calls.
 """
+
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -18,7 +19,6 @@ from app.integrations.platforms.linkedin import (
 from app.models.integration import Platform
 from app.models.metrics import ContentType
 from app.worker.tasks.sync import _platform_sync
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -167,9 +167,7 @@ def test_sync_org_posts_stats_error_still_upserts(mock_get, mock_crud):
     """Statistics fetch failure should not skip the post upsert."""
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     shares_resp = {
-        "elements": [
-            {"id": "share-2", "created": {"time": now_ms - 3600000}}
-        ]
+        "elements": [{"id": "share-2", "created": {"time": now_ms - 3600000}}]
     }
 
     call_count = 0
@@ -220,8 +218,18 @@ def test_sync_linkedin_processes_all_orgs(mock_crud, mock_followers, mock_posts)
     mock_crud.get_access_token.return_value = "token"
 
     orgs = [
-        {"org_id": "1", "org_urn": "urn:li:organization:1", "name": "Org A", "avatar_url": None},
-        {"org_id": "2", "org_urn": "urn:li:organization:2", "name": "Org B", "avatar_url": None},
+        {
+            "org_id": "1",
+            "org_urn": "urn:li:organization:1",
+            "name": "Org A",
+            "avatar_url": None,
+        },
+        {
+            "org_id": "2",
+            "org_urn": "urn:li:organization:2",
+            "name": "Org B",
+            "avatar_url": None,
+        },
     ]
     mock_crud.upsert_platform_account.side_effect = [_make_account(), _make_account()]
 
@@ -245,7 +253,9 @@ def test_sync_linkedin_no_token_raises(mock_crud):
         sync_linkedin(MagicMock(), integ)
 
 
-@patch("app.integrations.platforms.linkedin._fetch_admin_organizations", return_value=[])
+@patch(
+    "app.integrations.platforms.linkedin._fetch_admin_organizations", return_value=[]
+)
 @patch("app.integrations.platforms.linkedin.crud")
 def test_sync_linkedin_no_orgs_is_noop(mock_crud, _):
     integ = _make_integration()

@@ -3,6 +3,7 @@ Tests for POST /ai/insights and /ai/report.
 
 The LLM is mocked so tests run without a real API key and deterministically.
 """
+
 import json
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -19,10 +20,22 @@ from tests.utils.workspace import create_random_workspace
 PREFIX = f"{settings.API_V1_STR}/ai"
 TODAY = date.today()
 
-_FAKE_INSIGHTS = json.dumps([
-    {"title": "Strong reach growth", "body": "Reach increased 20%.", "type": "positive", "metric": "reach"},
-    {"title": "Low engagement rate", "body": "Engagement rate is below average.", "type": "negative", "metric": "engagements"},
-])
+_FAKE_INSIGHTS = json.dumps(
+    [
+        {
+            "title": "Strong reach growth",
+            "body": "Reach increased 20%.",
+            "type": "positive",
+            "metric": "reach",
+        },
+        {
+            "title": "Low engagement rate",
+            "body": "Engagement rate is below average.",
+            "type": "negative",
+            "metric": "engagements",
+        },
+    ]
+)
 _FAKE_REPORT = "## Executive Summary\nGood performance overall.\n## Recommendations\n- Post more reels."
 
 
@@ -49,9 +62,14 @@ def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
     return user, headers
 
 
-def _seed_data(db: Session, workspace_id, platform: Platform = Platform.instagram) -> None:
+def _seed_data(
+    db: Session, workspace_id, platform: Platform = Platform.instagram
+) -> None:
     from app import crud
-    integration = create_fake_integration(db, MagicMock(id=workspace_id), platform=platform)
+
+    integration = create_fake_integration(
+        db, MagicMock(id=workspace_id), platform=platform
+    )
     account = create_fake_account(db, integration)
     crud.upsert_metric_snapshot(
         session=db,
@@ -126,6 +144,7 @@ def test_insights_with_metrics_data(client: TestClient, db: Session) -> None:
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)
     from app import crud
+
     crud.upsert_metric_snapshot(
         session=db,
         platform_account_id=account.id,
@@ -244,7 +263,9 @@ def test_report_with_platform_filter(client: TestClient, db: Session) -> None:
     assert r.status_code == 200
 
 
-def test_insights_invalid_workspace_id_returns_422(client: TestClient, db: Session) -> None:
+def test_insights_invalid_workspace_id_returns_422(
+    client: TestClient, db: Session
+) -> None:
     _, headers = _create_user_with_headers(client, db)
     r = client.post(
         f"{PREFIX}/insights", headers=headers, json={"workspace_id": "not-a-uuid"}

@@ -2,6 +2,7 @@
 Tests for Celery sync tasks.
 All DB and Celery broker calls are mocked — no external services needed.
 """
+
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +16,6 @@ from app.worker.tasks.sync import (
     sync_integration,
     sync_workspace_integrations,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -145,7 +145,7 @@ def test_sync_integration_error_marks_integration_and_retries(
     sync_fn = MagicMock(side_effect=RuntimeError("API exploded"))
     register_platform_sync(Platform.instagram.value, sync_fn)
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError, match="API exploded"):
         sync_integration.run(str(integ.id))
 
     mock_mark_error.assert_called_once()

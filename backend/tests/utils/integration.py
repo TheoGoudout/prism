@@ -1,5 +1,3 @@
-import uuid
-
 from sqlmodel import Session
 
 from app import crud

@@ -14,9 +14,13 @@ def random_slug() -> str:
 
 def create_random_workspace(db: Session, owner: User) -> Workspace:
     workspace_in = WorkspaceCreate(name="Test Workspace " + random_slug())
-    return crud.create_workspace(session=db, workspace_in=workspace_in, owner_id=owner.id)
+    return crud.create_workspace(
+        session=db, workspace_in=workspace_in, owner_id=owner.id
+    )
 
 
-def get_member_role(db: Session, workspace: Workspace, user: User) -> WorkspaceRole | None:
+def get_member_role(
+    db: Session, workspace: Workspace, user: User
+) -> WorkspaceRole | None:
     member = crud.get_member(session=db, workspace_id=workspace.id, user_id=user.id)
     return member.role if member else None
