@@ -1,3 +1,5 @@
+import uuid
+from datetime import date as date_type
 from datetime import datetime
 from typing import Literal
 
@@ -5,13 +7,12 @@ from sqlmodel import SQLModel
 
 from app.models.common import get_datetime_utc
 from app.models.integration import Platform
-from datetime import date as date_type
 
 
 class AIRequest(SQLModel):
     """Common fields for AI generation requests."""
 
-    workspace_id: str
+    workspace_id: uuid.UUID
     platform: Platform | None = None
     date_from: date_type | None = None
     date_to: date_type | None = None

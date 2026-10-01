@@ -22,6 +22,14 @@ from app.worker.tasks.sync import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _restore_sync_registry():
+    """Tests below add/remove registry entries; undo that afterwards so the
+    real platform registrations seen by other test modules stay intact."""
+    with patch.dict(_platform_sync):
+        yield
+
+
 def _make_integration(
     status: IntegrationStatus = IntegrationStatus.active,
     platform: Platform = Platform.facebook,
@@ -31,6 +39,7 @@ def _make_integration(
     integ.status = status
     integ.platform = platform  # real enum — .value works naturally
     integ.workspace_id = uuid.uuid4()
+    integ.token_expires_at = None  # non-expiring: no refresh attempted
     return integ
 
 

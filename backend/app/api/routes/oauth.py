@@ -3,47 +3,47 @@ OAuth2 connect / callback routes.
 
 Flow:
   1. Frontend calls GET /oauth/connect/{platform}?workspace_id=<id>
-     → receives a redirect URL for the provider.
+     → receives a redirect URL for the provider. The URL carries an
+       encrypted, expiring `state` that binds the request to the user,
+       workspace and platform (and holds the PKCE verifier, if any).
   2. User authorises the app on the provider's site.
   3. Provider redirects to GET /oauth/callback/{platform}?code=...&state=...
-     → server exchanges code for tokens, creates Integration row,
-        redirects user back to the frontend.
+     → server validates the state, re-checks the user's role, exchanges the
+       code for tokens, creates or refreshes the Integration row, and
+       redirects the user back to the frontend.
 """
+import logging
 import uuid
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 
 from app import crud
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
-from app.integrations.oauth import base as oauth_registry
+from app.integrations.oauth import registry as oauth_registry
+from app.integrations.oauth.base import OAuthState, generate_pkce_pair
 from app.models.integration import IntegrationCreate, Platform
+from app.models.workspace import WorkspaceRole
 
-# All providers must be imported so they register themselves
-import app.integrations.oauth.facebook  # noqa: F401
-import app.integrations.oauth.instagram  # noqa: F401
-import app.integrations.oauth.twitter  # noqa: F401
-import app.integrations.oauth.linkedin  # noqa: F401
-import app.integrations.oauth.tiktok  # noqa: F401
-import app.integrations.oauth.google_analytics  # noqa: F401
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
+
+_CONNECT_ROLES = (WorkspaceRole.owner, WorkspaceRole.admin)
 
 
 def _redirect_uri(platform: Platform) -> str:
     return f"{settings.API_BASE_URL}{settings.API_V1_STR}/oauth/callback/{platform.value}"
 
 
-def _frontend_success_url(workspace_id: str) -> str:
-    return f"{settings.FRONTEND_HOST}/integrations?connected=1"
-
-
-def _frontend_error_url(workspace_id: str, error: str) -> str:
-    params = urlencode({"error": error})
-    return f"{settings.FRONTEND_HOST}/integrations?{params}"
+def _frontend_redirect(**params: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=f"{settings.FRONTEND_HOST}/integrations?{urlencode(params)}",
+        status_code=302,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -64,19 +64,28 @@ def connect(
     )
     if not member:
         raise HTTPException(status_code=404, detail="Workspace not found")
-
-    from app.models.workspace import WorkspaceRole
-    if member.role not in (WorkspaceRole.owner, WorkspaceRole.admin):
-        raise HTTPException(status_code=403, detail="Only owners and admins can connect integrations")
+    if member.role not in _CONNECT_ROLES:
+        raise HTTPException(
+            status_code=403, detail="Only owners and admins can connect integrations"
+        )
 
     try:
         provider = oauth_registry.get_provider(platform)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
+    state = OAuthState(
+        workspace_id=workspace_id,
+        user_id=current_user.id,
+        platform=platform,
+        pkce_verifier=verifier,
+    ).encode()
+
     auth_url = provider.get_auth_url(
         redirect_uri=_redirect_uri(platform),
-        workspace_id=str(workspace_id),
+        state=state,
+        code_challenge=challenge,
     )
     return {"authorization_url": auth_url}
 
@@ -86,55 +95,58 @@ def connect(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/callback/{platform}")
+@router.get("/callback/{platform}", include_in_schema=False)
 def callback(
     platform: Platform,
-    code: str,
-    state: str,
     session: SessionDep,
-    request: Request,
+    state: str | None = None,
+    code: str | None = None,
     error: str | None = None,
 ) -> RedirectResponse:
     """
-    OAuth2 callback — called by the provider after user authorises.
-    This endpoint is not authenticated (the user arrives via redirect).
-    Workspace identity is recovered from the `state` parameter.
+    OAuth2 callback — called by the provider after the user authorises
+    (or denies) access. Not authenticated: the user arrives via redirect, so
+    identity and workspace are recovered from the encrypted `state`.
     """
     try:
-        state_data = oauth_registry.OAuthProvider.decode_state(state)
-        workspace_id = uuid.UUID(state_data["workspace_id"])
-    except (ValueError, KeyError):
-        # Can't recover workspace — redirect to root with error
+        if not state:
+            raise ValueError("Missing state")
+        oauth_state = OAuthState.decode(state)
+        if oauth_state.platform != platform:
+            raise ValueError("State was issued for a different platform")
+    except ValueError:
         return RedirectResponse(
-            url=f"{settings.FRONTEND_HOST}?oauth_error=invalid_state", status_code=302
+            url=f"{settings.FRONTEND_HOST}/integrations?error=invalid_state",
+            status_code=302,
         )
 
     if error:
-        return RedirectResponse(
-            url=_frontend_error_url(str(workspace_id), error), status_code=302
-        )
+        # e.g. the user clicked "Deny" on the provider's consent screen
+        return _frontend_redirect(error=error)
+    if not code:
+        return _frontend_redirect(error="missing_code")
+
+    # Permissions may have changed while the user was on the provider's site
+    member = crud.get_member(
+        session=session,
+        workspace_id=oauth_state.workspace_id,
+        user_id=oauth_state.user_id,
+    )
+    if not member or member.role not in _CONNECT_ROLES:
+        return _frontend_redirect(error="forbidden")
 
     try:
         provider = oauth_registry.get_provider(platform)
-        # Twitter embeds the PKCE verifier in the state
-        code_verifier = state_data.get("pkce_verifier", "")
-
-        if platform == Platform.twitter:
-            token_resp = provider.exchange_code(  # type: ignore[call-arg]
-                code=code,
-                redirect_uri=_redirect_uri(platform),
-                code_verifier=code_verifier,
-            )
-        else:
-            token_resp = provider.exchange_code(
-                code=code, redirect_uri=_redirect_uri(platform)
-            )
-
+        token_resp = provider.exchange_code(
+            code=code,
+            redirect_uri=_redirect_uri(platform),
+            code_verifier=oauth_state.pkce_verifier,
+        )
         account_info = provider.get_account_info(token_resp.access_token)
 
         integration_in = IntegrationCreate(
             platform=platform,
-            workspace_id=workspace_id,
+            workspace_id=oauth_state.workspace_id,
             access_token=token_resp.access_token,
             refresh_token=token_resp.refresh_token,
             token_expires_at=token_resp.expires_at,
@@ -142,14 +154,19 @@ def callback(
             external_account_name=account_info.name,
             external_account_avatar=account_info.avatar_url,
         )
-        crud.create_integration(session=session, integration_in=integration_in)
-
-    except Exception as exc:
-        return RedirectResponse(
-            url=_frontend_error_url(str(workspace_id), str(exc)[:200]),
-            status_code=302,
+        integration = crud.upsert_integration(
+            session=session, integration_in=integration_in
         )
+    except Exception:
+        logger.exception("OAuth callback failed for platform %s", platform.value)
+        return _frontend_redirect(error="connection_failed")
 
-    return RedirectResponse(
-        url=_frontend_success_url(str(workspace_id)), status_code=302
-    )
+    # Pull data right away rather than waiting for the nightly sync
+    try:
+        from app.worker.tasks.sync import sync_integration
+
+        sync_integration.delay(str(integration.id))
+    except Exception:
+        logger.warning("Could not enqueue initial sync for %s", integration.id)
+
+    return _frontend_redirect(connected="1")

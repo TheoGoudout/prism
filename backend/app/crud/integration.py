@@ -1,5 +1,6 @@
 import uuid
-from typing import Sequence
+from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
@@ -43,6 +44,41 @@ def create_integration(
     return integration
 
 
+def upsert_integration(
+    *, session: Session, integration_in: IntegrationCreate
+) -> Integration:
+    """
+    Create an integration, or — if this workspace already has one for the same
+    platform account — refresh its tokens and reactivate it. Reconnecting an
+    expired account therefore keeps its history instead of duplicating it.
+    """
+    existing = session.exec(
+        select(Integration).where(
+            Integration.workspace_id == integration_in.workspace_id,
+            Integration.platform == integration_in.platform,
+            Integration.external_account_id == integration_in.external_account_id,
+        )
+    ).first()
+    if existing is None:
+        return create_integration(session=session, integration_in=integration_in)
+
+    existing.access_token_encrypted = encrypt_token(integration_in.access_token)
+    existing.refresh_token_encrypted = (
+        encrypt_token(integration_in.refresh_token)
+        if integration_in.refresh_token
+        else None
+    )
+    existing.token_expires_at = integration_in.token_expires_at
+    existing.external_account_name = integration_in.external_account_name
+    existing.external_account_avatar = integration_in.external_account_avatar
+    existing.status = IntegrationStatus.active
+    existing.sync_error = None
+    session.add(existing)
+    session.commit()
+    session.refresh(existing)
+    return existing
+
+
 def get_integration(
     *, session: Session, integration_id: uuid.UUID
 ) -> Integration | None:
@@ -66,12 +102,12 @@ def update_integration_tokens(
     integration: Integration,
     access_token: str,
     refresh_token: str | None = None,
+    expires_at: datetime | None = None,
 ) -> Integration:
-    from datetime import datetime, timezone
-
     integration.access_token_encrypted = encrypt_token(access_token)
     if refresh_token:
         integration.refresh_token_encrypted = encrypt_token(refresh_token)
+    integration.token_expires_at = expires_at
     integration.status = IntegrationStatus.active
     integration.sync_error = None
     session.add(integration)
@@ -91,11 +127,22 @@ def mark_integration_error(
     return integration
 
 
+def mark_integration_expired(
+    *, session: Session, integration: Integration, error: str
+) -> Integration:
+    """The user must reconnect: tokens are expired and can't be refreshed."""
+    integration.status = IntegrationStatus.expired
+    integration.sync_error = error[:1024]
+    session.add(integration)
+    session.commit()
+    session.refresh(integration)
+    return integration
+
+
 def mark_integration_synced(
     *, session: Session, integration: Integration
 ) -> Integration:
-    from datetime import datetime, timezone
-
+    integration.status = IntegrationStatus.active
     integration.last_synced_at = datetime.now(timezone.utc)
     integration.sync_error = None
     session.add(integration)

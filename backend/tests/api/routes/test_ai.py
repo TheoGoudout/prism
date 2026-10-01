@@ -242,3 +242,11 @@ def test_report_with_platform_filter(client: TestClient, db: Session) -> None:
         )
 
     assert r.status_code == 200
+
+
+def test_insights_invalid_workspace_id_returns_422(client: TestClient, db: Session) -> None:
+    _, headers = _create_user_with_headers(client, db)
+    r = client.post(
+        f"{PREFIX}/insights", headers=headers, json={"workspace_id": "not-a-uuid"}
+    )
+    assert r.status_code == 422
