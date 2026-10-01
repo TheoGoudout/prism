@@ -14,7 +14,7 @@ from sqlmodel import Session
 
 from app import crud
 from app.integrations.oauth import registry
-from app.models.integration import Integration
+from app.models.integration import Integration, Platform
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class TokenExpiredError(Exception):
 
 
 def _margin(integration: Integration) -> timedelta:
-    if integration.platform.value in ("facebook", "instagram"):
+    if integration.platform in (Platform.facebook, Platform.instagram):
         return META_REFRESH_MARGIN
     return REFRESH_MARGIN
 

@@ -6,32 +6,10 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.models.integration import Platform
 from tests.utils.integration import create_fake_account, create_fake_integration
+from tests.utils.user import create_user_with_headers
 from tests.utils.workspace import create_random_workspace
 
 PREFIX = f"{settings.API_V1_STR}/integrations"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from app.crud.user import create_user
-    from app.models.user import UserCreate
-    from tests.utils.utils import random_email, random_lower_string
-
-    email = random_email()
-    password = random_lower_string()
-    user = create_user(
-        session=db, user_create=UserCreate(email=email, password=password)
-    )
-    r = client.post(
-        f"{settings.API_V1_STR}/login/access-token",
-        data={"username": email, "password": password},
-    )
-    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    return user, headers
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +18,7 @@ def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
 
 
 def test_list_integrations_empty(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     r = client.get(PREFIX + "/", headers=headers, params={"workspace_id": str(ws.id)})
@@ -51,7 +29,7 @@ def test_list_integrations_empty(client: TestClient, db: Session) -> None:
 
 
 def test_list_integrations(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     create_fake_integration(db, ws, platform=Platform.facebook)
     create_fake_integration(
@@ -66,7 +44,7 @@ def test_list_integrations(client: TestClient, db: Session) -> None:
 def test_list_integrations_filtered_by_platform(
     client: TestClient, db: Session
 ) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     create_fake_integration(db, ws, platform=Platform.facebook)
     create_fake_integration(
@@ -87,8 +65,8 @@ def test_list_integrations_filtered_by_platform(
 def test_list_integrations_non_member_returns_404(
     client: TestClient, db: Session
 ) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
@@ -98,8 +76,8 @@ def test_list_integrations_non_member_returns_404(
 
 
 def test_list_integrations_workspace_isolation(client: TestClient, db: Session) -> None:
-    user_a, headers_a = _create_user_with_headers(client, db)
-    user_b, headers_b = _create_user_with_headers(client, db)
+    user_a, headers_a = create_user_with_headers(client, db)
+    user_b, headers_b = create_user_with_headers(client, db)
     ws_a = create_random_workspace(db, user_a)
     ws_b = create_random_workspace(db, user_b)
     create_fake_integration(db, ws_a)
@@ -117,7 +95,7 @@ def test_list_integrations_workspace_isolation(client: TestClient, db: Session) 
 
 
 def test_get_integration(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
 
@@ -131,7 +109,7 @@ def test_get_integration(client: TestClient, db: Session) -> None:
 
 def test_get_integration_tokens_never_exposed(client: TestClient, db: Session) -> None:
     """Encrypted tokens must never appear in the API response."""
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
 
@@ -148,8 +126,8 @@ def test_get_integration_tokens_never_exposed(client: TestClient, db: Session) -
 def test_get_integration_non_member_returns_404(
     client: TestClient, db: Session
 ) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
     integration = create_fake_integration(db, ws)
 
@@ -170,7 +148,7 @@ def test_get_integration_not_found(
 
 
 def test_delete_integration(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
 
@@ -184,7 +162,7 @@ def test_delete_integration(client: TestClient, db: Session) -> None:
 
 def test_delete_integration_cascades_accounts(client: TestClient, db: Session) -> None:
     """Deleting an integration must also delete its platform accounts."""
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
     create_fake_account(db, integration)
@@ -197,8 +175,8 @@ def test_delete_integration_cascades_accounts(client: TestClient, db: Session) -
 
 
 def test_delete_integration_viewer_forbidden(client: TestClient, db: Session) -> None:
-    owner, owner_headers = _create_user_with_headers(client, db)
-    viewer, viewer_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     # Add viewer to workspace
@@ -219,7 +197,7 @@ def test_delete_integration_viewer_forbidden(client: TestClient, db: Session) ->
 
 
 def test_list_accounts_empty(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
 
@@ -230,7 +208,7 @@ def test_list_accounts_empty(client: TestClient, db: Session) -> None:
 
 
 def test_list_accounts(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
     create_fake_account(db, integration, external_id="page-1", name="Page One")
@@ -242,8 +220,8 @@ def test_list_accounts(client: TestClient, db: Session) -> None:
 
 
 def test_list_accounts_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
     integration = create_fake_integration(db, ws)
     create_fake_account(db, integration)
@@ -284,7 +262,7 @@ def test_token_encryption_round_trip(db: Session) -> None:
 def test_trigger_sync_accepted(client: TestClient, db: Session) -> None:
     from unittest.mock import patch
 
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
 
@@ -297,8 +275,8 @@ def test_trigger_sync_accepted(client: TestClient, db: Session) -> None:
 
 
 def test_trigger_sync_viewer_forbidden(client: TestClient, db: Session) -> None:
-    owner, owner_headers = _create_user_with_headers(client, db)
-    viewer, viewer_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
     client.post(
         f"{settings.API_V1_STR}/workspaces/{ws.id}/members",

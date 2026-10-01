@@ -9,7 +9,6 @@ from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
     TokenResponse,
-    register,
 )
 from app.models.integration import Platform
 
@@ -89,4 +88,3 @@ class LinkedInOAuthProvider(OAuthProvider):
 
 
 linkedin_provider = LinkedInOAuthProvider()
-register(linkedin_provider)

@@ -11,35 +11,19 @@ from app.core.config import settings
 from app.models.integration import Platform
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 from tests.utils.integration import create_fake_account, create_fake_integration
+from tests.utils.user import create_user_with_headers
 from tests.utils.workspace import create_random_workspace
 
 PREFIX = f"{settings.API_V1_STR}/metrics"
 
 TODAY = date.today()
+
 YESTERDAY = TODAY - timedelta(days=1)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from app.crud.user import create_user
-    from app.models.user import UserCreate
-    from tests.utils.utils import random_email, random_lower_string
-
-    email = random_email()
-    password = random_lower_string()
-    user = create_user(
-        session=db, user_create=UserCreate(email=email, password=password)
-    )
-    r = client.post(
-        f"{settings.API_V1_STR}/login/access-token",
-        data={"username": email, "password": password},
-    )
-    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    return user, headers
 
 
 def _add_snapshot(
@@ -88,8 +72,8 @@ def _add_post(
 
 
 def test_summary_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
@@ -101,7 +85,7 @@ def test_summary_non_member_returns_404(client: TestClient, db: Session) -> None
 
 
 def test_summary_empty_workspace(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     r = client.get(
@@ -116,7 +100,7 @@ def test_summary_empty_workspace(client: TestClient, db: Session) -> None:
 
 
 def test_summary_aggregates_metrics(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)
@@ -140,7 +124,7 @@ def test_summary_aggregates_metrics(client: TestClient, db: Session) -> None:
 
 
 def test_summary_by_platform_breakdown(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     fb_int = create_fake_integration(db, ws, platform=Platform.facebook)
@@ -167,7 +151,7 @@ def test_summary_by_platform_breakdown(client: TestClient, db: Session) -> None:
 
 
 def test_summary_platform_filter(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     fb_int = create_fake_integration(db, ws, platform=Platform.facebook)
@@ -196,7 +180,7 @@ def test_summary_platform_filter(client: TestClient, db: Session) -> None:
 def test_summary_followers_count_uses_latest_snapshot(
     client: TestClient, db: Session
 ) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)
@@ -225,8 +209,8 @@ def test_summary_followers_count_uses_latest_snapshot(
 
 
 def test_timeseries_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
@@ -238,7 +222,7 @@ def test_timeseries_non_member_returns_404(client: TestClient, db: Session) -> N
 
 
 def test_timeseries_returns_all_days_in_range(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     # Need at least one account so the endpoint queries and fills the date range
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
@@ -264,7 +248,7 @@ def test_timeseries_returns_all_days_in_range(client: TestClient, db: Session) -
 def test_timeseries_fills_zero_for_missing_days(
     client: TestClient, db: Session
 ) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)
@@ -297,7 +281,7 @@ def test_timeseries_fills_zero_for_missing_days(
 def test_timeseries_aggregates_multiple_accounts(
     client: TestClient, db: Session
 ) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     fb_int = create_fake_integration(db, ws, platform=Platform.facebook)
     ig_int = create_fake_integration(
@@ -329,8 +313,8 @@ def test_timeseries_aggregates_multiple_accounts(
 
 
 def test_posts_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
@@ -342,7 +326,7 @@ def test_posts_non_member_returns_404(client: TestClient, db: Session) -> None:
 
 
 def test_posts_empty(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     r = client.get(
@@ -357,7 +341,7 @@ def test_posts_empty(client: TestClient, db: Session) -> None:
 
 
 def test_posts_returns_top_by_engagements(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)
@@ -379,7 +363,7 @@ def test_posts_returns_top_by_engagements(client: TestClient, db: Session) -> No
 
 
 def test_posts_limit(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws, platform=Platform.instagram)
     account = create_fake_account(db, integration)

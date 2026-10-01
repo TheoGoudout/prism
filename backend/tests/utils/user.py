@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from app import crud
 from app.core.config import settings
-from app.models import User, UserCreate, UserUpdate
+from app.models.user import User, UserCreate, UserUpdate
 from tests.utils.utils import random_email, random_lower_string
 
 
@@ -47,3 +47,16 @@ def authentication_token_from_email(
         user = crud.update_user(session=db, db_user=user, user_in=user_in_update)
 
     return user_authentication_headers(client=client, email=email, password=password)
+
+
+def create_user_with_headers(
+    client: TestClient, db: Session
+) -> tuple[User, dict[str, str]]:
+    """A new random user and the auth headers to call the API as them."""
+    email, password = random_email(), random_lower_string()
+    user = crud.create_user(
+        session=db, user_create=UserCreate(email=email, password=password)
+    )
+    return user, user_authentication_headers(
+        client=client, email=email, password=password
+    )

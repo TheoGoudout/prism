@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
+from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.linkedin import (
     _fetch_admin_organizations,
     _sync_follower_stats,
@@ -18,7 +18,6 @@ from app.integrations.platforms.linkedin import (
 )
 from app.models.integration import Platform
 from app.models.metrics import ContentType
-from app.worker.tasks.sync import _platform_sync
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -45,7 +44,7 @@ def _make_account() -> MagicMock:
 
 
 def test_linkedin_registered_in_sync_registry():
-    assert _platform_sync.get(Platform.linkedin.value) is not None
+    assert SYNC_FUNCTIONS[Platform.linkedin] is sync_linkedin
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +52,7 @@ def test_linkedin_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_fetch_admin_orgs_returns_orgs(mock_get):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -78,7 +77,7 @@ def test_fetch_admin_orgs_returns_orgs(mock_get):
     assert orgs[0]["org_urn"] == "urn:li:organization:12345"
 
 
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_fetch_admin_orgs_empty(mock_get):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"elements": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -92,7 +91,7 @@ def test_fetch_admin_orgs_empty(mock_get):
 
 
 @patch("app.integrations.platforms.linkedin.crud")
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_sync_follower_stats_upserts_snapshot(mock_get, mock_crud):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -113,7 +112,7 @@ def test_sync_follower_stats_upserts_snapshot(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.linkedin.crud")
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     shares_resp = {
@@ -135,7 +134,7 @@ def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
                     "commentCount": 30,
                     "shareCount": 15,
                     "clickCount": 200,
-                    "engagement": 365,
+                    "engagement": 0.073,  # a rate, not a count
                 }
             }
         ]
@@ -158,11 +157,13 @@ def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
     assert post.impressions == 5000
     assert post.reach == 3000
     assert post.likes == 120
+    assert post.engagements == 120 + 30 + 15 + 200
+    assert post.raw_data["engagement"] == 0.073
     assert post.text == "Great update!"
 
 
 @patch("app.integrations.platforms.linkedin.crud")
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_sync_org_posts_stats_error_still_upserts(mock_get, mock_crud):
     """Statistics fetch failure should not skip the post upsert."""
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -192,7 +193,7 @@ def test_sync_org_posts_stats_error_still_upserts(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.linkedin.crud")
-@patch("app.integrations.platforms.linkedin.httpx.get")
+@patch("httpx.get")
 def test_sync_org_posts_skips_old_shares(mock_get, mock_crud):
     """Shares older than 30 days should be skipped."""
     old_ms = int((datetime.now(timezone.utc).timestamp() - 35 * 86400) * 1000)
@@ -215,7 +216,6 @@ def test_sync_org_posts_skips_old_shares(mock_get, mock_crud):
 @patch("app.integrations.platforms.linkedin.crud")
 def test_sync_linkedin_processes_all_orgs(mock_crud, mock_followers, mock_posts):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
 
     orgs = [
         {
@@ -237,20 +237,11 @@ def test_sync_linkedin_processes_all_orgs(mock_crud, mock_followers, mock_posts)
         "app.integrations.platforms.linkedin._fetch_admin_organizations",
         return_value=orgs,
     ):
-        sync_linkedin(MagicMock(), integ)
+        sync_linkedin(MagicMock(), integ, "token")
 
     assert mock_crud.upsert_platform_account.call_count == 2
     assert mock_followers.call_count == 2
     assert mock_posts.call_count == 2
-
-
-@patch("app.integrations.platforms.linkedin.crud")
-def test_sync_linkedin_no_token_raises(mock_crud):
-    integ = _make_integration()
-    mock_crud.get_access_token.return_value = None
-
-    with pytest.raises(ValueError, match="No access token"):
-        sync_linkedin(MagicMock(), integ)
 
 
 @patch(
@@ -259,7 +250,6 @@ def test_sync_linkedin_no_token_raises(mock_crud):
 @patch("app.integrations.platforms.linkedin.crud")
 def test_sync_linkedin_no_orgs_is_noop(mock_crud, _):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
 
-    sync_linkedin(MagicMock(), integ)
+    sync_linkedin(MagicMock(), integ, "token")
     mock_crud.upsert_platform_account.assert_not_called()

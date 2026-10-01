@@ -13,11 +13,13 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.models.integration import Platform
-from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
+from app.models.metrics import MetricSnapshotUpsert
 from tests.utils.integration import create_fake_account, create_fake_integration
+from tests.utils.user import create_user_with_headers
 from tests.utils.workspace import create_random_workspace
 
 PREFIX = f"{settings.API_V1_STR}/ai"
+
 TODAY = date.today()
 
 _FAKE_INSIGHTS = json.dumps(
@@ -40,67 +42,13 @@ _FAKE_REPORT = "## Executive Summary\nGood performance overall.\n## Recommendati
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from app.crud.user import create_user
-    from app.models.user import UserCreate
-    from tests.utils.utils import random_email, random_lower_string
-
-    email = random_email()
-    password = random_lower_string()
-    user = create_user(
-        session=db, user_create=UserCreate(email=email, password=password)
-    )
-    r = client.post(
-        f"{settings.API_V1_STR}/login/access-token",
-        data={"username": email, "password": password},
-    )
-    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    return user, headers
-
-
-def _seed_data(
-    db: Session, workspace_id, platform: Platform = Platform.instagram
-) -> None:
-    from app import crud
-
-    integration = create_fake_integration(
-        db, MagicMock(id=workspace_id), platform=platform
-    )
-    account = create_fake_account(db, integration)
-    crud.upsert_metric_snapshot(
-        session=db,
-        platform_account_id=account.id,
-        snapshot_in=MetricSnapshotUpsert(
-            date=TODAY,
-            impressions=1000,
-            engagements=80,
-            followers_count=5000,
-        ),
-    )
-    crud.upsert_post(
-        session=db,
-        platform_account_id=account.id,
-        post_in=PostUpsert(
-            external_id="p1",
-            published_at=f"{TODAY}T12:00:00+00:00",
-            content_type=ContentType.post,
-            engagements=80,
-        ),
-    )
-
-
-# ---------------------------------------------------------------------------
 # /ai/insights
 # ---------------------------------------------------------------------------
 
 
 def test_insights_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.post(
@@ -112,7 +60,7 @@ def test_insights_non_member_returns_404(client: TestClient, db: Session) -> Non
 
 
 def test_insights_returns_structured_response(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     parsed = json.loads(_FAKE_INSIGHTS)
@@ -137,7 +85,7 @@ def test_insights_returns_structured_response(client: TestClient, db: Session) -
 
 
 def test_insights_with_metrics_data(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     # Seed real metric data
@@ -173,7 +121,7 @@ def test_insights_with_metrics_data(client: TestClient, db: Session) -> None:
 
 
 def test_insights_llm_error_returns_502(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     mock_chain = MagicMock()
@@ -196,8 +144,8 @@ def test_insights_llm_error_returns_502(client: TestClient, db: Session) -> None
 
 
 def test_report_non_member_returns_404(client: TestClient, db: Session) -> None:
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.post(
@@ -209,7 +157,7 @@ def test_report_non_member_returns_404(client: TestClient, db: Session) -> None:
 
 
 def test_report_returns_markdown(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     mock_chain = MagicMock()
@@ -230,7 +178,7 @@ def test_report_returns_markdown(client: TestClient, db: Session) -> None:
 
 
 def test_report_llm_error_returns_502(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     mock_chain = MagicMock()
@@ -247,7 +195,7 @@ def test_report_llm_error_returns_502(client: TestClient, db: Session) -> None:
 
 
 def test_report_with_platform_filter(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     mock_chain = MagicMock()
@@ -266,7 +214,7 @@ def test_report_with_platform_filter(client: TestClient, db: Session) -> None:
 def test_insights_invalid_workspace_id_returns_422(
     client: TestClient, db: Session
 ) -> None:
-    _, headers = _create_user_with_headers(client, db)
+    _, headers = create_user_with_headers(client, db)
     r = client.post(
         f"{PREFIX}/insights", headers=headers, json={"workspace_id": "not-a-uuid"}
     )

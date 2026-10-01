@@ -9,7 +9,6 @@ from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
     TokenResponse,
-    register,
 )
 from app.models.integration import Platform
 
@@ -81,4 +80,3 @@ class TwitterOAuthProvider(OAuthProvider):
 
 
 twitter_provider = TwitterOAuthProvider()
-register(twitter_provider)

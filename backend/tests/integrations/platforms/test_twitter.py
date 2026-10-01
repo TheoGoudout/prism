@@ -7,8 +7,8 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
+from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.twitter import (
     _fetch_user_info,
     _sync_account_snapshot,
@@ -17,7 +17,6 @@ from app.integrations.platforms.twitter import (
 )
 from app.models.integration import Platform
 from app.models.metrics import ContentType
-from app.worker.tasks.sync import _platform_sync
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -44,7 +43,7 @@ def _make_account() -> MagicMock:
 
 
 def test_twitter_registered_in_sync_registry():
-    assert _platform_sync.get(Platform.twitter.value) is not None
+    assert SYNC_FUNCTIONS[Platform.twitter] is sync_twitter
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +51,7 @@ def test_twitter_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.twitter.httpx.get")
+@patch("httpx.get")
 def test_fetch_user_info_returns_data(mock_get):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -96,7 +95,7 @@ def test_sync_account_snapshot_upserts(mock_crud):
 
 
 @patch("app.integrations.platforms.twitter.crud")
-@patch("app.integrations.platforms.twitter.httpx.get")
+@patch("httpx.get")
 def test_sync_tweets_upserts_owned_tweets(mock_get, mock_crud):
     tweets_resp = {
         "data": [
@@ -132,7 +131,7 @@ def test_sync_tweets_upserts_owned_tweets(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.twitter.crud")
-@patch("app.integrations.platforms.twitter.httpx.get")
+@patch("httpx.get")
 def test_sync_tweets_skips_retweets(mock_get, mock_crud):
     tweets_resp = {
         "data": [
@@ -154,7 +153,7 @@ def test_sync_tweets_skips_retweets(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.twitter.crud")
-@patch("app.integrations.platforms.twitter.httpx.get")
+@patch("httpx.get")
 def test_sync_tweets_empty_response(mock_get, mock_crud):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -164,7 +163,7 @@ def test_sync_tweets_empty_response(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.twitter.crud")
-@patch("app.integrations.platforms.twitter.httpx.get")
+@patch("httpx.get")
 def test_sync_tweets_no_data_key(mock_get, mock_crud):
     """API returns no 'data' key when there are no tweets in range."""
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {})
@@ -186,7 +185,6 @@ def test_sync_twitter_upserts_account_and_calls_sub_syncs(
     mock_crud, mock_snapshot, mock_tweets
 ):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
     mock_crud.upsert_platform_account.return_value = _make_account()
 
     user_data = {
@@ -199,20 +197,11 @@ def test_sync_twitter_upserts_account_and_calls_sub_syncs(
     with patch(
         "app.integrations.platforms.twitter._fetch_user_info", return_value=user_data
     ):
-        sync_twitter(MagicMock(), integ)
+        sync_twitter(MagicMock(), integ, "token")
 
     mock_crud.upsert_platform_account.assert_called_once()
     mock_snapshot.assert_called_once()
     mock_tweets.assert_called_once()
-
-
-@patch("app.integrations.platforms.twitter.crud")
-def test_sync_twitter_no_token_raises(mock_crud):
-    integ = _make_integration()
-    mock_crud.get_access_token.return_value = None
-
-    with pytest.raises(ValueError, match="No access token"):
-        sync_twitter(MagicMock(), integ)
 
 
 @patch("app.integrations.platforms.twitter._sync_tweets")
@@ -220,7 +209,6 @@ def test_sync_twitter_no_token_raises(mock_crud):
 @patch("app.integrations.platforms.twitter.crud")
 def test_sync_twitter_tweet_error_does_not_raise(mock_crud, mock_snapshot, mock_tweets):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "token"
     mock_crud.upsert_platform_account.return_value = _make_account()
     mock_tweets.side_effect = httpx.HTTPStatusError(
         "429", request=MagicMock(), response=MagicMock(status_code=429)
@@ -234,6 +222,6 @@ def test_sync_twitter_tweet_error_does_not_raise(mock_crud, mock_snapshot, mock_
     with patch(
         "app.integrations.platforms.twitter._fetch_user_info", return_value=user_data
     ):
-        sync_twitter(MagicMock(), integ)  # should not raise
+        sync_twitter(MagicMock(), integ, "token")  # should not raise
 
     mock_snapshot.assert_called_once()

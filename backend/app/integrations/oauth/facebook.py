@@ -1,17 +1,13 @@
 """Facebook / Meta OAuth2 provider (also the base for Instagram Business)."""
 
 from datetime import timedelta
-from typing import Any
-
-import httpx
 
 from app.core.config import settings
-from app.integrations.meta import FACEBOOK_DIALOG_URL, GRAPH_API
+from app.integrations.meta import FACEBOOK_DIALOG_URL, GRAPH_API, graph_get
 from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
     TokenResponse,
-    register,
 )
 from app.models.integration import Platform
 
@@ -74,26 +70,12 @@ class FacebookOAuthProvider(OAuthProvider):
         return access_token
 
     def get_account_info(self, access_token: str) -> AccountInfo:
-        data = self._graph_get("me", access_token, {"fields": "id,name,picture"})
+        data = graph_get("me", access_token, {"fields": "id,name,picture"})
         return AccountInfo(
             external_id=data["id"],
             name=data["name"],
             avatar_url=(data.get("picture") or {}).get("data", {}).get("url"),
         )
 
-    @staticmethod
-    def _graph_get(
-        path: str, access_token: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        resp = httpx.get(
-            f"{GRAPH_API}/{path}",
-            params={**(params or {}), "access_token": access_token},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        result: dict[str, Any] = resp.json()
-        return result
-
 
 facebook_provider = FacebookOAuthProvider()
-register(facebook_provider)

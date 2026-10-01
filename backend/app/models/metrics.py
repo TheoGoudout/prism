@@ -24,15 +24,46 @@ class ContentType(str, Enum):
 
 
 # ---------------------------------------------------------------------------
+# Shared metric fields
+#
+# Every platform maps its own metric names onto these normalised fields.
+# A platform that doesn't report a metric leaves it as None.
+# ---------------------------------------------------------------------------
+
+
+class ContentMetrics(SQLModel):
+    """Reach and engagement metrics, reported per post and per day."""
+
+    impressions: int | None = None
+    reach: int | None = None
+    views: int | None = None
+    engagements: int | None = None
+    likes: int | None = None
+    comments: int | None = None
+    shares: int | None = None
+    clicks: int | None = None
+    saves: int | None = None
+
+
+class AccountMetrics(ContentMetrics):
+    """Content metrics plus account-level audience figures, reported per day."""
+
+    followers_count: int | None = None
+    followers_gained: int | None = None
+    followers_lost: int | None = None
+    posts_count: int | None = None
+
+
+# ---------------------------------------------------------------------------
 # MetricSnapshot — one row per (platform_account, date)
 # ---------------------------------------------------------------------------
 
 
-class MetricSnapshot(SQLModel, table=True):
+class MetricSnapshot(AccountMetrics, table=True):
     """
     Daily aggregate metrics for a platform account.
-    Weekly / monthly views are computed on-the-fly by summing/averaging
-    over date ranges — no separate rollup tables needed.
+    Weekly / monthly views are computed on-the-fly by summing over date
+    ranges — no separate rollup tables needed.
     """
 
     __tablename__ = "metricsnapshot"
@@ -48,31 +79,10 @@ class MetricSnapshot(SQLModel, table=True):
     )
     date: date_type = Field(sa_column=Column(Date, nullable=False))
 
-    # --- Audience ---
-    followers_count: int | None = Field(default=None)
-    followers_gained: int | None = Field(default=None)
-    followers_lost: int | None = Field(default=None)
+    # Calculated (stored for fast retrieval): engagements / reach
+    engagement_rate: float | None = None
 
-    # --- Content activity ---
-    posts_count: int | None = Field(default=None)
-
-    # --- Reach & visibility ---
-    impressions: int | None = Field(default=None)
-    reach: int | None = Field(default=None)
-    views: int | None = Field(default=None)
-
-    # --- Engagement ---
-    engagements: int | None = Field(default=None)
-    likes: int | None = Field(default=None)
-    comments: int | None = Field(default=None)
-    shares: int | None = Field(default=None)
-    clicks: int | None = Field(default=None)
-    saves: int | None = Field(default=None)
-
-    # --- Calculated (stored for fast retrieval) ---
-    engagement_rate: float | None = Field(default=None)
-
-    # --- Platform-specific overflow ---
+    # Platform-specific metrics that don't map onto the normalised fields
     raw_data: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
@@ -92,7 +102,17 @@ class MetricSnapshot(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
-class Post(SQLModel, table=True):
+class PostContent(SQLModel):
+    """What was published (as opposed to how it performed)."""
+
+    external_id: str = Field(max_length=255)
+    content_type: ContentType
+    text: str | None = None
+    media_url: str | None = Field(default=None, max_length=2048)
+    permalink: str | None = Field(default=None, max_length=2048)
+
+
+class Post(PostContent, ContentMetrics, table=True):
     """Per-post metrics synced from each platform."""
 
     __table_args__ = (
@@ -105,30 +125,11 @@ class Post(SQLModel, table=True):
     platform_account_id: uuid.UUID = Field(
         foreign_key="platformaccount.id", nullable=False, ondelete="CASCADE", index=True
     )
-    external_id: str = Field(max_length=255)
     published_at: datetime = Field(
         sa_column=Column(SADateTime(timezone=True), nullable=False)
     )
-    content_type: ContentType
+    engagement_rate: float | None = None
 
-    # --- Content snapshot ---
-    text: str | None = Field(default=None)
-    media_url: str | None = Field(default=None, max_length=2048)
-    permalink: str | None = Field(default=None, max_length=2048)
-
-    # --- Metrics ---
-    impressions: int | None = Field(default=None)
-    reach: int | None = Field(default=None)
-    views: int | None = Field(default=None)
-    engagements: int | None = Field(default=None)
-    likes: int | None = Field(default=None)
-    comments: int | None = Field(default=None)
-    shares: int | None = Field(default=None)
-    clicks: int | None = Field(default=None)
-    saves: int | None = Field(default=None)
-    engagement_rate: float | None = Field(default=None)
-
-    # --- Platform-specific overflow ---
     raw_data: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
@@ -146,64 +147,35 @@ class Post(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
-# Pydantic schemas
+# Sync inputs — used internally by sync tasks, not exposed via the API
 # ---------------------------------------------------------------------------
 
 
-class MetricSnapshotPublic(SQLModel):
-    id: uuid.UUID
-    platform_account_id: uuid.UUID
+class MetricSnapshotUpsert(AccountMetrics):
     date: date_type
-    followers_count: int | None = None
-    followers_gained: int | None = None
-    followers_lost: int | None = None
-    posts_count: int | None = None
-    impressions: int | None = None
-    reach: int | None = None
-    views: int | None = None
-    engagements: int | None = None
-    likes: int | None = None
-    comments: int | None = None
-    shares: int | None = None
-    clicks: int | None = None
-    saves: int | None = None
-    engagement_rate: float | None = None
+    raw_data: dict[str, Any] | None = None
 
 
-class MetricSnapshotsPublic(SQLModel):
-    data: list[MetricSnapshotPublic]
-    count: int
+class PostUpsert(PostContent, ContentMetrics):
+    published_at: datetime
+    raw_data: dict[str, Any] | None = None
 
 
-class PostPublic(SQLModel):
+# ---------------------------------------------------------------------------
+# API responses
+# ---------------------------------------------------------------------------
+
+
+class PostPublic(PostContent, ContentMetrics):
     id: uuid.UUID
     platform_account_id: uuid.UUID
-    external_id: str
     published_at: datetime
-    content_type: ContentType
-    text: str | None = None
-    media_url: str | None = None
-    permalink: str | None = None
-    impressions: int | None = None
-    reach: int | None = None
-    views: int | None = None
-    engagements: int | None = None
-    likes: int | None = None
-    comments: int | None = None
-    shares: int | None = None
-    clicks: int | None = None
-    saves: int | None = None
     engagement_rate: float | None = None
 
 
 class PostsPublic(SQLModel):
     data: list[PostPublic]
     count: int
-
-
-# ---------------------------------------------------------------------------
-# Dashboard response schemas
-# ---------------------------------------------------------------------------
 
 
 class MetricTotals(SQLModel):
@@ -244,44 +216,3 @@ class MetricsTimeSeries(SQLModel):
     """Response for GET /metrics/timeseries."""
 
     data: list[TimeSeriesPoint]
-
-
-class MetricSnapshotUpsert(SQLModel):
-    """Used internally by sync tasks — not exposed via the API."""
-
-    date: date_type
-    followers_count: int | None = None
-    followers_gained: int | None = None
-    followers_lost: int | None = None
-    posts_count: int | None = None
-    impressions: int | None = None
-    reach: int | None = None
-    views: int | None = None
-    engagements: int | None = None
-    likes: int | None = None
-    comments: int | None = None
-    shares: int | None = None
-    clicks: int | None = None
-    saves: int | None = None
-    raw_data: dict[str, Any] | None = None
-
-
-class PostUpsert(SQLModel):
-    """Used internally by sync tasks — not exposed via the API."""
-
-    external_id: str
-    published_at: datetime
-    content_type: ContentType
-    text: str | None = None
-    media_url: str | None = None
-    permalink: str | None = None
-    impressions: int | None = None
-    reach: int | None = None
-    views: int | None = None
-    engagements: int | None = None
-    likes: int | None = None
-    comments: int | None = None
-    shares: int | None = None
-    clicks: int | None = None
-    saves: int | None = None
-    raw_data: dict[str, Any] | None = None

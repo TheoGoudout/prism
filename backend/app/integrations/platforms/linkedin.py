@@ -1,62 +1,52 @@
 """
-LinkedIn Company Page sync (Marketing API v2).
+LinkedIn Company Page sync (REST API v2).
 
-Fetches:
-  - Company pages administered by the authenticated user → PlatformAccounts
-  - Page follower statistics (snapshotted daily)
-  - Organic share statistics for the 20 most recent posts (last 30 days)
-
-Uses the LinkedIn REST API v2 with the Bearer token from the Integration.
+For every company Page the user administers:
+  - the Page is stored as a PlatformAccount
+  - today's follower count becomes a MetricSnapshot
+  - shares from the sync window (latest 20) and their statistics become Posts
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 from sqlmodel import Session
 
 from app import crud
-from app.models.integration import Integration, Platform, PlatformAccountCreate
+from app.integrations.common import SYNC_WINDOW_DAYS, log_http_errors, sum_known
+from app.integrations.http import get_json
+from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
-from app.worker.tasks.sync import register_platform_sync
 
 logger = logging.getLogger(__name__)
 
-LI_API = "https://api.linkedin.com/v2"
+LINKEDIN_API = "https://api.linkedin.com/v2"
 
 
-# ---------------------------------------------------------------------------
-# Internal HTTP helper
-# ---------------------------------------------------------------------------
-
-
-def _get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    resp = httpx.get(
-        f"{LI_API}/{path}",
-        params=params or {},
-        headers={
-            "Authorization": f"Bearer {token}",
-            "X-Restli-Protocol-Version": "2.0.0",
-        },
-        timeout=15,
+def _get(path: str, token: str, params: dict[str, Any]) -> dict[str, Any]:
+    return get_json(
+        f"{LINKEDIN_API}/{path}",
+        token=token,
+        params=params,
+        headers={"X-Restli-Protocol-Version": "2.0.0"},
     )
-    resp.raise_for_status()
-    result: dict[str, Any] = resp.json()
-    return result
 
 
-# ---------------------------------------------------------------------------
-# Company page discovery
-# ---------------------------------------------------------------------------
+def _logo_url(org: dict[str, Any]) -> str | None:
+    try:
+        return str(
+            org["logoV2"]["original~"]["elements"][0]["identifiers"][0]["identifier"]
+        )
+    except (KeyError, IndexError, TypeError):
+        return None
 
 
 def _fetch_admin_organizations(token: str) -> list[dict[str, Any]]:
-    """
-    Return company pages where the user has ADMINISTRATOR role.
-    Uses /organizationAcls endpoint.
-    """
-    resp = _get(
+    """The company Pages where the user has the ADMINISTRATOR role."""
+    data = _get(
         "organizationAcls",
         token,
         {
@@ -69,205 +59,127 @@ def _fetch_admin_organizations(token: str) -> list[dict[str, Any]]:
             ),
         },
     )
-
     orgs = []
-    for element in resp.get("elements", []):
-        org_detail = element.get("organization~", {})
-        org_urn = element.get("organization", "")  # urn:li:organization:XXXXX
-        org_id = org_urn.split(":")[-1] if ":" in org_urn else org_urn
-
-        name = org_detail.get("localizedName", org_id)
-        try:
-            logo_elements = (
-                org_detail.get("logoV2", {}).get("original~", {}).get("elements", [])
-            )
-            avatar_url = (
-                logo_elements[0]["identifiers"][0]["identifier"]
-                if logo_elements
-                else None
-            )
-        except (KeyError, IndexError):
-            avatar_url = None
-
+    for element in data.get("elements", []):
+        org_urn: str = element.get("organization", "")  # urn:li:organization:123
+        org_id = org_urn.rsplit(":", 1)[-1]
+        details = element.get("organization~", {})
         orgs.append(
             {
                 "org_id": org_id,
                 "org_urn": org_urn,
-                "name": name,
-                "avatar_url": avatar_url,
+                "name": details.get("localizedName", org_id),
+                "avatar_url": _logo_url(details),
             }
         )
     return orgs
 
 
-# ---------------------------------------------------------------------------
-# Follower stats → daily snapshot
-# ---------------------------------------------------------------------------
-
-
 def _sync_follower_stats(
-    session: Session,
-    platform_account_id: Any,
-    org_id: str,
-    token: str,
+    session: Session, platform_account_id: uuid.UUID, org_id: str, token: str
 ) -> None:
-    resp = _get(
+    data = _get(
         "networkSizes",
         token,
-        {
-            "edgeType": "CompanyFollowedByMember",
-            "q": "edges",
-            "organizationId": org_id,
-        },
-    )
-    followers = resp.get("firstDegreeSize", None)
-    today = datetime.now(timezone.utc).date()
-    snapshot = MetricSnapshotUpsert(
-        date=today,
-        followers_count=followers,
-        raw_data=resp,
+        {"edgeType": "CompanyFollowedByMember", "q": "edges", "organizationId": org_id},
     )
     crud.upsert_metric_snapshot(
         session=session,
         platform_account_id=platform_account_id,
-        snapshot_in=snapshot,
+        snapshot_in=MetricSnapshotUpsert(
+            date=date.today(),
+            followers_count=data.get("firstDegreeSize"),
+            raw_data=data,
+        ),
     )
 
 
-# ---------------------------------------------------------------------------
-# Organic share statistics (posts)
-# ---------------------------------------------------------------------------
+def _share_statistics(org_urn: str, share_id: str, token: str) -> dict[str, Any]:
+    """The share's totalShareStatistics, or {} if unavailable."""
+    try:
+        data = _get(
+            "organizationalEntityShareStatistics",
+            token,
+            {
+                "q": "organizationalEntity",
+                "organizationalEntity": org_urn,
+                "shares[0]": f"urn:li:share:{share_id}",
+            },
+        )
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Could not fetch stats for share %s: %s", share_id, exc)
+        return {}
+    elements = data.get("elements") or [{}]
+    stats: dict[str, Any] = elements[0].get("totalShareStatistics", {})
+    return stats
+
+
+def _share_text(share: dict[str, Any]) -> str | None:
+    text: str | None = share.get("text", {}).get("text")
+    if text:
+        return text
+    content = share.get("specificContent", {}).get("com.linkedin.ugc.ShareContent", {})
+    commentary: str | None = content.get("shareCommentary", {}).get("text")
+    return commentary
 
 
 def _sync_org_posts(
-    session: Session,
-    platform_account_id: Any,
-    org_urn: str,
-    token: str,
+    session: Session, platform_account_id: uuid.UUID, org_urn: str, token: str
 ) -> None:
-    start_ms = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
-
-    # Fetch recent shares/posts
-    shares_resp = _get(
+    window_start = datetime.now(timezone.utc) - timedelta(days=SYNC_WINDOW_DAYS)
+    data = _get(
         "shares",
         token,
-        {
-            "q": "owners",
-            "owners": org_urn,
-            "count": 20,
-            "sharesPerOwner": 20,
-        },
+        {"q": "owners", "owners": org_urn, "count": 20, "sharesPerOwner": 20},
     )
-
-    for share in shares_resp.get("elements", []):
-        share_id: str = share.get("id", "")
-        if not share_id:
+    for share in data.get("elements", []):
+        created_ms = share.get("created", {}).get("time")
+        if not share.get("id") or not created_ms:
+            continue
+        published_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+        if published_at < window_start:
             continue
 
-        created_ms = share.get("created", {}).get("time", 0)
-        if created_ms and created_ms < start_ms:
-            continue  # outside 30-day window
-
-        # Fetch organic statistics for this share
-        stats: dict[str, Any] = {}
-        try:
-            stats_resp = _get(
-                "organizationalEntityShareStatistics",
-                token,
-                {
-                    "q": "organizationalEntity",
-                    "organizationalEntity": org_urn,
-                    "shares[0]": f"urn:li:share:{share_id}",
-                },
-            )
-            elements = stats_resp.get("elements", [])
-            if elements:
-                ts = elements[0].get("totalShareStatistics", {})
-                stats = ts
-        except httpx.HTTPStatusError as exc:
-            logger.warning("Could not fetch stats for share %s: %s", share_id, exc)
-
-        published_at: datetime | None = None
-        if created_ms:
-            published_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
-        else:
-            published_at = datetime.now(timezone.utc)
-
-        # Extract text from share content
-        text: str | None = None
-        try:
-            text = share.get("text", {}).get("text") or share.get(
-                "specificContent", {}
-            ).get("com.linkedin.ugc.ShareContent", {}).get("shareCommentary", {}).get(
-                "text"
-            )
-        except (AttributeError, KeyError):
-            pass
-
-        post = PostUpsert(
-            external_id=share_id,
-            published_at=published_at,
-            content_type=ContentType.article,
-            text=text,
-            impressions=stats.get("impressionCount"),
-            reach=stats.get("uniqueImpressionsCount"),
-            engagements=stats.get("engagement"),
-            likes=stats.get("likeCount"),
-            comments=stats.get("commentCount"),
-            shares=stats.get("shareCount"),
-            clicks=stats.get("clickCount"),
-            raw_data=stats or None,
-        )
+        stats = _share_statistics(org_urn, share["id"], token)
+        likes = stats.get("likeCount")
+        comments = stats.get("commentCount")
+        shares = stats.get("shareCount")
+        clicks = stats.get("clickCount")
         crud.upsert_post(
             session=session,
             platform_account_id=platform_account_id,
-            post_in=post,
+            post_in=PostUpsert(
+                external_id=share["id"],
+                published_at=published_at,
+                content_type=ContentType.article,
+                text=_share_text(share),
+                impressions=stats.get("impressionCount"),
+                reach=stats.get("uniqueImpressionsCount"),
+                # LinkedIn's own `engagement` is a rate; keep it in raw_data
+                engagements=sum_known(likes, comments, shares, clicks),
+                likes=likes,
+                comments=comments,
+                shares=shares,
+                clicks=clicks,
+                raw_data=stats or None,
+            ),
         )
 
 
-# ---------------------------------------------------------------------------
-# Main entry-point
-# ---------------------------------------------------------------------------
-
-
-def sync_linkedin(session: Session, integration: Integration) -> None:
-    """Sync LinkedIn Company Pages for this integration."""
-    token = crud.get_access_token(integration)
-    if not token:
-        raise ValueError("No access token available for LinkedIn integration")
-
-    orgs = _fetch_admin_organizations(token)
-    if not orgs:
-        logger.info(
-            "sync_linkedin: no admin organisations for integration %s", integration.id
-        )
-        return
-
-    for org in orgs:
-        org_id: str = org["org_id"]
-        org_urn: str = org["org_urn"]
-
-        account_in = PlatformAccountCreate(
-            integration_id=integration.id,
-            workspace_id=integration.workspace_id,
-            platform=Platform.linkedin,
-            external_id=org_id,
+def sync_linkedin(
+    session: Session, integration: Integration, access_token: str
+) -> None:
+    """Sync every LinkedIn company Page the user administers."""
+    for org in _fetch_admin_organizations(access_token):
+        account = crud.upsert_platform_account(
+            session=session,
+            integration=integration,
+            external_id=org["org_id"],
             name=org["name"],
-            avatar_url=org.get("avatar_url"),
+            avatar_url=org["avatar_url"],
             account_type="organization",
         )
-        account = crud.upsert_platform_account(session=session, account_in=account_in)
-
-        try:
-            _sync_follower_stats(session, account.id, org_id, token)
-        except httpx.HTTPStatusError as exc:
-            logger.error("sync_linkedin: follower stats error for %s: %s", org_id, exc)
-
-        try:
-            _sync_org_posts(session, account.id, org_urn, token)
-        except httpx.HTTPStatusError as exc:
-            logger.error("sync_linkedin: posts error for %s: %s", org_id, exc)
-
-
-# Register with the Celery sync dispatcher (side-effect on import)
-register_platform_sync(Platform.linkedin.value, sync_linkedin)
+        with log_http_errors(f"LinkedIn follower stats for {org['org_id']}"):
+            _sync_follower_stats(session, account.id, org["org_id"], access_token)
+        with log_http_errors(f"LinkedIn posts for {org['org_id']}"):
+            _sync_org_posts(session, account.id, org["org_urn"], access_token)

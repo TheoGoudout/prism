@@ -3,12 +3,10 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app import crud
 from app.api.deps import SessionDep
 from app.core.security import get_password_hash
-from app.models import (
-    User,
-    UserPublic,
-)
+from app.models.user import User, UserPublic
 
 router = APIRouter(tags=["private"], prefix="/private")
 
@@ -32,7 +30,4 @@ def create_user(user_in: PrivateUserCreate, session: SessionDep) -> Any:
         hashed_password=get_password_hash(user_in.password),
     )
 
-    session.add(user)
-    session.commit()
-
-    return user
+    return crud.save(session, user)

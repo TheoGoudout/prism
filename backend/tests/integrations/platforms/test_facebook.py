@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
+from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.facebook import (
     _fetch_managed_pages,
     _sync_page_insights,
@@ -17,7 +18,6 @@ from app.integrations.platforms.facebook import (
     sync_facebook,
 )
 from app.models.integration import Platform
-from app.worker.tasks.sync import _platform_sync
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -46,7 +46,7 @@ def _make_account(external_id: str = "page-1") -> MagicMock:
 
 def test_facebook_registered_in_sync_registry():
     """Importing the module should register the sync function."""
-    assert _platform_sync.get(Platform.facebook.value) is not None
+    assert SYNC_FUNCTIONS[Platform.facebook] is sync_facebook
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ def test_facebook_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_fetch_managed_pages_returns_list(mock_get):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -73,7 +73,7 @@ def test_fetch_managed_pages_returns_list(mock_get):
     assert pages[0]["access_token"] == "page-token"
 
 
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_fetch_managed_pages_empty(mock_get):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -88,7 +88,7 @@ def test_fetch_managed_pages_empty(mock_get):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
     insight_data = {
         "data": [
@@ -142,7 +142,7 @@ def test_sync_page_insights_upserts_snapshots(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(
     mock_get, mock_crud
 ):
@@ -178,7 +178,7 @@ def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_insights_server_error_propagates(mock_get, mock_crud):
     mock_get.side_effect = httpx.HTTPStatusError(
         "500", request=MagicMock(), response=MagicMock(status_code=500)
@@ -188,7 +188,7 @@ def test_sync_page_insights_server_error_propagates(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_insights_empty_response(mock_get, mock_crud):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -204,7 +204,7 @@ def test_sync_page_insights_empty_response(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_posts_upserts_posts(mock_get, mock_crud):
     posts_resp = {
         "data": [
@@ -261,7 +261,7 @@ def test_sync_page_posts_upserts_posts(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_posts_insight_error_skips_gracefully(mock_get, mock_crud):
     """Post insights failure should not abort the whole post sync."""
     posts_resp = {
@@ -295,7 +295,7 @@ def test_sync_page_posts_insight_error_skips_gracefully(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.facebook.crud")
-@patch("app.integrations.platforms.facebook.httpx.get")
+@patch("httpx.get")
 def test_sync_page_posts_no_posts(mock_get, mock_crud):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -317,7 +317,6 @@ def test_sync_facebook_upserts_accounts_and_calls_sub_syncs(
     mock_crud, mock_insights, mock_posts
 ):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-token"
 
     pages = [
         {"id": "page-A", "name": "Page A", "access_token": "tok-A"},
@@ -330,29 +329,19 @@ def test_sync_facebook_upserts_accounts_and_calls_sub_syncs(
     with patch(
         "app.integrations.platforms.facebook._fetch_managed_pages", return_value=pages
     ):
-        sync_facebook(MagicMock(), integ)
+        sync_facebook(MagicMock(), integ, "token")
 
     assert mock_crud.upsert_platform_account.call_count == 2
     assert mock_insights.call_count == 2
     assert mock_posts.call_count == 2
 
 
-@patch("app.integrations.platforms.facebook.crud")
-def test_sync_facebook_no_access_token_raises(mock_crud):
-    integ = _make_integration()
-    mock_crud.get_access_token.return_value = None
-
-    with pytest.raises(ValueError, match="No access token"):
-        sync_facebook(MagicMock(), integ)
-
-
 @patch("app.integrations.platforms.facebook._fetch_managed_pages", return_value=[])
 @patch("app.integrations.platforms.facebook.crud")
 def test_sync_facebook_no_pages_is_noop(mock_crud, _mock_pages):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-token"
 
-    sync_facebook(MagicMock(), integ)  # should not raise
+    sync_facebook(MagicMock(), integ, "token")  # should not raise
 
     mock_crud.upsert_platform_account.assert_not_called()
 
@@ -365,7 +354,6 @@ def test_sync_facebook_insights_error_continues_to_posts(
 ):
     """An HTTP error in page insights should not abort post sync."""
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-token"
     mock_crud.upsert_platform_account.return_value = _make_account()
 
     mock_insights.side_effect = httpx.HTTPStatusError(
@@ -376,6 +364,6 @@ def test_sync_facebook_insights_error_continues_to_posts(
         "app.integrations.platforms.facebook._fetch_managed_pages",
         return_value=[{"id": "page-X", "name": "X", "access_token": "tok"}],
     ):
-        sync_facebook(MagicMock(), integ)  # should not raise
+        sync_facebook(MagicMock(), integ, "token")  # should not raise
 
     mock_posts.assert_called_once()

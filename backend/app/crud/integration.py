@@ -5,42 +5,18 @@ from datetime import datetime, timezone
 from sqlmodel import Session, select
 
 from app.core.encryption import decrypt_token, encrypt_token
+from app.crud.common import save
 from app.models.integration import (
     Integration,
     IntegrationCreate,
     IntegrationStatus,
     Platform,
     PlatformAccount,
-    PlatformAccountCreate,
 )
 
 # ---------------------------------------------------------------------------
-# Integration CRUD
+# Integrations
 # ---------------------------------------------------------------------------
-
-
-def create_integration(
-    *, session: Session, integration_in: IntegrationCreate
-) -> Integration:
-    integration = Integration(
-        workspace_id=integration_in.workspace_id,
-        platform=integration_in.platform,
-        status=IntegrationStatus.active,
-        access_token_encrypted=encrypt_token(integration_in.access_token),
-        refresh_token_encrypted=(
-            encrypt_token(integration_in.refresh_token)
-            if integration_in.refresh_token
-            else None
-        ),
-        token_expires_at=integration_in.token_expires_at,
-        external_account_id=integration_in.external_account_id,
-        external_account_name=integration_in.external_account_name,
-        external_account_avatar=integration_in.external_account_avatar,
-    )
-    session.add(integration)
-    session.commit()
-    session.refresh(integration)
-    return integration
 
 
 def upsert_integration(
@@ -51,31 +27,29 @@ def upsert_integration(
     platform account — refresh its tokens and reactivate it. Reconnecting an
     expired account therefore keeps its history instead of duplicating it.
     """
-    existing = session.exec(
+    integration = session.exec(
         select(Integration).where(
             Integration.workspace_id == integration_in.workspace_id,
             Integration.platform == integration_in.platform,
             Integration.external_account_id == integration_in.external_account_id,
         )
-    ).first()
-    if existing is None:
-        return create_integration(session=session, integration_in=integration_in)
-
-    existing.access_token_encrypted = encrypt_token(integration_in.access_token)
-    existing.refresh_token_encrypted = (
-        encrypt_token(integration_in.refresh_token)
-        if integration_in.refresh_token
-        else None
+    ).first() or Integration(
+        workspace_id=integration_in.workspace_id,
+        platform=integration_in.platform,
+        external_account_id=integration_in.external_account_id,
+        external_account_name=integration_in.external_account_name,
     )
-    existing.token_expires_at = integration_in.token_expires_at
-    existing.external_account_name = integration_in.external_account_name
-    existing.external_account_avatar = integration_in.external_account_avatar
-    existing.status = IntegrationStatus.active
-    existing.sync_error = None
-    session.add(existing)
-    session.commit()
-    session.refresh(existing)
-    return existing
+    integration.external_account_name = integration_in.external_account_name
+    integration.external_account_avatar = integration_in.external_account_avatar
+    # A fresh authorization replaces the refresh token too, even with None
+    integration.refresh_token_encrypted = None
+    return update_integration_tokens(
+        session=session,
+        integration=integration,
+        access_token=integration_in.access_token,
+        refresh_token=integration_in.refresh_token,
+        expires_at=integration_in.token_expires_at,
+    )
 
 
 def get_integration(
@@ -101,39 +75,18 @@ def update_integration_tokens(
     refresh_token: str | None = None,
     expires_at: datetime | None = None,
 ) -> Integration:
+    """Store new tokens and mark the integration as working again.
+
+    ``refresh_token=None`` keeps the stored refresh token: most providers only
+    return one when they rotate it.
+    """
     integration.access_token_encrypted = encrypt_token(access_token)
     if refresh_token:
         integration.refresh_token_encrypted = encrypt_token(refresh_token)
     integration.token_expires_at = expires_at
     integration.status = IntegrationStatus.active
     integration.sync_error = None
-    session.add(integration)
-    session.commit()
-    session.refresh(integration)
-    return integration
-
-
-def mark_integration_error(
-    *, session: Session, integration: Integration, error: str
-) -> Integration:
-    integration.status = IntegrationStatus.error
-    integration.sync_error = error[:1024]
-    session.add(integration)
-    session.commit()
-    session.refresh(integration)
-    return integration
-
-
-def mark_integration_expired(
-    *, session: Session, integration: Integration, error: str
-) -> Integration:
-    """The user must reconnect: tokens are expired and can't be refreshed."""
-    integration.status = IntegrationStatus.expired
-    integration.sync_error = error[:1024]
-    session.add(integration)
-    session.commit()
-    session.refresh(integration)
-    return integration
+    return save(session, integration)
 
 
 def mark_integration_synced(
@@ -142,19 +95,33 @@ def mark_integration_synced(
     integration.status = IntegrationStatus.active
     integration.last_synced_at = datetime.now(timezone.utc)
     integration.sync_error = None
-    session.add(integration)
-    session.commit()
-    session.refresh(integration)
-    return integration
+    return save(session, integration)
 
 
-def delete_integration(*, session: Session, integration: Integration) -> None:
-    session.delete(integration)
-    session.commit()
+def mark_integration_error(
+    *, session: Session, integration: Integration, error: str
+) -> Integration:
+    """A sync failed; it will be retried by the next scheduled sync."""
+    return _set_failed_status(session, integration, IntegrationStatus.error, error)
+
+
+def mark_integration_expired(
+    *, session: Session, integration: Integration, error: str
+) -> Integration:
+    """The user must reconnect: tokens are expired and can't be refreshed."""
+    return _set_failed_status(session, integration, IntegrationStatus.expired, error)
+
+
+def _set_failed_status(
+    session: Session, integration: Integration, status: IntegrationStatus, error: str
+) -> Integration:
+    integration.status = status
+    integration.sync_error = error[:1024]
+    return save(session, integration)
 
 
 # ---------------------------------------------------------------------------
-# Token access (decrypts on demand — never stored in plain text)
+# Tokens (decrypted on demand — never stored in plain text)
 # ---------------------------------------------------------------------------
 
 
@@ -171,32 +138,8 @@ def get_refresh_token(integration: Integration) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# PlatformAccount CRUD
+# Platform accounts (pages, profiles, properties found during a sync)
 # ---------------------------------------------------------------------------
-
-
-def create_platform_account(
-    *, session: Session, account_in: PlatformAccountCreate
-) -> PlatformAccount:
-    account = PlatformAccount(
-        integration_id=account_in.integration_id,
-        workspace_id=account_in.workspace_id,
-        platform=account_in.platform,
-        external_id=account_in.external_id,
-        name=account_in.name,
-        avatar_url=account_in.avatar_url,
-        account_type=account_in.account_type,
-    )
-    session.add(account)
-    session.commit()
-    session.refresh(account)
-    return account
-
-
-def get_platform_account(
-    *, session: Session, account_id: uuid.UUID
-) -> PlatformAccount | None:
-    return session.get(PlatformAccount, account_id)
 
 
 def get_accounts_for_integration(
@@ -209,39 +152,42 @@ def get_accounts_for_integration(
 
 
 def get_accounts_for_workspace(
-    *,
-    session: Session,
-    workspace_id: uuid.UUID,
-    platform: Platform | None = None,
-    active_only: bool = True,
+    *, session: Session, workspace_id: uuid.UUID, platform: Platform | None = None
 ) -> Sequence[PlatformAccount]:
+    """Active accounts of a workspace, optionally for a single platform."""
     statement = select(PlatformAccount).where(
-        PlatformAccount.workspace_id == workspace_id
+        PlatformAccount.workspace_id == workspace_id,
+        PlatformAccount.is_active == True,  # noqa: E712
     )
     if platform is not None:
         statement = statement.where(PlatformAccount.platform == platform)
-    if active_only:
-        statement = statement.where(PlatformAccount.is_active == True)  # noqa: E712
     return session.exec(statement).all()
 
 
 def upsert_platform_account(
-    *, session: Session, account_in: PlatformAccountCreate
+    *,
+    session: Session,
+    integration: Integration,
+    external_id: str,
+    name: str,
+    avatar_url: str | None = None,
+    account_type: str | None = None,
 ) -> PlatformAccount:
-    """Update existing account or create it if it doesn't exist."""
-    existing = session.exec(
+    """Create the account found during a sync, or refresh its details."""
+    account = session.exec(
         select(PlatformAccount).where(
-            PlatformAccount.integration_id == account_in.integration_id,
-            PlatformAccount.external_id == account_in.external_id,
+            PlatformAccount.integration_id == integration.id,
+            PlatformAccount.external_id == external_id,
         )
-    ).first()
-    if existing:
-        existing.name = account_in.name
-        existing.avatar_url = account_in.avatar_url
-        existing.account_type = account_in.account_type
-        existing.is_active = True
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-        return existing
-    return create_platform_account(session=session, account_in=account_in)
+    ).first() or PlatformAccount(
+        integration_id=integration.id,
+        workspace_id=integration.workspace_id,
+        platform=integration.platform,
+        external_id=external_id,
+        name=name,
+    )
+    account.name = name
+    account.avatar_url = avatar_url
+    account.account_type = account_type
+    account.is_active = True
+    return save(session, account)

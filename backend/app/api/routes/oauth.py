@@ -14,26 +14,24 @@ Flow:
 """
 
 import logging
-import uuid
 from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
+from sqlmodel import Session
 
 from app import crud
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentMember, CurrentUser, SessionDep, require_manager
 from app.core.config import settings
-from app.integrations.oauth import registry as oauth_registry
+from app.integrations.oauth import registry
 from app.integrations.oauth.base import OAuthState, generate_pkce_pair
-from app.models.integration import IntegrationCreate, Platform
-from app.models.workspace import WorkspaceRole
+from app.models.integration import Integration, IntegrationCreate, Platform
+from app.worker.tasks import sync as sync_tasks
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
-
-_CONNECT_ROLES = (WorkspaceRole.owner, WorkspaceRole.admin)
 
 
 def _redirect_uri(platform: Platform) -> str:
@@ -42,60 +40,36 @@ def _redirect_uri(platform: Platform) -> str:
     )
 
 
-def _frontend_redirect(**params: str) -> RedirectResponse:
+def _back_to_frontend(**params: str) -> RedirectResponse:
+    """Send the user back to the Integrations page with a result to display."""
     return RedirectResponse(
         url=f"{settings.FRONTEND_HOST}/integrations?{urlencode(params)}",
         status_code=302,
     )
 
 
-# ---------------------------------------------------------------------------
-# Connect — return the provider's authorization URL
-# ---------------------------------------------------------------------------
-
-
 @router.get("/connect/{platform}")
 def connect(
-    platform: Platform,
-    workspace_id: uuid.UUID,
-    current_user: CurrentUser,
-    session: SessionDep,
+    platform: Platform, member: CurrentMember, current_user: CurrentUser
 ) -> Any:
-    """Return the OAuth authorization URL for the given platform."""
-    member = crud.get_member(
-        session=session, workspace_id=workspace_id, user_id=current_user.id
-    )
-    if not member:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    if member.role not in _CONNECT_ROLES:
-        raise HTTPException(
-            status_code=403, detail="Only owners and admins can connect integrations"
-        )
-
+    """Return the provider's authorization URL to redirect the user to."""
+    require_manager(member, "connect integrations")
     try:
-        provider = oauth_registry.get_provider(platform)
+        provider = registry.get_provider(platform)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
     state = OAuthState(
-        workspace_id=workspace_id,
+        workspace_id=member.workspace_id,
         user_id=current_user.id,
         platform=platform,
         pkce_verifier=verifier,
     ).encode()
-
     auth_url = provider.get_auth_url(
-        redirect_uri=_redirect_uri(platform),
-        state=state,
-        code_challenge=challenge,
+        redirect_uri=_redirect_uri(platform), state=state, code_challenge=challenge
     )
     return {"authorization_url": auth_url}
-
-
-# ---------------------------------------------------------------------------
-# Callback — exchange code, create Integration, redirect to frontend
-# ---------------------------------------------------------------------------
 
 
 @router.get("/callback/{platform}", include_in_schema=False)
@@ -107,27 +81,21 @@ def callback(
     error: str | None = None,
 ) -> RedirectResponse:
     """
-    OAuth2 callback — called by the provider after the user authorises
-    (or denies) access. Not authenticated: the user arrives via redirect, so
-    identity and workspace are recovered from the encrypted `state`.
+    Called by the provider after the user authorises (or denies) access.
+    Not authenticated: the user arrives via redirect, so their identity and
+    workspace are recovered from the encrypted `state`.
     """
     try:
-        if not state:
-            raise ValueError("Missing state")
-        oauth_state = OAuthState.decode(state)
+        oauth_state = OAuthState.decode(state or "")
         if oauth_state.platform != platform:
             raise ValueError("State was issued for a different platform")
     except ValueError:
-        return RedirectResponse(
-            url=f"{settings.FRONTEND_HOST}/integrations?error=invalid_state",
-            status_code=302,
-        )
+        return _back_to_frontend(error="invalid_state")
 
-    if error:
-        # e.g. the user clicked "Deny" on the provider's consent screen
-        return _frontend_redirect(error=error)
+    if error:  # e.g. the user clicked "Deny" on the consent screen
+        return _back_to_frontend(error=error)
     if not code:
-        return _frontend_redirect(error="missing_code")
+        return _back_to_frontend(error="missing_code")
 
     # Permissions may have changed while the user was on the provider's site
     member = crud.get_member(
@@ -135,41 +103,45 @@ def callback(
         workspace_id=oauth_state.workspace_id,
         user_id=oauth_state.user_id,
     )
-    if not member or member.role not in _CONNECT_ROLES:
-        return _frontend_redirect(error="forbidden")
+    if member is None or not member.role.can_manage:
+        return _back_to_frontend(error="forbidden")
 
     try:
-        provider = oauth_registry.get_provider(platform)
-        token_resp = provider.exchange_code(
-            code=code,
-            redirect_uri=_redirect_uri(platform),
-            code_verifier=oauth_state.pkce_verifier,
-        )
-        account_info = provider.get_account_info(token_resp.access_token)
-
-        integration_in = IntegrationCreate(
-            platform=platform,
-            workspace_id=oauth_state.workspace_id,
-            access_token=token_resp.access_token,
-            refresh_token=token_resp.refresh_token,
-            token_expires_at=token_resp.expires_at,
-            external_account_id=account_info.external_id,
-            external_account_name=account_info.name,
-            external_account_avatar=account_info.avatar_url,
-        )
-        integration = crud.upsert_integration(
-            session=session, integration_in=integration_in
-        )
+        integration = _connect_integration(session, oauth_state, code)
     except Exception:
         logger.exception("OAuth callback failed for platform %s", platform.value)
-        return _frontend_redirect(error="connection_failed")
+        return _back_to_frontend(error="connection_failed")
 
     # Pull data right away rather than waiting for the nightly sync
     try:
-        from app.worker.tasks.sync import sync_integration
-
-        sync_integration.delay(str(integration.id))
+        sync_tasks.sync_integration.delay(str(integration.id))
     except Exception:
         logger.warning("Could not enqueue initial sync for %s", integration.id)
 
-    return _frontend_redirect(connected="1")
+    return _back_to_frontend(connected="1")
+
+
+def _connect_integration(
+    session: Session, oauth_state: OAuthState, code: str
+) -> Integration:
+    """Exchange the authorization code and store the connected account."""
+    provider = registry.get_provider(oauth_state.platform)
+    token = provider.exchange_code(
+        code=code,
+        redirect_uri=_redirect_uri(oauth_state.platform),
+        code_verifier=oauth_state.pkce_verifier,
+    )
+    account = provider.get_account_info(token.access_token)
+    return crud.upsert_integration(
+        session=session,
+        integration_in=IntegrationCreate(
+            platform=oauth_state.platform,
+            workspace_id=oauth_state.workspace_id,
+            access_token=token.access_token,
+            refresh_token=token.refresh_token,
+            token_expires_at=token.expires_at,
+            external_account_id=account.external_id,
+            external_account_name=account.name,
+            external_account_avatar=account.avatar_url,
+        ),
+    )

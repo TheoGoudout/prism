@@ -13,13 +13,15 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.integrations.oauth.base import OAuthState, get_provider
+from app.integrations.oauth.base import OAuthState
 from app.integrations.oauth.facebook import facebook_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.instagram import instagram_provider
+from app.integrations.oauth.registry import get_provider
 from app.integrations.oauth.tiktok import tiktok_provider
 from app.integrations.oauth.twitter import twitter_provider
 from app.models.integration import Platform
+from tests.utils.user import create_user_with_headers
 
 PREFIX = f"{settings.API_V1_STR}/oauth"
 
@@ -27,24 +29,6 @@ PREFIX = f"{settings.API_V1_STR}/oauth"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _create_user_with_headers(client: TestClient, db: Session) -> tuple:
-    from app.crud.user import create_user
-    from app.models.user import UserCreate
-    from tests.utils.utils import random_email, random_lower_string
-
-    email = random_email()
-    password = random_lower_string()
-    user = create_user(
-        session=db, user_create=UserCreate(email=email, password=password)
-    )
-    r = client.post(
-        f"{settings.API_V1_STR}/login/access-token",
-        data={"username": email, "password": password},
-    )
-    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    return user, headers
 
 
 def _make_state(
@@ -172,9 +156,7 @@ def test_facebook_refresh() -> None:
     mock_response.json.return_value = {"access_token": "fb-long", "expires_in": 5184000}
     mock_response.raise_for_status = MagicMock()
 
-    with patch(
-        "app.integrations.oauth.facebook.httpx.post", return_value=mock_response
-    ):
+    with patch("httpx.post", return_value=mock_response):
         result = facebook_provider.refresh("old-token")
 
     assert result.access_token == "fb-long"
@@ -189,7 +171,7 @@ def test_facebook_get_account_info() -> None:
     }
     mock_response.raise_for_status = MagicMock()
 
-    with patch("app.integrations.oauth.facebook.httpx.get", return_value=mock_response):
+    with patch("httpx.get", return_value=mock_response):
         info = facebook_provider.get_account_info("fb-token")
 
     assert info.external_id == "123456"
@@ -218,7 +200,7 @@ def test_instagram_get_account_info_with_ig_account() -> None:
     }
     mock_response.raise_for_status = MagicMock()
 
-    with patch("app.integrations.oauth.facebook.httpx.get", return_value=mock_response):
+    with patch("httpx.get", return_value=mock_response):
         info = instagram_provider.get_account_info("ig-token")
 
     assert info.external_id == "ig-789"
@@ -230,9 +212,7 @@ def test_instagram_get_account_info_without_business_account_raises() -> None:
     pages_response = MagicMock()
     pages_response.json.return_value = {"data": [{"id": "page-without-ig"}]}
 
-    with patch(
-        "app.integrations.oauth.facebook.httpx.get", return_value=pages_response
-    ):
+    with patch("httpx.get", return_value=pages_response):
         with pytest.raises(ValueError, match="No Instagram Business account"):
             instagram_provider.get_account_info("token")
 
@@ -332,7 +312,7 @@ def test_google_analytics_refresh_keeps_same_refresh_token() -> None:
 
 
 def test_connect_returns_authorization_url(client: TestClient, db: Session) -> None:
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     from tests.utils.workspace import create_random_workspace
 
     ws = create_random_workspace(db, user)
@@ -359,7 +339,7 @@ def test_connect_twitter_keeps_pkce_verifier_server_side(
     import base64
     import hashlib
 
-    user, headers = _create_user_with_headers(client, db)
+    user, headers = create_user_with_headers(client, db)
     from tests.utils.workspace import create_random_workspace
 
     ws = create_random_workspace(db, user)
@@ -384,8 +364,8 @@ def test_connect_twitter_keeps_pkce_verifier_server_side(
 def test_connect_viewer_forbidden(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    owner, owner_headers = _create_user_with_headers(client, db)
-    viewer, viewer_headers = _create_user_with_headers(client, db)
+    owner, owner_headers = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
     client.post(
         f"{settings.API_V1_STR}/workspaces/{ws.id}/members",
@@ -404,8 +384,8 @@ def test_connect_viewer_forbidden(client: TestClient, db: Session) -> None:
 def test_connect_non_member_returns_404(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    owner, _ = _create_user_with_headers(client, db)
-    outsider, outsider_headers = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
@@ -454,7 +434,7 @@ def _callback(client: TestClient, platform: str = "facebook", **params: str):  #
 def test_callback_creates_integration(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
 
@@ -486,7 +466,7 @@ def test_callback_reconnect_updates_existing_integration(
     from app.models.integration import IntegrationStatus
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     with (
@@ -514,7 +494,7 @@ def test_callback_reconnect_updates_existing_integration(
 def test_callback_passes_pkce_verifier(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id, Platform.twitter, pkce_verifier="the-verifier")
     provider = _mock_provider()
@@ -535,7 +515,7 @@ def test_callback_forged_state_does_not_create_integration(
     from app import crud
     from tests.utils.workspace import create_random_workspace
 
-    victim, _ = _create_user_with_headers(client, db)
+    victim, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, victim)
     forged = urllib.parse.quote(f'{{"workspace_id": "{ws.id}", "csrf": "anything"}}')
     provider = _mock_provider()
@@ -551,7 +531,7 @@ def test_callback_forged_state_does_not_create_integration(
 def test_callback_platform_mismatch_rejected(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id, Platform.facebook)
 
@@ -561,27 +541,17 @@ def test_callback_platform_mismatch_rejected(client: TestClient, db: Session) ->
 
 def test_callback_rejects_user_no_longer_admin(client: TestClient, db: Session) -> None:
     from app import crud
-    from app.models.workspace import WorkspaceMemberUpdate, WorkspaceRole
+    from app.models.workspace import WorkspaceRole
     from tests.utils.workspace import create_random_workspace
 
-    owner, _ = _create_user_with_headers(client, db)
-    admin, _ = _create_user_with_headers(client, db)
+    owner, _ = create_user_with_headers(client, db)
+    admin, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
-    from app.models.workspace import WorkspaceMemberAdd
-
-    crud.add_member(
-        session=db,
-        workspace_id=ws.id,
-        member_in=WorkspaceMemberAdd(user_id=admin.id, role=WorkspaceRole.admin),
+    member = crud.add_member(
+        session=db, workspace_id=ws.id, user_id=admin.id, role=WorkspaceRole.admin
     )
     state = _make_state(ws.id, admin.id)
-    member = crud.get_member(session=db, workspace_id=ws.id, user_id=admin.id)
-    assert member
-    crud.update_member(
-        session=db,
-        member=member,
-        member_in=WorkspaceMemberUpdate(role=WorkspaceRole.viewer),
-    )
+    crud.update_member_role(session=db, member=member, role=WorkspaceRole.viewer)
     provider = _mock_provider()
 
     with patch("app.integrations.oauth.registry.get_provider", return_value=provider):
@@ -596,7 +566,7 @@ def test_callback_provider_error_redirects_with_error(
 ) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
 
@@ -629,7 +599,7 @@ def test_callback_user_denied_without_code(client: TestClient, db: Session) -> N
     """Providers send `error` and no `code` when the user clicks Deny."""
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
 
@@ -641,7 +611,7 @@ def test_callback_user_denied_without_code(client: TestClient, db: Session) -> N
 def test_callback_missing_code_redirects(client: TestClient, db: Session) -> None:
     from tests.utils.workspace import create_random_workspace
 
-    user, _ = _create_user_with_headers(client, db)
+    user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 
     r = _callback(client, state=_make_state(ws.id, user.id))

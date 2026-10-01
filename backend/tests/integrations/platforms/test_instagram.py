@@ -8,8 +8,8 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
+from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.instagram import (
     _fetch_instagram_accounts,
     _sync_account_insights,
@@ -18,7 +18,6 @@ from app.integrations.platforms.instagram import (
 )
 from app.models.integration import Platform
 from app.models.metrics import ContentType
-from app.worker.tasks.sync import _platform_sync
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -46,7 +45,7 @@ def _make_account(external_id: str = "ig-123") -> MagicMock:
 
 
 def test_instagram_registered_in_sync_registry():
-    assert _platform_sync.get(Platform.instagram.value) is not None
+    assert SYNC_FUNCTIONS[Platform.instagram] is sync_instagram
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +53,7 @@ def test_instagram_registered_in_sync_registry():
 # ---------------------------------------------------------------------------
 
 
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_fetch_instagram_accounts_returns_linked_accounts(mock_get):
     mock_get.return_value = MagicMock(
         status_code=200,
@@ -88,7 +87,7 @@ def test_fetch_instagram_accounts_returns_linked_accounts(mock_get):
     assert accounts[0]["page_token"] == "page-tok"
 
 
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_fetch_instagram_accounts_empty(mock_get):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -102,7 +101,7 @@ def test_fetch_instagram_accounts_empty(mock_get):
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
     insight_data = {
         "data": [
@@ -144,7 +143,7 @@ def test_sync_account_insights_upserts_snapshots(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_account_insights_records_follower_total_today(mock_get, mock_crud):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -157,7 +156,7 @@ def test_sync_account_insights_records_follower_total_today(mock_get, mock_crud)
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_account_insights_empty(mock_get, mock_crud):
     mock_get.return_value = MagicMock(status_code=200, json=lambda: {"data": []})
     mock_get.return_value.raise_for_status = MagicMock()
@@ -172,7 +171,7 @@ def test_sync_account_insights_empty(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_media_upserts_posts(mock_get, mock_crud):
     media_resp = {
         "data": [
@@ -220,7 +219,7 @@ def test_sync_media_upserts_posts(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_media_reel_content_type(mock_get, mock_crud):
     media_resp = {
         "data": [
@@ -248,7 +247,7 @@ def test_sync_media_reel_content_type(mock_get, mock_crud):
 
 
 @patch("app.integrations.platforms.instagram.crud")
-@patch("app.integrations.platforms.instagram.httpx.get")
+@patch("httpx.get")
 def test_sync_media_insights_error_still_upserts(mock_get, mock_crud):
     """Media insights failure should not skip the post upsert."""
     media_resp = {
@@ -292,7 +291,6 @@ def test_sync_media_insights_error_still_upserts(mock_get, mock_crud):
 @patch("app.integrations.platforms.instagram.crud")
 def test_sync_instagram_processes_all_accounts(mock_crud, mock_insights, mock_media):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-tok"
 
     ig_accounts = [
         {"ig_id": "ig-A", "name": "Brand A", "avatar_url": None, "page_token": "tok-A"},
@@ -307,20 +305,11 @@ def test_sync_instagram_processes_all_accounts(mock_crud, mock_insights, mock_me
         "app.integrations.platforms.instagram._fetch_instagram_accounts",
         return_value=ig_accounts,
     ):
-        sync_instagram(MagicMock(), integ)
+        sync_instagram(MagicMock(), integ, "token")
 
     assert mock_crud.upsert_platform_account.call_count == 2
     assert mock_insights.call_count == 2
     assert mock_media.call_count == 2
-
-
-@patch("app.integrations.platforms.instagram.crud")
-def test_sync_instagram_no_token_raises(mock_crud):
-    integ = _make_integration()
-    mock_crud.get_access_token.return_value = None
-
-    with pytest.raises(ValueError, match="No access token"):
-        sync_instagram(MagicMock(), integ)
 
 
 @patch(
@@ -329,9 +318,8 @@ def test_sync_instagram_no_token_raises(mock_crud):
 @patch("app.integrations.platforms.instagram.crud")
 def test_sync_instagram_no_accounts_is_noop(mock_crud, _):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-tok"
 
-    sync_instagram(MagicMock(), integ)
+    sync_instagram(MagicMock(), integ, "token")
 
     mock_crud.upsert_platform_account.assert_not_called()
 
@@ -343,7 +331,6 @@ def test_sync_instagram_insights_error_continues_to_media(
     mock_crud, mock_insights, mock_media
 ):
     integ = _make_integration()
-    mock_crud.get_access_token.return_value = "user-tok"
     mock_crud.upsert_platform_account.return_value = _make_account()
     mock_insights.side_effect = httpx.HTTPStatusError(
         "500", request=MagicMock(), response=MagicMock(status_code=500)
@@ -355,6 +342,6 @@ def test_sync_instagram_insights_error_continues_to_media(
             {"ig_id": "ig-X", "name": "X", "avatar_url": None, "page_token": "tok"}
         ],
     ):
-        sync_instagram(MagicMock(), integ)
+        sync_instagram(MagicMock(), integ, "token")
 
     mock_media.assert_called_once()

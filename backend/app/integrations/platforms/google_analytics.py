@@ -1,225 +1,120 @@
 """
-Google Analytics 4 (GA4) sync.
+Google Analytics 4 sync.
 
-Fetches:
-  - GA4 properties accessible to the authenticated user → PlatformAccounts
-  - 30-day daily report: sessions, users, pageviews, bounce rate, conversions
-    (using the GA4 Data API runReport endpoint)
+For every GA4 property the user can access:
+  - the property is stored as a PlatformAccount
+  - a daily report over the sync window becomes MetricSnapshots
 
-Uses the Google Analytics Data API v1 with the Bearer token.
-The token may be short-lived; the sync task should refresh it before calling
-(token refresh is handled at the Celery layer via crud.update_integration_tokens).
+GA4 metrics are mapped onto the closest normalised fields:
+screenPageViews → views, sessions → impressions, totalUsers → reach,
+conversions → clicks. All raw values are kept in raw_data.
 """
 
-import logging
+import uuid
 from datetime import date, timedelta
 from typing import Any
 
-import httpx
 from sqlmodel import Session
 
 from app import crud
-from app.models.integration import Integration, Platform, PlatformAccountCreate
+from app.integrations.common import SYNC_WINDOW_DAYS, log_http_errors
+from app.integrations.http import get_json, post_json
+from app.models.integration import Integration
 from app.models.metrics import MetricSnapshotUpsert
-from app.worker.tasks.sync import register_platform_sync
-
-logger = logging.getLogger(__name__)
 
 GA_ADMIN_API = "https://analyticsadmin.googleapis.com/v1beta"
 GA_DATA_API = "https://analyticsdata.googleapis.com/v1beta"
 
-
-# ---------------------------------------------------------------------------
-# Internal HTTP helpers
-# ---------------------------------------------------------------------------
-
-
-def _get(path: str, token: str, base: str = GA_ADMIN_API) -> dict[str, Any]:
-    resp = httpx.get(
-        f"{base}/{path}",
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    result: dict[str, Any] = resp.json()
-    return result
-
-
-def _post(
-    path: str, token: str, body: dict[str, Any], base: str = GA_DATA_API
-) -> dict[str, Any]:
-    resp = httpx.post(
-        f"{base}/{path}",
-        json=body,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    result: dict[str, Any] = resp.json()
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Property discovery
-# ---------------------------------------------------------------------------
+_REPORT_METRICS = [
+    "sessions",
+    "totalUsers",
+    "screenPageViews",
+    "bounceRate",
+    "conversions",
+    "engagementRate",
+]
 
 
 def _fetch_ga4_properties(token: str) -> list[dict[str, Any]]:
-    """
-    Return GA4 properties accessible to the user.
-    Each entry has: property_id, display_name.
-    """
-    resp = _get("properties", token, base=GA_ADMIN_API)
+    data = get_json(f"{GA_ADMIN_API}/properties", token=token)
     properties = []
-    for prop in resp.get("properties", []):
-        # property name is like "properties/123456789"
-        prop_name: str = prop.get("name", "")
-        prop_id = prop_name.split("/")[-1] if "/" in prop_name else prop_name
+    for prop in data.get("properties", []):
+        name: str = prop.get("name", "")  # "properties/123456789"
+        prop_id = name.rsplit("/", 1)[-1]
         properties.append(
             {
                 "property_id": prop_id,
-                "property_name": prop_name,
+                "property_name": name,
                 "display_name": prop.get("displayName", prop_id),
             }
         )
     return properties
 
 
-# ---------------------------------------------------------------------------
-# Daily report
-# ---------------------------------------------------------------------------
+def _as_int(value: float | None) -> int | None:
+    return None if value is None else int(value)
 
 
 def _sync_property_report(
-    session: Session,
-    platform_account_id: Any,
-    property_name: str,
-    token: str,
+    session: Session, platform_account_id: uuid.UUID, property_name: str, token: str
 ) -> None:
     end = date.today()
-    start = end - timedelta(days=30)
-
-    report = _post(
-        f"{property_name}:runReport",
-        token,
-        {
+    report = post_json(
+        f"{GA_DATA_API}/{property_name}:runReport",
+        token=token,
+        body={
             "dateRanges": [
                 {
-                    "startDate": start.isoformat(),
+                    "startDate": (end - timedelta(days=SYNC_WINDOW_DAYS)).isoformat(),
                     "endDate": end.isoformat(),
                 }
             ],
             "dimensions": [{"name": "date"}],
-            "metrics": [
-                {"name": "sessions"},
-                {"name": "totalUsers"},
-                {"name": "screenPageViews"},
-                {"name": "bounceRate"},
-                {"name": "conversions"},
-                {"name": "engagementRate"},
-            ],
+            "metrics": [{"name": name} for name in _REPORT_METRICS],
         },
     )
-
-    dimension_headers = [d["name"] for d in report.get("dimensionHeaders", [])]
-    metric_headers = [m["name"] for m in report.get("metricHeaders", [])]
+    metric_names = [m["name"] for m in report.get("metricHeaders", [])]
 
     for row in report.get("rows", []):
-        dim_vals = row.get("dimensionValues", [])
-        met_vals = row.get("metricValues", [])
-
-        # date dimension is formatted as YYYYMMDD
         try:
-            date_str = dim_vals[dimension_headers.index("date")]["value"]
-            d = date(int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]))
-        except (IndexError, KeyError, ValueError):
+            day_str = row["dimensionValues"][0]["value"]  # YYYYMMDD
+            day = date(int(day_str[:4]), int(day_str[4:6]), int(day_str[6:8]))
+        except (KeyError, IndexError, ValueError):
             continue
-
-        def _metric(
-            name: str, met_vals: list[dict[str, Any]] = met_vals
-        ) -> float | None:
+        values: dict[str, float | None] = dict.fromkeys(_REPORT_METRICS)
+        for name, cell in zip(metric_names, row.get("metricValues", []), strict=False):
             try:
-                idx = metric_headers.index(name)
-                return float(met_vals[idx]["value"])
-            except (IndexError, ValueError, KeyError):
-                return None
+                values[name] = float(cell["value"])
+            except (KeyError, ValueError):
+                pass
 
-        sessions = _metric("sessions")
-        users = _metric("totalUsers")
-        pageviews = _metric("screenPageViews")
-        bounce_rate = _metric("bounceRate")
-        conversions = _metric("conversions")
-        engagement_rate = _metric("engagementRate")
-
-        snapshot = MetricSnapshotUpsert(
-            date=d,
-            views=int(pageviews) if pageviews is not None else None,
-            # Map sessions → impressions (closest analogue in our normalised schema)
-            impressions=int(sessions) if sessions is not None else None,
-            # Unique users → reach
-            reach=int(users) if users is not None else None,
-            # Conversions → clicks (closest analogue)
-            clicks=int(conversions) if conversions is not None else None,
-            raw_data={
-                "sessions": sessions,
-                "totalUsers": users,
-                "screenPageViews": pageviews,
-                "bounceRate": bounce_rate,
-                "conversions": conversions,
-                "engagementRate": engagement_rate,
-            },
-        )
         crud.upsert_metric_snapshot(
             session=session,
             platform_account_id=platform_account_id,
-            snapshot_in=snapshot,
+            snapshot_in=MetricSnapshotUpsert(
+                date=day,
+                views=_as_int(values["screenPageViews"]),
+                impressions=_as_int(values["sessions"]),
+                reach=_as_int(values["totalUsers"]),
+                clicks=_as_int(values["conversions"]),
+                raw_data=values,
+            ),
         )
 
 
-# ---------------------------------------------------------------------------
-# Main entry-point
-# ---------------------------------------------------------------------------
-
-
-def sync_google_analytics(session: Session, integration: Integration) -> None:
-    """Sync all accessible GA4 properties for this integration."""
-    token = crud.get_access_token(integration)
-    if not token:
-        raise ValueError("No access token available for Google Analytics integration")
-
-    properties = _fetch_ga4_properties(token)
-    if not properties:
-        logger.info(
-            "sync_google_analytics: no GA4 properties for integration %s",
-            integration.id,
-        )
-        return
-
-    for prop in properties:
-        prop_id: str = prop["property_id"]
-        prop_name: str = prop["property_name"]
-
-        account_in = PlatformAccountCreate(
-            integration_id=integration.id,
-            workspace_id=integration.workspace_id,
-            platform=Platform.google_analytics,
-            external_id=prop_id,
+def sync_google_analytics(
+    session: Session, integration: Integration, access_token: str
+) -> None:
+    """Sync every GA4 property the user can access."""
+    for prop in _fetch_ga4_properties(access_token):
+        account = crud.upsert_platform_account(
+            session=session,
+            integration=integration,
+            external_id=prop["property_id"],
             name=prop["display_name"],
-            avatar_url=None,
             account_type="property",
         )
-        account = crud.upsert_platform_account(session=session, account_in=account_in)
-
-        try:
-            _sync_property_report(session, account.id, prop_name, token)
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "sync_google_analytics: report error for property %s: %s", prop_id, exc
+        with log_http_errors(f"Google Analytics report for {prop['property_id']}"):
+            _sync_property_report(
+                session, account.id, prop["property_name"], access_token
             )
-
-
-# Register with the Celery sync dispatcher (side-effect on import)
-register_platform_sync(Platform.google_analytics.value, sync_google_analytics)

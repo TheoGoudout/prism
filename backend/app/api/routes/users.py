@@ -12,8 +12,8 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
-from app.models import (
-    Message,
+from app.models.common import Message
+from app.models.user import (
     UpdatePassword,
     User,
     UserCreate,
@@ -92,10 +92,7 @@ def update_user_me(
             )
     user_data = user_in.model_dump(exclude_unset=True)
     current_user.sqlmodel_update(user_data)
-    session.add(current_user)
-    session.commit()
-    session.refresh(current_user)
-    return current_user
+    return crud.save(session, current_user)
 
 
 @router.patch("/me/password", response_model=Message)
@@ -112,10 +109,8 @@ def update_password_me(
         raise HTTPException(
             status_code=400, detail="New password cannot be the same as the current one"
         )
-    hashed_password = get_password_hash(body.new_password)
-    current_user.hashed_password = hashed_password
-    session.add(current_user)
-    session.commit()
+    current_user.hashed_password = get_password_hash(body.new_password)
+    crud.save(session, current_user)
     return Message(message="Password updated successfully")
 
 
@@ -136,8 +131,7 @@ def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
         raise HTTPException(
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
-    session.delete(current_user)
-    session.commit()
+    crud.delete(session, current_user)
     return Message(message="User deleted successfully")
 
 
@@ -223,6 +217,5 @@ def delete_user(
         raise HTTPException(
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
-    session.delete(user)
-    session.commit()
+    crud.delete(session, user)
     return Message(message="User deleted successfully")
