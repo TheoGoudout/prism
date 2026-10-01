@@ -8,10 +8,7 @@ import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateRepo
 export class AiService {
     /**
      * Generate Insights
-     * Generate AI-powered insights from workspace metrics.
-     *
-     * Calls the configured LLM (AI_PROVIDER / AI_MODEL) with the aggregated
-     * metrics data and returns 4–6 structured, actionable insights.
+     * 4–6 structured, actionable insights about the workspace's metrics.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns InsightsResponse Successful Response
@@ -31,10 +28,7 @@ export class AiService {
     
     /**
      * Generate Report
-     * Generate a full markdown performance report for a workspace.
-     *
-     * Includes executive summary, per-platform analysis, top content, and
-     * recommendations based on the requested date range.
+     * A markdown report: summary, per-platform analysis, top content, advice.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns ReportResponse Successful Response
@@ -56,7 +50,7 @@ export class AiService {
 export class IntegrationsService {
     /**
      * List Integrations
-     * List all integrations for a workspace the user belongs to.
+     * List the integrations of a workspace the user belongs to.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.platform
@@ -68,8 +62,8 @@ export class IntegrationsService {
             method: 'GET',
             url: '/api/v1/integrations/',
             query: {
-                workspace_id: data.workspaceId,
-                platform: data.platform
+                platform: data.platform,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -79,7 +73,6 @@ export class IntegrationsService {
     
     /**
      * Get Integration
-     * Get a single integration (must be workspace member).
      * @param data The data for the request.
      * @param data.integrationId
      * @returns IntegrationPublic Successful Response
@@ -100,8 +93,7 @@ export class IntegrationsService {
     
     /**
      * Delete Integration
-     * Disconnect (delete) an integration and all its platform accounts.
-     * Requires owner or admin role in the workspace.
+     * Disconnect an integration and delete its accounts and synced metrics.
      * @param data The data for the request.
      * @param data.integrationId
      * @returns Message Successful Response
@@ -122,7 +114,7 @@ export class IntegrationsService {
     
     /**
      * List Accounts
-     * List all platform accounts belonging to an integration.
+     * The pages / profiles / properties found by the last sync.
      * @param data The data for the request.
      * @param data.integrationId
      * @returns PlatformAccountsPublic Successful Response
@@ -143,8 +135,7 @@ export class IntegrationsService {
     
     /**
      * Trigger Sync
-     * Enqueue a manual sync for this integration.
-     * Returns 202 immediately; the sync runs in the background.
+     * Enqueue a sync now; it runs in the background.
      * @param data The data for the request.
      * @param data.integrationId
      * @returns Message Successful Response
@@ -264,8 +255,7 @@ export class LoginService {
 export class MetricsService {
     /**
      * Get Summary
-     * Aggregate KPI totals for a workspace over a date range.
-     * Returns overall totals and a per-platform breakdown.
+     * Overall and per-platform KPI totals over the date range.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.platform
@@ -279,10 +269,10 @@ export class MetricsService {
             method: 'GET',
             url: '/api/v1/metrics/summary',
             query: {
-                workspace_id: data.workspaceId,
                 platform: data.platform,
                 date_from: data.dateFrom,
-                date_to: data.dateTo
+                date_to: data.dateTo,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -292,8 +282,7 @@ export class MetricsService {
     
     /**
      * Get Timeseries
-     * Per-day aggregated metrics for line/bar charts.
-     * Returns one data point per calendar day in the requested range.
+     * One data point per calendar day in the range, for charts.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.platform
@@ -307,10 +296,10 @@ export class MetricsService {
             method: 'GET',
             url: '/api/v1/metrics/timeseries',
             query: {
-                workspace_id: data.workspaceId,
                 platform: data.platform,
                 date_from: data.dateFrom,
-                date_to: data.dateTo
+                date_to: data.dateTo,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -320,13 +309,13 @@ export class MetricsService {
     
     /**
      * Get Top Posts
-     * Top-performing posts (by engagements) for a workspace over a date range.
+     * Top-performing posts (by engagements) published in the date range.
      * @param data The data for the request.
      * @param data.workspaceId
+     * @param data.limit
      * @param data.platform
      * @param data.dateFrom
      * @param data.dateTo
-     * @param data.limit
      * @returns PostsPublic Successful Response
      * @throws ApiError
      */
@@ -335,11 +324,11 @@ export class MetricsService {
             method: 'GET',
             url: '/api/v1/metrics/posts',
             query: {
-                workspace_id: data.workspaceId,
+                limit: data.limit,
                 platform: data.platform,
                 date_from: data.dateFrom,
                 date_to: data.dateTo,
-                limit: data.limit
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -351,11 +340,11 @@ export class MetricsService {
 export class OauthService {
     /**
      * Connect
-     * Return the OAuth authorization URL for the given platform.
+     * Return the provider's authorization URL to redirect the user to.
      * @param data The data for the request.
      * @param data.platform
      * @param data.workspaceId
-     * @returns unknown Successful Response
+     * @returns OAuthConnectResponse Successful Response
      * @throws ApiError
      */
     public static connect(data: OauthConnectData): CancelablePromise<OauthConnectResponse> {
@@ -632,7 +621,7 @@ export class UtilsService {
 export class WorkspacesService {
     /**
      * Create Workspace
-     * Create a new workspace. The creator becomes the owner.
+     * Create a workspace. The creator becomes its owner.
      * @param data The data for the request.
      * @param data.requestBody
      * @returns WorkspacePublic Successful Response
@@ -652,7 +641,7 @@ export class WorkspacesService {
     
     /**
      * List Workspaces
-     * List all workspaces the current user belongs to.
+     * The workspaces the current user belongs to.
      * @param data The data for the request.
      * @param data.skip
      * @param data.limit
@@ -675,7 +664,6 @@ export class WorkspacesService {
     
     /**
      * Get Workspace
-     * Get a workspace by ID (must be a member).
      * @param data The data for the request.
      * @param data.workspaceId
      * @returns WorkspacePublic Successful Response
@@ -696,7 +684,7 @@ export class WorkspacesService {
     
     /**
      * Update Workspace
-     * Update workspace name/slug. Requires owner or admin role.
+     * Rename the workspace or change its slug.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.requestBody
@@ -720,7 +708,7 @@ export class WorkspacesService {
     
     /**
      * Delete Workspace
-     * Delete a workspace. Only the owner can do this.
+     * Delete the workspace with all its integrations and metrics.
      * @param data The data for the request.
      * @param data.workspaceId
      * @returns Message Successful Response
@@ -741,7 +729,6 @@ export class WorkspacesService {
     
     /**
      * List Members
-     * List all members of a workspace.
      * @param data The data for the request.
      * @param data.workspaceId
      * @returns WorkspaceMembersPublic Successful Response
@@ -762,7 +749,7 @@ export class WorkspacesService {
     
     /**
      * Add Member
-     * Add a user to a workspace. Requires owner or admin role.
+     * Add an existing user, identified by id or email, to the workspace.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.requestBody
@@ -786,7 +773,7 @@ export class WorkspacesService {
     
     /**
      * Update Member
-     * Update a member's role. Only owners can change roles.
+     * Change a member's role.
      * @param data The data for the request.
      * @param data.userId
      * @param data.workspaceId
@@ -812,8 +799,7 @@ export class WorkspacesService {
     
     /**
      * Remove Member
-     * Remove a member from the workspace.
-     * Members can remove themselves; owners/admins can remove others.
+     * Remove a member. Anyone can leave; owners and admins can remove others.
      * @param data The data for the request.
      * @param data.userId
      * @param data.workspaceId

@@ -166,3 +166,9 @@ class IntegrationCreate(SQLModel):
     external_account_id: str
     external_account_name: str
     external_account_avatar: str | None = None
+
+
+class OAuthConnectResponse(SQLModel):
+    """Where to send the user to authorize the platform."""
+
+    authorization_url: str

@@ -19,7 +19,6 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
 import { cn } from "@/lib/utils"
-import { handleError } from "@/utils"
 
 const formSchema = z.object({
   full_name: z.string().max(30).optional(),
@@ -30,7 +29,7 @@ type FormData = z.infer<typeof formSchema>
 
 const UserInformation = () => {
   const queryClient = useQueryClient()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
   const [editMode, setEditMode] = useState(false)
   const { user: currentUser } = useAuth()
 
@@ -55,7 +54,7 @@ const UserInformation = () => {
       showSuccessToast("User updated successfully")
       toggleEditMode()
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
     onSettled: () => {
       queryClient.invalidateQueries()
     },

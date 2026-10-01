@@ -17,15 +17,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import CreateWorkspaceModal from "@/components/Workspaces/CreateWorkspaceModal"
-import { useWorkspace } from "@/contexts/WorkspaceContext"
+import { useCurrentWorkspace, useWorkspace } from "@/contexts/WorkspaceContext"
 
 export function WorkspaceSelector() {
   const { isMobile, setOpenMobile } = useSidebar()
   const navigate = useNavigate()
-  const { workspaces, currentWorkspace, setCurrentWorkspace } = useWorkspace()
+  const { workspaces, setCurrentWorkspace } = useWorkspace()
+  const currentWorkspace = useCurrentWorkspace()
   const [createOpen, setCreateOpen] = useState(false)
-
-  if (!currentWorkspace) return null
 
   return (
     <>

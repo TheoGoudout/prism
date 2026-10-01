@@ -15,7 +15,6 @@ import {
 import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import useCustomToast from "@/hooks/useCustomToast"
-import { handleError } from "@/utils"
 
 const formSchema = z
   .object({
@@ -39,7 +38,7 @@ const formSchema = z
 type FormData = z.infer<typeof formSchema>
 
 const ChangePassword = () => {
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onSubmit",
@@ -58,7 +57,7 @@ const ChangePassword = () => {
       showSuccessToast("Password updated successfully")
       form.reset()
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
   })
 
   const onSubmit = async (data: FormData) => {

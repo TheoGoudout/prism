@@ -6,7 +6,7 @@ import UserInformation from "@/components/UserSettings/UserInformation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import WorkspaceGeneral from "@/components/Workspaces/WorkspaceGeneral"
 import WorkspaceMembers from "@/components/Workspaces/WorkspaceMembers"
-import { useWorkspace } from "@/contexts/WorkspaceContext"
+import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useAuth from "@/hooks/useAuth"
 
 const userTabs = [
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_layout/settings")({
 
 function Settings() {
   const { user: currentUser } = useAuth()
-  const { currentWorkspace } = useWorkspace()
+  const workspace = useCurrentWorkspace()
   const { tab } = Route.useSearch()
   const navigate = Route.useNavigate()
 
@@ -49,7 +49,7 @@ function Settings() {
     ...userTabs.filter(
       (t) => !(currentUser.is_superuser && t.value === "danger-zone"),
     ),
-    ...(currentWorkspace ? workspaceTabs : []),
+    ...workspaceTabs,
   ]
   const activeTab = tabs.some((t) => t.value === tab) ? tab : "my-profile"
 
@@ -58,10 +58,7 @@ function Settings() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your account
-          {currentWorkspace
-            ? ` and the ${currentWorkspace.name} workspace`
-            : ""}
+          Manage your account and the {workspace.name} workspace
         </p>
       </div>
 

@@ -23,7 +23,6 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { isLoggedIn } from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
-import { handleError } from "@/utils"
 
 const searchSchema = z.object({
   token: z.string().catch(""),
@@ -68,7 +67,7 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPassword() {
   const { token } = Route.useSearch()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { showSuccessToast, showApiError } = useCustomToast()
   const navigate = useNavigate()
 
   const form = useForm<FormData>({
@@ -89,7 +88,7 @@ function ResetPassword() {
       form.reset()
       navigate({ to: "/login" })
     },
-    onError: handleError.bind(showErrorToast),
+    onError: showApiError,
   })
 
   const onSubmit = (data: FormData) => {

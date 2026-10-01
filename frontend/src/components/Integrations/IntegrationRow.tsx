@@ -1,0 +1,100 @@
+import { Loader2, Plug, Trash2 } from "lucide-react"
+import { useState } from "react"
+
+import type { IntegrationPublic } from "@/client"
+import ConfirmDialog from "@/components/Common/ConfirmDialog"
+import { Button } from "@/components/ui/button"
+import { TableCell, TableRow } from "@/components/ui/table"
+import {
+  useConnectPlatform,
+  useDeleteIntegration,
+} from "@/hooks/useIntegrations"
+import { formatRelative } from "@/lib/format"
+import { needsReconnect, platformLabel } from "@/lib/platforms"
+import { IntegrationStatusBadge } from "./IntegrationStatusBadge"
+import { SyncButton } from "./SyncButton"
+
+interface IntegrationRowProps {
+  integration: IntegrationPublic
+  /** Whether the user may sync, reconnect and disconnect (owner / admin). */
+  editable: boolean
+}
+
+export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
+  const label = platformLabel(integration.platform)
+  const { connect, pending: reconnecting } = useConnectPlatform()
+  const remove = useDeleteIntegration(integration)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{label}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {integration.external_account_name}
+      </TableCell>
+      <TableCell>
+        <IntegrationStatusBadge status={integration.status} />
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {formatRelative(integration.last_synced_at)}
+      </TableCell>
+      <TableCell>
+        {integration.sync_error && (
+          <span className="line-clamp-1 max-w-xs text-xs text-destructive">
+            {integration.sync_error}
+          </span>
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        {editable && (
+          <div className="flex items-center justify-end gap-2">
+            {needsReconnect(integration.status) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => connect(integration.platform)}
+                disabled={reconnecting !== null}
+              >
+                {reconnecting ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Plug className="mr-1 size-4" />
+                )}
+                Reconnect
+              </Button>
+            )}
+            <SyncButton integration={integration} />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setConfirmDelete(true)}
+              title="Disconnect"
+              aria-label={`Disconnect ${label}`}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        )}
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={`Disconnect ${label}`}
+          description={
+            <>
+              <strong>{integration.external_account_name}</strong> will be
+              disconnected and all of its synced metrics deleted.
+            </>
+          }
+          confirmLabel="Disconnect"
+          loading={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(undefined, {
+              onSuccess: () => setConfirmDelete(false),
+            })
+          }
+        />
+      </TableCell>
+    </TableRow>
+  )
+}
