@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NoWorkspace } from "@/components/Workspaces/NoWorkspace"
-import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext"
+import { useWorkspace, WorkspaceProvider } from "@/contexts/WorkspaceContext"
 import { isLoggedIn } from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout")({

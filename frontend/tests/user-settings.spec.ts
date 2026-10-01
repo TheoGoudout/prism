@@ -4,7 +4,9 @@ import { createUser } from "./utils/privateApi.ts"
 import { randomEmail, randomPassword } from "./utils/random"
 import { logInUser, logOutUser } from "./utils/user"
 
-const tabs = ["My profile", "Password", "Danger zone"]
+// The default storage state is the superuser, who can't delete their own
+// account, so the Danger zone tab is hidden for them.
+const tabs = ["My profile", "Password", "Workspace", "Members"]
 
 test("My profile tab is active by default", async ({ page }) => {
   await page.goto("/settings")
@@ -19,6 +21,21 @@ test("All tabs are visible", async ({ page }) => {
   for (const tab of tabs) {
     await expect(page.getByRole("tab", { name: tab })).toBeVisible()
   }
+  await expect(page.getByRole("tab", { name: "Danger zone" })).toHaveCount(0)
+})
+
+test.describe("Danger zone for regular users", () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test("Regular users can see the Danger zone tab", async ({ page }) => {
+    const email = randomEmail()
+    const password = randomPassword()
+    await createUser({ email, password })
+    await logInUser(page, email, password)
+
+    await page.goto("/settings")
+    await expect(page.getByRole("tab", { name: "Danger zone" })).toBeVisible()
+  })
 })
 
 test.describe("Edit user profile", () => {

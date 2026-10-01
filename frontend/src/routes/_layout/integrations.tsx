@@ -3,9 +3,8 @@ import { createFileRoute } from "@tanstack/react-router"
 import { formatDistanceToNow } from "date-fns"
 import { Link2, Loader2, Plug, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-
-import { IntegrationsService, OauthService } from "@/client"
 import type { ApiError, IntegrationPublic, Platform } from "@/client"
+import { IntegrationsService, OauthService } from "@/client"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -159,7 +158,10 @@ function IntegrationRow({
         {integration.external_account_name}
       </TableCell>
       <TableCell>
-        <Badge variant={statusVariant(integration.status)} className="capitalize">
+        <Badge
+          variant={statusVariant(integration.status)}
+          className="capitalize"
+        >
           {integration.status}
         </Badge>
       </TableCell>
@@ -175,47 +177,47 @@ function IntegrationRow({
       </TableCell>
       <TableCell className="text-right">
         {editable && (
-        <div className="flex items-center justify-end gap-2">
-          {needsReconnect && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => connect(integration.platform)}
-              disabled={reconnecting !== null}
-            >
-              {reconnecting ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <Plug className="mr-1 size-4" />
-              )}
-              Reconnect
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => syncMut.mutate()}
-            disabled={syncMut.isPending || needsReconnect}
-            title="Sync now"
-            aria-label={`Sync ${label} now`}
-          >
-            {syncMut.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="size-4" />
+          <div className="flex items-center justify-end gap-2">
+            {needsReconnect && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => connect(integration.platform)}
+                disabled={reconnecting !== null}
+              >
+                {reconnecting ? (
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                ) : (
+                  <Plug className="mr-1 size-4" />
+                )}
+                Reconnect
+              </Button>
             )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setConfirmDelete(true)}
-            title="Disconnect"
-            aria-label={`Disconnect ${label}`}
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => syncMut.mutate()}
+              disabled={syncMut.isPending || needsReconnect}
+              title="Sync now"
+              aria-label={`Sync ${label} now`}
+            >
+              {syncMut.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setConfirmDelete(true)}
+              title="Disconnect"
+              aria-label={`Disconnect ${label}`}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         )}
         <ConfirmDialog
           open={confirmDelete}
@@ -301,30 +303,30 @@ function IntegrationsPage() {
           </p>
         </div>
         {editable && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button disabled={pending !== null}>
-              {pending ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 size-4" />
-              )}
-              Connect platform
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {PLATFORMS.map((p) => (
-              <DropdownMenuItem key={p} onClick={() => connect(p)}>
-                {PLATFORM_LABELS[p]}
-                {connectedPlatforms.has(p) && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Connected
-                  </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button disabled={pending !== null}>
+                {pending ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 size-4" />
                 )}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                Connect platform
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {PLATFORMS.map((p) => (
+                <DropdownMenuItem key={p} onClick={() => connect(p)}>
+                  {PLATFORM_LABELS[p]}
+                  {connectedPlatforms.has(p) && (
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      Connected
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 

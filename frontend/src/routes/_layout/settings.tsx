@@ -59,7 +59,9 @@ function Settings() {
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
           Manage your account
-          {currentWorkspace ? ` and the ${currentWorkspace.name} workspace` : ""}
+          {currentWorkspace
+            ? ` and the ${currentWorkspace.name} workspace`
+            : ""}
         </p>
       </div>
 

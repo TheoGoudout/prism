@@ -1,5 +1,6 @@
 import { test as setup } from "@playwright/test"
 import { firstSuperuser, firstSuperuserPassword } from "./config.ts"
+import { ensureWorkspace } from "./utils/workspace"
 
 const authFile = "playwright/.auth/user.json"
 
@@ -9,5 +10,6 @@ setup("authenticate", async ({ page }) => {
   await page.getByTestId("password-input").fill(firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
   await page.waitForURL("/")
+  await ensureWorkspace(page)
   await page.context().storageState({ path: authFile })
 })
