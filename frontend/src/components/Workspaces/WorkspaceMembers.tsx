@@ -144,11 +144,13 @@ function MemberRow({
   workspaceId,
   myRole,
   isMe,
+  isLastOwner,
 }: {
   member: WorkspaceMemberPublic
   workspaceId: string
   myRole: WorkspaceRole
   isMe: boolean
+  isLastOwner: boolean
 }) {
   const queryClient = useQueryClient()
   const { showSuccessToast, showErrorToast } = useCustomToast()
@@ -184,12 +186,14 @@ function MemberRow({
   })
 
   // Mirrors the API rules: only owners change roles; owners/admins remove
-  // others (admins can't remove owners); anyone can leave.
-  const canChangeRole = myRole === "owner"
+  // others (admins can't remove owners); anyone can leave; a workspace always
+  // keeps at least one owner.
+  const canChangeRole = myRole === "owner" && !isLastOwner
   const canRemove =
-    isMe ||
-    myRole === "owner" ||
-    (myRole === "admin" && member.role !== "owner")
+    !isLastOwner &&
+    (isMe ||
+      myRole === "owner" ||
+      (myRole === "admin" && member.role !== "owner"))
   const name = member.user_full_name || member.user_email
 
   return (
@@ -239,7 +243,11 @@ function MemberRow({
             className="text-destructive hover:text-destructive"
             onClick={() => setConfirmRemove(true)}
           >
-            {isMe ? <LogOut className="size-4" /> : <Trash2 className="size-4" />}
+            {isMe ? (
+              <LogOut className="size-4" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
           </Button>
         )}
         <ConfirmDialog
@@ -273,6 +281,7 @@ export default function WorkspaceMembers() {
 
   if (!currentWorkspace) return null
   const members = membersQ.data?.data ?? []
+  const ownerCount = members.filter((m) => m.role === "owner").length
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
@@ -281,8 +290,9 @@ export default function WorkspaceMembers() {
           <CardHeader>
             <CardTitle className="text-base">Add a member</CardTitle>
             <CardDescription>
-              They need a Prism account first. {ROLE_DESCRIPTIONS.viewer};
-              admins can also {ROLE_DESCRIPTIONS.admin.toLowerCase()}.
+              They need a Prism account first. Viewers can{" "}
+              {ROLE_DESCRIPTIONS.viewer.toLowerCase()}, admins can also{" "}
+              {ROLE_DESCRIPTIONS.admin.toLowerCase()}.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -321,6 +331,7 @@ export default function WorkspaceMembers() {
                     workspaceId={currentWorkspace.id}
                     myRole={currentWorkspace.role}
                     isMe={m.user_id === user?.id}
+                    isLastOwner={m.role === "owner" && ownerCount === 1}
                   />
                 ))}
               </TableBody>

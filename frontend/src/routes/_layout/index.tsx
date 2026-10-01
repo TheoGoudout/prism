@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { subDays, format } from "date-fns"
+import { format, subDays } from "date-fns"
 import {
   BarChart2,
   Eye,
@@ -10,9 +10,8 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react"
-
-import { IntegrationsService, MetricsService } from "@/client"
 import type { IntegrationPublic } from "@/client"
+import { IntegrationsService, MetricsService } from "@/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,7 +40,10 @@ function fmt(n: number | undefined | null): string {
 function defaultRange() {
   const to = new Date()
   const from = subDays(to, 6)
-  return { dateFrom: format(from, "yyyy-MM-dd"), dateTo: format(to, "yyyy-MM-dd") }
+  return {
+    dateFrom: format(from, "yyyy-MM-dd"),
+    dateTo: format(to, "yyyy-MM-dd"),
+  }
 }
 
 function statusVariant(
@@ -130,7 +132,10 @@ function IntegrationRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant={statusVariant(integration.status)} className="capitalize text-xs">
+        <Badge
+          variant={statusVariant(integration.status)}
+          className="capitalize text-xs"
+        >
           {integration.status}
         </Badge>
         {editable && integration.status !== "expired" && (
@@ -257,7 +262,11 @@ function Dashboard() {
           ) : (
             <div className="divide-y">
               {integrations.map((i) => (
-                <IntegrationRow key={i.id} integration={i} editable={canManage(currentWorkspace)} />
+                <IntegrationRow
+                  key={i.id}
+                  integration={i}
+                  editable={canManage(currentWorkspace)}
+                />
               ))}
             </div>
           )}

@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
-import { createContext, useContext, useEffect, useState } from "react"
 import type { ReactNode } from "react"
-
-import { WorkspacesService } from "@/client"
+import { createContext, useContext, useEffect, useState } from "react"
 import type { WorkspacePublic } from "@/client"
+import { WorkspacesService } from "@/client"
 
 const STORAGE_KEY = "prism:workspace_id"
 

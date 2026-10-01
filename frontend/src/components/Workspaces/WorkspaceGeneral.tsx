@@ -124,8 +124,8 @@ export default function WorkspaceGeneral() {
               Delete workspace
             </CardTitle>
             <CardDescription>
-              Permanently delete this workspace, its integrations and all
-              synced metrics.
+              Permanently delete this workspace, its integrations and all synced
+              metrics.
             </CardDescription>
           </CardHeader>
           <CardContent>

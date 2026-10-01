@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test"
+import type { Page } from "@playwright/test"
+import { ensureWorkspace, expectDashboard } from "./workspace"
 
 export async function signUpNewUser(
   page: Page,
@@ -16,16 +17,22 @@ export async function signUpNewUser(
   await page.goto("/login")
 }
 
-export async function logInUser(page: Page, email: string, password: string) {
+/** Log in through the UI, without completing workspace onboarding. */
+export async function logInOnly(page: Page, email: string, password: string) {
   await page.goto("/login")
 
   await page.getByTestId("email-input").fill(email)
   await page.getByTestId("password-input").fill(password)
   await page.getByRole("button", { name: "Log In" }).click()
   await page.waitForURL("/")
-  await expect(
-    page.getByText("Welcome back, nice to see you again!"),
-  ).toBeVisible()
+}
+
+/** Log in and land on the dashboard, creating a workspace if needed. */
+export async function logInUser(page: Page, email: string, password: string) {
+  await logInOnly(page, email, password)
+  await ensureWorkspace(page)
+  await page.goto("/")
+  await expectDashboard(page)
 }
 
 export async function logOutUser(page: Page) {

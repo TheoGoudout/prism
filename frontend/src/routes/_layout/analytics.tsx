@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { subDays, format } from "date-fns"
+import { format, subDays } from "date-fns"
 import {
   BarChart2,
   Download,
@@ -23,9 +23,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-
-import { AiService, MetricsService } from "@/client"
 import type { Insight } from "@/client"
+import { AiService, MetricsService } from "@/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -97,8 +96,10 @@ function KpiCard({ title, value, icon: Icon, loading }: KpiCardProps) {
 // ---- Insights panel ---------------------------------------------------------
 
 function insightIcon(type: Insight["type"]) {
-  if (type === "positive") return <TrendingUp className="size-4 text-green-500 shrink-0 mt-0.5" />
-  if (type === "negative") return <TrendingDown className="size-4 text-destructive shrink-0 mt-0.5" />
+  if (type === "positive")
+    return <TrendingUp className="size-4 text-green-500 shrink-0 mt-0.5" />
+  if (type === "negative")
+    return <TrendingDown className="size-4 text-destructive shrink-0 mt-0.5" />
   return <Sparkles className="size-4 text-muted-foreground shrink-0 mt-0.5" />
 }
 
@@ -112,14 +113,22 @@ function InsightsPanel({ workspaceId, dateFrom, dateTo }: InsightsPanelProps) {
   const insightsMut = useMutation({
     mutationFn: () =>
       AiService.generateInsights({
-        requestBody: { workspace_id: workspaceId, date_from: dateFrom, date_to: dateTo },
+        requestBody: {
+          workspace_id: workspaceId,
+          date_from: dateFrom,
+          date_to: dateTo,
+        },
       }),
   })
 
   const reportMut = useMutation({
     mutationFn: () =>
       AiService.generateReport({
-        requestBody: { workspace_id: workspaceId, date_from: dateFrom, date_to: dateTo },
+        requestBody: {
+          workspace_id: workspaceId,
+          date_from: dateFrom,
+          date_to: dateTo,
+        },
       }),
     onSuccess: (data) => {
       // Trigger a markdown file download
@@ -172,7 +181,8 @@ function InsightsPanel({ workspaceId, dateFrom, dateTo }: InsightsPanelProps) {
       <CardContent>
         {!insightsMut.data && !insightsMut.isPending && (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Click "Generate insights" to get AI-powered analysis of your metrics.
+            Click "Generate insights" to get AI-powered analysis of your
+            metrics.
           </p>
         )}
         {insightsMut.isPending && (
@@ -232,8 +242,7 @@ function AnalyticsPage() {
 
   const postsQ = useQuery({
     queryKey: ["metrics", "posts", currentWorkspace?.id, dateFrom, dateTo],
-    queryFn: () =>
-      MetricsService.getTopPosts({ ...queryOpts, limit: 10 }),
+    queryFn: () => MetricsService.getTopPosts({ ...queryOpts, limit: 10 }),
     enabled: !!currentWorkspace,
   })
 
@@ -326,7 +335,10 @@ function AnalyticsPage() {
                 data={chartData}
                 margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  className="stroke-border"
+                />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 11 }}
@@ -383,56 +395,55 @@ function AnalyticsPage() {
       </Card>
 
       {/* Per-platform breakdown */}
-      {summaryQ.data &&
-        Object.keys(summaryQ.data.by_platform).length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">By platform</CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Platform</TableHead>
-                    <TableHead className="text-right">Impressions</TableHead>
-                    <TableHead className="text-right">Views</TableHead>
-                    <TableHead className="text-right">Reach</TableHead>
-                    <TableHead className="text-right">Engagements</TableHead>
-                    <TableHead className="text-right">Followers</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Object.entries(summaryQ.data.by_platform).map(
-                    ([platform, m]) => (
-                      <TableRow key={platform}>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {platform}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmt(m.impressions)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmt(m.views)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmt(m.reach)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmt(m.engagements)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmt(m.followers_count)}
-                        </TableCell>
-                      </TableRow>
-                    ),
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+      {summaryQ.data && Object.keys(summaryQ.data.by_platform).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">By platform</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Platform</TableHead>
+                  <TableHead className="text-right">Impressions</TableHead>
+                  <TableHead className="text-right">Views</TableHead>
+                  <TableHead className="text-right">Reach</TableHead>
+                  <TableHead className="text-right">Engagements</TableHead>
+                  <TableHead className="text-right">Followers</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(summaryQ.data.by_platform).map(
+                  ([platform, m]) => (
+                    <TableRow key={platform}>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {platform}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {fmt(m.impressions)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {fmt(m.views)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {fmt(m.reach)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {fmt(m.engagements)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {fmt(m.followers_count)}
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Top posts */}
       <Card>
