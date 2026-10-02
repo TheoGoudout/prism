@@ -68,15 +68,41 @@ docker compose down -v        # removes the data the tests created
 
 The Integrations page has a step-by-step guide per platform
 (`src/components/Integrations/guideContent.tsx`). The platforms change their
-login screens often: re-check each guide against the live flow from time to
-time and update `GUIDES_REVIEWED_ON`.
+screens often: re-check each guide from time to time and update
+`GUIDES_REVIEWED_ON`. Its screenshots live in
+`public/assets/images/tutorials/` and come from two scripts.
 
-The Prism screenshots in `public/assets/images/tutorials/` are generated
-against a mocked API, so no backend is needed. Re-run this after changing the
-Integrations page:
+**Prism's own screens** are generated against a mocked API, so no backend is
+needed. Re-run this after changing the Integrations page:
 
 ```bash
 bun run tutorial-screenshots
 # If Playwright's own browser isn't installed, point it at another Chromium:
 PLAYWRIGHT_CHROMIUM=/path/to/chromium bun run tutorial-screenshots
 ```
+
+**The platforms' screens** (Facebook, Google, X, ...) come from real
+connections made on a running Prism with test accounts. Run this on your own
+computer: platforms block scripted logins, so you log in by hand once and the
+script reuses those sessions (stored in `.tutorial-browser-profile/`, which is
+git-ignored because it holds login cookies).
+
+```bash
+# Once, or when a session has expired: log in on every tab, then close the browser
+PRISM_URL=https://prism.example.com bun run tutorial-screenshots:login
+
+# Every few months: connect and disconnect each platform, saving its screens
+PRISM_URL=https://prism.example.com MASK_TEXT=test@acme.com bun run tutorial-screenshots:platforms
+# or only some platforms
+PRISM_URL=https://prism.example.com bun run tutorial-screenshots:platforms facebook google_analytics
+```
+
+- Use dedicated test accounts with brand-like names: their names appear in
+  the screenshots. `MASK_TEXT` blacks out the given texts (e.g. email
+  addresses).
+- Disconnecting revokes Prism's access on the platform, so each run sees the
+  first-time screens. LinkedIn has no revocation API: remove Prism under
+  LinkedIn's settings (*Data privacy → Permitted services*) between runs.
+- When a platform shows a screen the script doesn't recognise, it saves it in
+  `public/assets/images/tutorials/_debug/` and moves on. Update `SCREENS` in
+  `scripts/platform-screenshots.ts` to match it.

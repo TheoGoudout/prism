@@ -7,8 +7,11 @@ import type { Platform } from "@/client"
  *
  * Written for people who are not technical: plain words, one action per
  * step. The platforms' own screens change often, so re-check every guide
- * against the live flow when bumping GUIDES_REVIEWED_ON. The Prism
- * screenshots are regenerated with `bun run tutorial-screenshots`.
+ * against the live flow when bumping GUIDES_REVIEWED_ON. Screenshots are
+ * regenerated with `bun run tutorial-screenshots` (Prism's own screens) and
+ * `bun run tutorial-screenshots:platforms` (the platforms' screens; see
+ * scripts/platform-screenshots.ts). A step whose image hasn't been captured
+ * yet shows its text only.
  */
 
 export const GUIDES_REVIEWED_ON = "October 2026"
@@ -31,6 +34,11 @@ export interface ConnectionGuide {
   troubleshooting: ReactNode[]
   /** The platform's own help page for the prerequisites. */
   helpLink: { label: string; href: string }
+}
+
+/** A screenshot of a platform's own screen. */
+function shot(file: string, alt: string): GuideStep["image"] {
+  return { src: `${SCREENSHOTS}/${file}`, alt }
 }
 
 // Steps every guide starts and ends with: they happen in Prism itself.
@@ -102,6 +110,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             person, then click it.
           </>
         ),
+        image: shot(
+          "facebook-continue.png",
+          "Facebook asking to continue as the logged-in person",
+        ),
       },
       {
         title: "Choose your Pages",
@@ -117,6 +129,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             this list.
           </>
         ),
+        image: shot(
+          "facebook-pages.png",
+          "Facebook's list of Pages to share with Prism",
+        ),
       },
       {
         title: "Allow access",
@@ -127,6 +143,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             <strong>Save</strong>, then <strong>Got it</strong>. Prism can never
             post or change anything on your Page.
           </>
+        ),
+        image: shot(
+          "facebook-permissions.png",
+          "Facebook's summary of what Prism will be able to do",
         ),
       },
       doneStep("facebook", "Facebook"),
@@ -181,6 +201,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             in.
           </>
         ),
+        image: shot(
+          "instagram-continue.png",
+          "Facebook asking to continue as the logged-in person",
+        ),
       },
       {
         title: "Choose your Instagram account",
@@ -189,6 +213,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             Tick the Instagram account you want to follow and click{" "}
             <strong>Continue</strong>.
           </>
+        ),
+        image: shot(
+          "instagram-accounts.png",
+          "Facebook's list of Instagram accounts to share with Prism",
         ),
       },
       {
@@ -200,6 +228,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             <strong>Continue</strong>.
           </>
         ),
+        image: shot(
+          "instagram-pages.png",
+          "Facebook's list of Pages to share with Prism",
+        ),
       },
       {
         title: "Allow access",
@@ -209,6 +241,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             then <strong>Got it</strong>. Prism can only read statistics; it
             never posts anything.
           </>
+        ),
+        image: shot(
+          "instagram-permissions.png",
+          "Facebook's summary of what Prism will be able to do",
         ),
       },
       doneStep("instagram", "Instagram"),
@@ -266,6 +302,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             <strong>Authorize app</strong>. Prism cannot post on your behalf.
           </>
         ),
+        image: shot(
+          "twitter-authorize.png",
+          "X's authorization page with the Authorize app button",
+        ),
       },
       doneStep("twitter", "Twitter / X"),
     ],
@@ -313,6 +353,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             LinkedIn lists what Prism may access (your basic profile and your
             Pages' posts and statistics). Click <strong>Allow</strong>.
           </>
+        ),
+        image: shot(
+          "linkedin-allow.png",
+          "LinkedIn's authorization page with the Allow button",
         ),
       },
       doneStep("linkedin", "LinkedIn"),
@@ -364,6 +408,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             <strong>Authorize</strong>).
           </>
         ),
+        image: shot(
+          "tiktok-authorize.png",
+          "TikTok's list of what Prism would like to access",
+        ),
       },
       doneStep("tiktok", "TikTok"),
     ],
@@ -402,6 +450,7 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             to your Google Analytics (it may be a work account).
           </>
         ),
+        image: shot("google_analytics-account.png", "Google's account chooser"),
       },
       {
         title: "Tick the box and continue",
@@ -413,6 +462,10 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
             <strong>Select all</strong>); otherwise Prism gets no data. Then
             click <strong>Continue</strong>.
           </>
+        ),
+        image: shot(
+          "google_analytics-consent.png",
+          "Google's permission page with the Google Analytics checkbox",
         ),
       },
       doneStep("google_analytics", "Google Analytics"),

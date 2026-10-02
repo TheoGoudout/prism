@@ -8,6 +8,7 @@ from app.api.deps import CurrentMember, SessionDep, require_manager
 from app.api.routes.oauth import redirect_uri
 from app.integrations.oauth import registry
 from app.integrations.oauth.base import OAuthState, generate_pkce_pair
+from app.integrations.revocation import revoke_access
 from app.models.integration import (
     Integration,
     IntegrationPublic,
@@ -67,9 +68,14 @@ def connect(platform: Platform, member: CurrentMember) -> Any:
 def delete_integration(
     session: SessionDep, member: CurrentMember, integration_id: uuid.UUID
 ) -> None:
-    """Disconnect an integration and delete its accounts and synced metrics."""
+    """
+    Disconnect an integration and delete its accounts and synced metrics.
+    Prism's access is also revoked on the platform where possible.
+    """
     require_manager(member, "remove integrations")
-    crud.delete(session, _get_integration(session, member, integration_id))
+    integration = _get_integration(session, member, integration_id)
+    revoke_access(session, integration)
+    crud.delete(session, integration)
 
 
 @router.post("/{integration_id}/sync", status_code=status.HTTP_202_ACCEPTED)

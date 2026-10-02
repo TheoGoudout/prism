@@ -1,4 +1,5 @@
 import { BookOpen, ExternalLink, Loader2, Plug } from "lucide-react"
+import { useState } from "react"
 
 import type { Platform } from "@/client"
 import { Button } from "@/components/ui/button"
@@ -135,6 +136,8 @@ function Guide({
 }
 
 function Step({ number, step }: { number: number; step: GuideStep }) {
+  // Screenshots of the platforms' screens may not have been captured yet
+  const [imageMissing, setImageMissing] = useState(false)
   return (
     <li className="flex gap-3">
       <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
@@ -143,7 +146,7 @@ function Step({ number, step }: { number: number; step: GuideStep }) {
       <div className="min-w-0 flex-1 space-y-2 pt-0.5">
         <h4 className="font-medium">{step.title}</h4>
         <p className="text-sm text-muted-foreground">{step.body}</p>
-        {step.image && (
+        {step.image && !imageMissing && (
           <a
             href={step.image.src}
             target="_blank"
@@ -155,6 +158,7 @@ function Step({ number, step }: { number: number; step: GuideStep }) {
               src={step.image.src}
               alt={step.image.alt}
               loading="lazy"
+              onError={() => setImageMissing(true)}
               className="w-full rounded-md border shadow-sm"
             />
           </a>

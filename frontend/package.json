@@ -11,7 +11,9 @@
     "generate-client": "openapi-ts",
     "test": "bunx playwright test",
     "test:ui": "bunx playwright test --ui",
-    "tutorial-screenshots": "bun scripts/tutorial-screenshots.ts"
+    "tutorial-screenshots": "bun scripts/tutorial-screenshots.ts",
+    "tutorial-screenshots:login": "bun scripts/platform-screenshots.ts --login",
+    "tutorial-screenshots:platforms": "bun scripts/platform-screenshots.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
