@@ -4,7 +4,6 @@ Insights chain — 4–6 short, actionable insights about a workspace's metrics.
 The model answers with a JSON array, parsed into Insight objects.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -13,6 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSerializable
 from pydantic import ValidationError
 
+from app.ai.formatting import parse_json
 from app.ai.llm import get_llm
 from app.models.ai import Insight
 
@@ -45,18 +45,10 @@ Period: {date_from} to {date_to}{platform_context}
 """
 
 
-def _parse_json(text: str) -> Any:
-    # Strip markdown fences in case the model ignores the instructions
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-    return json.loads(text)
-
-
 def build_insights_chain() -> RunnableSerializable[dict[str, Any], Any]:
     """Prompt variables in (see app.ai.formatting), parsed JSON out."""
     prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("human", _HUMAN)])
-    return prompt | get_llm() | StrOutputParser() | _parse_json
+    return prompt | get_llm() | StrOutputParser() | parse_json
 
 
 def to_insights(raw: Any) -> list[Insight]:

@@ -1,0 +1,37 @@
+<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-text font-family="Arial, Helvetica, sans-serif" font-size="15px" line-height="1.5" color="#333" padding-left="25px" padding-right="25px"></mj-text>
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#fafbfc">
+    <mj-section background-color="#fff" padding="30px 20px">
+      <mj-column width="100%">
+        <mj-text font-size="20px" font-weight="bold" padding-top="10px">{{ project_name }} · AI performance analysis</mj-text>
+        <mj-text color="#777" padding-top="0">{{ workspace_name }} · {{ date_from }} to {{ date_to }}</mj-text>
+        <mj-text>{{ summary }}</mj-text>
+        <mj-divider border-color="#eee" border-width="1px"></mj-divider>
+        <mj-text>
+          <h3 style="color:#16a34a;margin:0 0 8px">What worked</h3>
+          {% if what_worked %}<ul style="padding-left:20px;margin:0">{% for item in what_worked %}<li style="margin-bottom:6px"><strong>{{ item.title }}</strong> — {{ item.detail }}</li>{% endfor %}</ul>{% else %}<p style="margin:0;color:#777">Nothing stood out.</p>{% endif %}
+        </mj-text>
+        <mj-text>
+          <h3 style="color:#dc2626;margin:0 0 8px">What didn't work</h3>
+          {% if what_didnt_work %}<ul style="padding-left:20px;margin:0">{% for item in what_didnt_work %}<li style="margin-bottom:6px"><strong>{{ item.title }}</strong> — {{ item.detail }}</li>{% endfor %}</ul>{% else %}<p style="margin:0;color:#777">Nothing stood out.</p>{% endif %}
+        </mj-text>
+        <mj-text>
+          <h3 style="margin:0 0 8px">Recommendations</h3>
+          {% if recommendations %}<ol style="padding-left:20px;margin:0">{% for item in recommendations %}<li style="margin-bottom:6px"><strong>{{ item.title }}</strong> <span style="color:#777">({{ item.priority }} priority)</span> — {{ item.detail }}</li>{% endfor %}</ol>{% else %}<p style="margin:0;color:#777">No recommendations this time.</p>{% endif %}
+        </mj-text>
+        <mj-raw>{% if topics %}</mj-raw>
+        <mj-text>
+          <h3 style="margin:0 0 8px">Topics</h3>
+          <ul style="padding-left:20px;margin:0">{% for topic in topics %}<li style="margin-bottom:6px"><strong>{{ topic.name }}</strong> <span style="color:#777">({{ topic.verdict }}, {{ topic.post_ids | length }} posts)</span> — {{ topic.summary }}</li>{% endfor %}</ul>
+        </mj-text>
+        <mj-raw>{% endif %}</mj-raw>
+        <mj-button align="center" font-size="16px" background-color="#009688" border-radius="8px" color="#fff" href="{{ link }}" padding="25px 30px 15px">See the full analysis</mj-button>
+        <mj-text align="center" font-size="12px" color="#999">You receive this report because you are a recipient of {{ workspace_name }}'s scheduled analysis in {{ project_name }}.</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

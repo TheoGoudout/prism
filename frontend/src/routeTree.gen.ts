@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
+import { Route as LayoutAiAnalysisRouteImport } from './routes/_layout/ai-analysis'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutIntegrationsRouteImport } from './routes/_layout/integrations'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
@@ -54,6 +55,11 @@ const LayoutAdminRoute = LayoutAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutAiAnalysisRoute = LayoutAiAnalysisRouteImport.update({
+  id: '/ai-analysis',
+  path: '/ai-analysis',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutAnalyticsRoute = LayoutAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
+  '/ai-analysis': typeof LayoutAiAnalysisRoute
   '/analytics': typeof LayoutAnalyticsRoute
   '/integrations': typeof LayoutIntegrationsRoute
   '/settings': typeof LayoutSettingsRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
+  '/ai-analysis': typeof LayoutAiAnalysisRoute
   '/analytics': typeof LayoutAnalyticsRoute
   '/integrations': typeof LayoutIntegrationsRoute
   '/settings': typeof LayoutSettingsRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_layout/admin': typeof LayoutAdminRoute
+  '/_layout/ai-analysis': typeof LayoutAiAnalysisRoute
   '/_layout/analytics': typeof LayoutAnalyticsRoute
   '/_layout/integrations': typeof LayoutIntegrationsRoute
   '/_layout/settings': typeof LayoutSettingsRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/admin'
+    | '/ai-analysis'
     | '/analytics'
     | '/integrations'
     | '/settings'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/admin'
+    | '/ai-analysis'
     | '/analytics'
     | '/integrations'
     | '/settings'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_layout/admin'
+    | '/_layout/ai-analysis'
     | '/_layout/analytics'
     | '/_layout/integrations'
     | '/_layout/settings'
@@ -201,6 +213,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAdminRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/ai-analysis': {
+      id: '/_layout/ai-analysis'
+      path: '/ai-analysis'
+      fullPath: '/ai-analysis'
+      preLoaderRoute: typeof LayoutAiAnalysisRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/analytics': {
       id: '/_layout/analytics'
       path: '/analytics'
@@ -227,6 +246,7 @@ declare module '@tanstack/react-router' {
 
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
+  LayoutAiAnalysisRoute: typeof LayoutAiAnalysisRoute
   LayoutAnalyticsRoute: typeof LayoutAnalyticsRoute
   LayoutIntegrationsRoute: typeof LayoutIntegrationsRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
@@ -235,6 +255,7 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRoute,
+  LayoutAiAnalysisRoute: LayoutAiAnalysisRoute,
   LayoutAnalyticsRoute: LayoutAnalyticsRoute,
   LayoutIntegrationsRoute: LayoutIntegrationsRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,

@@ -1,8 +1,8 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from app.ai.formatting import format_posts, prompt_variables
-from app.ai.insights import _parse_json, to_insights
+from app.ai.formatting import format_posts, parse_json, prompt_variables
+from app.ai.insights import to_insights
 from app.models.integration import Platform
 from app.models.metrics import ContentType, MetricsSummary, MetricTotals, Post
 from app.services.metrics import MetricsQuery
@@ -54,7 +54,7 @@ def test_format_posts() -> None:
 
 
 def test_parse_json_strips_markdown_fences() -> None:
-    assert _parse_json('```json\n[{"a": 1}]\n```') == [{"a": 1}]
+    assert parse_json('```json\n[{"a": 1}]\n```') == [{"a": 1}]
 
 
 def test_to_insights_drops_malformed_items() -> None:

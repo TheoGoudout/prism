@@ -1,5 +1,6 @@
-"""Render workspace metrics as plain text for the LLM prompts."""
+"""Render workspace metrics as plain text for the LLM prompts, and parse answers."""
 
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -47,3 +48,11 @@ def format_posts(posts: Sequence[Post]) -> str:
             f"engagements={post.engagements or 0:,}  — {snippet!r}"
         )
     return "\n".join(lines)
+
+
+def parse_json(text: str) -> Any:
+    """Parse a JSON answer, stripping markdown fences in case the model added them."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    return json.loads(text)

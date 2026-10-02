@@ -7,6 +7,7 @@ from sqlmodel import Session, delete
 from app.core.config import settings
 from app.core.db import engine, init_db
 from app.main import app
+from app.models.analysis import AnalysisSchedule, PerformanceAnalysis
 from app.models.integration import Integration, PlatformAccount
 from app.models.metrics import MetricSnapshot, Post
 from app.models.user import User
@@ -21,6 +22,8 @@ def db() -> Generator[Session]:
         init_db(session)
         yield session
         # Clean up in dependency order (children before parents)
+        session.execute(delete(PerformanceAnalysis))
+        session.execute(delete(AnalysisSchedule))
         session.execute(delete(Post))
         session.execute(delete(MetricSnapshot))
         session.execute(delete(PlatformAccount))
