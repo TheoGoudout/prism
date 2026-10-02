@@ -42,7 +42,8 @@ function LayoutInner() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      {/* min-w-0: wide content (e.g. tables) scrolls instead of widening the page */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1 text-muted-foreground" />
         </header>

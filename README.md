@@ -37,6 +37,10 @@
   *expired*, with a one-click **Reconnect**.
 - **Dashboards**: KPI totals, daily time series, per-platform breakdown and
   top posts for any date range.
+- **Post performance**: for each platform that publishes posts, the latest
+  posts with every metric (engagements, engagement rate, likes, comments…)
+  ranked against the last 12 months of posts and compared with the best
+  (P95), median and worst (P5) posts, plus a chart of every post over time.
 - **AI insights and reports** (LangChain): actionable insights and a full
   markdown performance report generated from your metrics. Works with
   OpenAI, Anthropic or Google models.
@@ -73,7 +77,7 @@ backend/app/
 ├── worker/              # Celery app, sync and analysis tasks, Beat schedule
 └── ai/                  # LLM factory and insight / report / analysis chains
 frontend/src/
-├── routes/              # pages (dashboard, analytics, integrations, settings, admin)
+├── routes/              # pages (dashboard, analytics, posts, integrations, settings, admin)
 ├── components/          # UI, including Workspaces/ (onboarding, members)
 └── client/              # generated API client (do not edit by hand)
 ```

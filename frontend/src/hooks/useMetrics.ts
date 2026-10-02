@@ -41,3 +41,13 @@ export function useTopPosts(range: DateRange, limit = 10) {
     queryFn: () => MetricsService.getTopPosts(params),
   })
 }
+
+/** Each platform's latest posts, benchmarked against its post history. */
+export function usePostPerformance(limit = 20) {
+  const workspace = useCurrentWorkspace()
+  const params = { workspaceId: workspace.id, limit }
+  return useQuery({
+    queryKey: ["metrics", "post-performance", params],
+    queryFn: () => MetricsService.getPostPerformance(params),
+  })
+}

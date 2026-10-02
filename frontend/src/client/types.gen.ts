@@ -147,6 +147,16 @@ export type IntegrationPublic = {
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'disconnected';
 
 /**
+ * How a metric is distributed across a platform's post history.
+ */
+export type MetricBenchmark = {
+    sample_size: number;
+    p5: number;
+    p50: number;
+    p95: number;
+};
+
+/**
  * Overall and per-platform totals over a date range.
  */
 export type MetricsSummary = {
@@ -226,6 +236,67 @@ export type PostAnalysis = {
     analysis: string;
     suggestion?: (string | null);
     topic?: (string | null);
+};
+
+/**
+ * A post's metrics only, for plotting the history over time.
+ */
+export type PostHistoryPoint = {
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    clicks?: (number | null);
+    saves?: (number | null);
+    id: string;
+    published_at: string;
+    engagement_rate?: (number | null);
+};
+
+/**
+ * A recent post, situated within the platform's post history.
+ */
+export type PostPerformance = {
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    clicks?: (number | null);
+    saves?: (number | null);
+    external_id: string;
+    content_type: ContentType;
+    text?: (string | null);
+    media_url?: (string | null);
+    permalink?: (string | null);
+    id: string;
+    platform_account_id: string;
+    platform: Platform;
+    published_at: string;
+    engagement_rate?: (number | null);
+    percentile_ranks: {
+        [key: string]: (number);
+    };
+};
+
+/**
+ * One platform's latest posts, compared with its own post history.
+ */
+export type PostPerformanceReport = {
+    platform: Platform;
+    history_from: string;
+    history_to: string;
+    history_size: number;
+    benchmarks: {
+        [key: string]: MetricBenchmark;
+    };
+    posts: Array<PostPerformance>;
+    history: Array<PostHistoryPoint>;
 };
 
 export type PostPublic = {
@@ -561,6 +632,15 @@ export type MetricsGetTopPostsData = {
 };
 
 export type MetricsGetTopPostsResponse = (Array<PostPublic>);
+
+export type MetricsGetPostPerformanceData = {
+    historyDays?: number;
+    limit?: number;
+    platform?: (Platform | null);
+    workspaceId: string;
+};
+
+export type MetricsGetPostPerformanceResponse = (Array<PostPerformanceReport>);
 
 export type PrivateCreateUserData = {
     requestBody: PrivateUserCreate;
