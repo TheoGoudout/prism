@@ -1,7 +1,7 @@
 import uuid
 from datetime import date as date_type
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Column, Date, UniqueConstraint
@@ -13,7 +13,7 @@ from app.models.common import get_datetime_utc
 from app.models.integration import PlatformAccount
 
 
-class ContentType(str, Enum):
+class ContentType(StrEnum):
     post = "post"
     reel = "reel"
     story = "story"
@@ -173,11 +173,6 @@ class PostPublic(PostContent, ContentMetrics):
     engagement_rate: float | None = None
 
 
-class PostsPublic(SQLModel):
-    data: list[PostPublic]
-    count: int
-
-
 class MetricTotals(SQLModel):
     """Aggregated metric totals over a date range."""
 
@@ -195,7 +190,7 @@ class MetricTotals(SQLModel):
 
 
 class MetricsSummary(SQLModel):
-    """Response for GET /metrics/summary."""
+    """Overall and per-platform totals over a date range."""
 
     totals: MetricTotals
     by_platform: dict[str, MetricTotals]
@@ -210,9 +205,3 @@ class TimeSeriesPoint(SQLModel):
     views: int = 0
     clicks: int = 0
     engagements: int = 0
-
-
-class MetricsTimeSeries(SQLModel):
-    """Response for GET /metrics/timeseries."""
-
-    data: list[TimeSeriesPoint]

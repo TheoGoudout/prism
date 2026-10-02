@@ -148,7 +148,7 @@ def test_upsert_platform_account_updates(db: Session) -> None:
     assert updated.name == "Updated"
 
 
-def test_get_integrations_for_workspace_no_platform_filter(db: Session) -> None:
+def test_get_integrations_for_workspace(db: Session) -> None:
     ws = _make_workspace(db)
     create_fake_integration(db, ws, platform=Platform.facebook)
     create_fake_integration(

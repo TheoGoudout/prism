@@ -1,94 +1,82 @@
 import uuid
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from app import crud
-from app.api.deps import (
-    CurrentMember,
-    CurrentUser,
-    SessionDep,
-    get_workspace_member,
-    require_manager,
-)
-from app.models.common import Message
+from app.api.deps import CurrentMember, SessionDep, require_manager
+from app.api.routes.oauth import redirect_uri
+from app.integrations.oauth import registry
+from app.integrations.oauth.base import OAuthState, generate_pkce_pair
 from app.models.integration import (
     Integration,
     IntegrationPublic,
-    IntegrationsPublic,
+    OAuthConnectResponse,
     Platform,
-    PlatformAccountsPublic,
 )
 from app.models.workspace import WorkspaceMember
 from app.worker.tasks import sync as sync_tasks
 
-router = APIRouter(prefix="/integrations", tags=["integrations"])
+router = APIRouter(
+    prefix="/workspaces/{workspace_id}/integrations", tags=["integrations"]
+)
 
 
 def _get_integration(
-    integration_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
-) -> tuple[Integration, WorkspaceMember]:
-    """The integration and the caller's membership of its workspace."""
+    session: SessionDep, member: WorkspaceMember, integration_id: uuid.UUID
+) -> Integration:
     integration = crud.get_integration(session=session, integration_id=integration_id)
-    if integration is None:
+    if integration is None or integration.workspace_id != member.workspace_id:
         raise HTTPException(status_code=404, detail="Integration not found")
-    try:
-        member = get_workspace_member(session, current_user, integration.workspace_id)
-    except HTTPException:
-        # Same 404 for non-members, so they can't tell the integration exists
-        raise HTTPException(status_code=404, detail="Integration not found")
-    return integration, member
-
-
-IntegrationAccess = Annotated[
-    tuple[Integration, WorkspaceMember], Depends(_get_integration)
-]
-
-
-@router.get("/", response_model=IntegrationsPublic)
-def list_integrations(
-    session: SessionDep, member: CurrentMember, platform: Platform | None = None
-) -> Any:
-    """List the integrations of a workspace the user belongs to."""
-    integrations = crud.get_integrations_for_workspace(
-        session=session, workspace_id=member.workspace_id, platform=platform
-    )
-    return IntegrationsPublic(data=integrations, count=len(integrations))
-
-
-@router.get("/{integration_id}", response_model=IntegrationPublic)
-def get_integration(access: IntegrationAccess) -> Any:
-    integration, _ = access
     return integration
 
 
-@router.delete("/{integration_id}", response_model=Message)
-def delete_integration(session: SessionDep, access: IntegrationAccess) -> Any:
-    """Disconnect an integration and delete its accounts and synced metrics."""
-    integration, member = access
-    require_manager(member, "remove integrations")
-    crud.delete(session, integration)
-    return Message(message="Integration disconnected successfully")
-
-
-@router.get("/{integration_id}/accounts", response_model=PlatformAccountsPublic)
-def list_accounts(session: SessionDep, access: IntegrationAccess) -> Any:
-    """The pages / profiles / properties found by the last sync."""
-    integration, _ = access
-    accounts = crud.get_accounts_for_integration(
-        session=session, integration_id=integration.id
+@router.get("/", response_model=list[IntegrationPublic])
+def list_integrations(session: SessionDep, member: CurrentMember) -> Any:
+    return crud.get_integrations_for_workspace(
+        session=session, workspace_id=member.workspace_id
     )
-    return PlatformAccountsPublic(data=accounts, count=len(accounts))
 
 
-@router.post(
-    "/{integration_id}/sync",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=Message,
-)
-def trigger_sync(access: IntegrationAccess) -> Any:
+@router.get("/connect/{platform}", response_model=OAuthConnectResponse)
+def connect(platform: Platform, member: CurrentMember) -> Any:
+    """
+    Start connecting a platform: returns the provider's authorization URL to
+    send the user to. The provider then calls back GET /oauth/callback/{platform}.
+    """
+    require_manager(member, "connect integrations")
+    try:
+        provider = registry.get_provider(platform)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
+    state = OAuthState(
+        workspace_id=member.workspace_id,
+        user_id=member.user_id,
+        platform=platform,
+        pkce_verifier=verifier,
+    ).encode()
+    auth_url = provider.get_auth_url(
+        redirect_uri=redirect_uri(platform), state=state, code_challenge=challenge
+    )
+    return OAuthConnectResponse(authorization_url=auth_url)
+
+
+@router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_integration(
+    session: SessionDep, member: CurrentMember, integration_id: uuid.UUID
+) -> None:
+    """Disconnect an integration and delete its accounts and synced metrics."""
+    require_manager(member, "remove integrations")
+    crud.delete(session, _get_integration(session, member, integration_id))
+
+
+@router.post("/{integration_id}/sync", status_code=status.HTTP_202_ACCEPTED)
+def trigger_sync(
+    session: SessionDep, member: CurrentMember, integration_id: uuid.UUID
+) -> None:
     """Enqueue a sync now; it runs in the background."""
-    integration, member = access
     require_manager(member, "trigger syncs")
+    integration = _get_integration(session, member, integration_id)
     sync_tasks.sync_integration.delay(str(integration.id))
-    return Message(message="Sync enqueued")

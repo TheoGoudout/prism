@@ -1,7 +1,7 @@
 """Tests for the Celery sync tasks, against the test database."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -116,7 +116,7 @@ def test_missing_token_marks_expired(db: Session, integration: Integration) -> N
 def test_unrefreshable_token_marks_expired(
     db: Session, integration: Integration
 ) -> None:
-    integration.token_expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    integration.token_expires_at = datetime.now(UTC) - timedelta(hours=1)
     crud.save(db, integration)
     provider = MagicMock()
     provider.refresh_credential.return_value = "refresh"
@@ -138,7 +138,7 @@ def test_unrefreshable_token_marks_expired(
 def test_expiring_token_is_refreshed_before_sync(
     db: Session, integration: Integration
 ) -> None:
-    integration.token_expires_at = datetime.now(timezone.utc) + timedelta(minutes=1)
+    integration.token_expires_at = datetime.now(UTC) + timedelta(minutes=1)
     crud.save(db, integration)
     provider = MagicMock()
     provider.refresh_credential.return_value = "refresh"

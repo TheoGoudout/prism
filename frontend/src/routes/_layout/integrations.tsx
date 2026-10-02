@@ -84,7 +84,7 @@ function IntegrationsPage() {
   useOAuthResultToast()
   const workspace = useCurrentWorkspace()
   const { data, isLoading } = useIntegrations()
-  const integrations = data?.data ?? []
+  const integrations = data ?? []
   const editable = canManage(workspace)
 
   return (

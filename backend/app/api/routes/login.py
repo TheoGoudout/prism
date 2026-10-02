@@ -1,16 +1,15 @@
 from datetime import timedelta
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app import crud
-from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
+from app.api.deps import SessionDep
 from app.core import security
 from app.core.config import settings
-from app.models.common import Message, NewPassword, Token
-from app.models.user import UserPublic, UserUpdate
+from app.models.common import NewPassword, Token
+from app.models.user import UserUpdate
 from app.utils import (
     generate_password_reset_token,
     generate_reset_password_email,
@@ -43,23 +42,15 @@ def login_access_token(
     )
 
 
-@router.post("/login/test-token", response_model=UserPublic)
-def test_token(current_user: CurrentUser) -> Any:
-    """
-    Test access token
-    """
-    return current_user
-
-
-@router.post("/password-recovery/{email}")
-def recover_password(email: str, session: SessionDep) -> Message:
+@router.post("/password-recovery/{email}", status_code=status.HTTP_202_ACCEPTED)
+def recover_password(email: str, session: SessionDep) -> None:
     """
     Password Recovery
     """
     user = crud.get_user_by_email(session=session, email=email)
 
-    # Always return the same response to prevent email enumeration attacks
-    # Only send email if user actually exists
+    # Same response whether or not the user exists, to prevent email
+    # enumeration; only send the email if they do
     if user:
         password_reset_token = generate_password_reset_token(email=email)
         email_data = generate_reset_password_email(
@@ -70,13 +61,10 @@ def recover_password(email: str, session: SessionDep) -> Message:
             subject=email_data.subject,
             html_content=email_data.html_content,
         )
-    return Message(
-        message="If that email is registered, we sent a password recovery link"
-    )
 
 
-@router.post("/reset-password/")
-def reset_password(session: SessionDep, body: NewPassword) -> Message:
+@router.post("/reset-password/", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(session: SessionDep, body: NewPassword) -> None:
     """
     Reset password
     """
@@ -94,31 +82,4 @@ def reset_password(session: SessionDep, body: NewPassword) -> Message:
         session=session,
         db_user=user,
         user_in=user_in_update,
-    )
-    return Message(message="Password updated successfully")
-
-
-@router.post(
-    "/password-recovery-html-content/{email}",
-    dependencies=[Depends(get_current_active_superuser)],
-    response_class=HTMLResponse,
-)
-def recover_password_html_content(email: str, session: SessionDep) -> Any:
-    """
-    HTML Content for Password Recovery
-    """
-    user = crud.get_user_by_email(session=session, email=email)
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="The user with this username does not exist in the system.",
-        )
-    password_reset_token = generate_password_reset_token(email=email)
-    email_data = generate_reset_password_email(
-        email_to=user.email, email=email, token=password_reset_token
-    )
-
-    return HTMLResponse(
-        content=email_data.html_content, headers={"subject:": email_data.subject}
     )

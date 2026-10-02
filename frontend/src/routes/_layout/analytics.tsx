@@ -88,7 +88,7 @@ function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <TrendChart
-            points={timeseries.data?.data ?? []}
+            points={timeseries.data ?? []}
             loading={timeseries.isLoading}
           />
         </CardContent>
@@ -134,7 +134,7 @@ function AnalyticsPage() {
         <CardContent className="overflow-x-auto">
           {posts.isLoading ? (
             <SkeletonRows count={5} className="h-10" />
-          ) : !posts.data?.count ? (
+          ) : !posts.data?.length ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               No posts found for this period.
             </p>
@@ -148,7 +148,7 @@ function AnalyticsPage() {
                 "Likes",
                 "Comments",
               ]}
-              rows={posts.data.data.map((post) => ({
+              rows={posts.data.map((post) => ({
                 key: post.id,
                 label: <PostLabel post={post} />,
                 values: [

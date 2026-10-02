@@ -1,7 +1,6 @@
 """Helpers shared by the platform integrations (login and sync)."""
 
 import logging
-import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
@@ -16,14 +15,9 @@ SYNC_WINDOW_DAYS = 30
 
 
 def parse_datetime(value: Any) -> datetime | None:
-    """
-    Parse an ISO 8601 timestamp, or return None. Accepts the "Z" and "+0000"
-    offsets used by the platforms, which Python 3.10's fromisoformat rejects.
-    """
+    """Parse an ISO 8601 timestamp (e.g. "…Z" or "…+0000"), or return None."""
     if not isinstance(value, str):
         return None
-    value = re.sub(r"Z$", "+00:00", value)
-    value = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value)
     try:
         return datetime.fromisoformat(value)
     except ValueError:

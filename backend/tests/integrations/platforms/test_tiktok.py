@@ -4,7 +4,7 @@ All HTTP calls are mocked — no real TikTok API calls.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -100,7 +100,7 @@ def test_sync_account_snapshot_upserts(mock_crud):
 @patch("app.integrations.platforms.tiktok.crud")
 @patch("httpx.post")
 def test_sync_videos_upserts_recent_videos(mock_post, mock_crud):
-    recent_ts = int((datetime.now(timezone.utc) - timedelta(days=5)).timestamp())
+    recent_ts = int((datetime.now(UTC) - timedelta(days=5)).timestamp())
     videos_resp = {
         "data": {
             "videos": [
@@ -138,7 +138,7 @@ def test_sync_videos_upserts_recent_videos(mock_post, mock_crud):
 @patch("app.integrations.platforms.tiktok.crud")
 @patch("httpx.post")
 def test_sync_videos_skips_old_videos(mock_post, mock_crud):
-    old_ts = int((datetime.now(timezone.utc) - timedelta(days=35)).timestamp())
+    old_ts = int((datetime.now(UTC) - timedelta(days=35)).timestamp())
     videos_resp = {"data": {"videos": [{"id": "old-vid", "create_time": old_ts}]}}
     mock_post.return_value = MagicMock(status_code=200, json=lambda: videos_resp)
     mock_post.return_value.raise_for_status = MagicMock()

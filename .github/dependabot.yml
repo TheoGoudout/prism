@@ -53,6 +53,11 @@ updates:
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
+    ignore:
+      # The Python version is upgraded deliberately, together with
+      # .python-version and requires-python in backend/pyproject.toml
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
     groups:
       docker:
         update-types: [minor, patch]

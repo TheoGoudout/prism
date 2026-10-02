@@ -5,7 +5,7 @@ All external HTTP calls are mocked — no real provider is contacted.
 
 import urllib.parse
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,7 +21,9 @@ from app.integrations.oauth.registry import get_provider
 from app.integrations.oauth.tiktok import tiktok_provider
 from app.integrations.oauth.twitter import twitter_provider
 from app.models.integration import Platform
+from app.models.workspace import Workspace, WorkspaceRole
 from tests.utils.user import create_user_with_headers
+from tests.utils.workspace import add_member, create_random_workspace
 
 PREFIX = f"{settings.API_V1_STR}/oauth"
 
@@ -43,6 +45,10 @@ def _make_state(
         platform=platform,
         pkce_verifier=pkce_verifier,
     ).encode()
+
+
+def _connect_url(workspace: Workspace, platform: str) -> str:
+    return f"{settings.API_V1_STR}/workspaces/{workspace.id}/integrations/connect/{platform}"
 
 
 def _query(url: str) -> dict[str, str]:
@@ -141,7 +147,7 @@ def test_facebook_exchange_code_upgrades_to_long_lived() -> None:
     assert second_call.kwargs["data"]["grant_type"] == "fb_exchange_token"
     assert second_call.kwargs["data"]["fb_exchange_token"] == "short-tok"
     assert result.expires_at is not None
-    assert (result.expires_at - datetime.now(timezone.utc)).days >= 59
+    assert (result.expires_at - datetime.now(UTC)).days >= 59
 
 
 def test_facebook_refresh_credential_is_access_token() -> None:
@@ -313,14 +319,11 @@ def test_google_analytics_refresh_keeps_same_refresh_token() -> None:
 
 def test_connect_returns_authorization_url(client: TestClient, db: Session) -> None:
     user, headers = create_user_with_headers(client, db)
-    from tests.utils.workspace import create_random_workspace
-
     ws = create_random_workspace(db, user)
 
     r = client.get(
-        f"{PREFIX}/connect/facebook",
+        _connect_url(ws, "facebook"),
         headers=headers,
-        params={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 200
     assert "authorization_url" in r.json()
@@ -340,13 +343,10 @@ def test_connect_twitter_keeps_pkce_verifier_server_side(
     import hashlib
 
     user, headers = create_user_with_headers(client, db)
-    from tests.utils.workspace import create_random_workspace
-
     ws = create_random_workspace(db, user)
     r = client.get(
-        f"{PREFIX}/connect/twitter",
+        _connect_url(ws, "twitter"),
         headers=headers,
-        params={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 200
     params = _query(r.json()["authorization_url"])
@@ -362,36 +362,26 @@ def test_connect_twitter_keeps_pkce_verifier_server_side(
 
 
 def test_connect_viewer_forbidden(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     owner, owner_headers = create_user_with_headers(client, db)
     viewer, viewer_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
-    client.post(
-        f"{settings.API_V1_STR}/workspaces/{ws.id}/members",
-        headers=owner_headers,
-        json={"user_id": str(viewer.id), "role": "viewer"},
-    )
+    add_member(db, ws, viewer, WorkspaceRole.viewer)
 
     r = client.get(
-        f"{PREFIX}/connect/facebook",
+        _connect_url(ws, "facebook"),
         headers=viewer_headers,
-        params={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 403
 
 
 def test_connect_non_member_returns_404(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     owner, _ = create_user_with_headers(client, db)
     outsider, outsider_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
 
     r = client.get(
-        f"{PREFIX}/connect/facebook",
+        _connect_url(ws, "facebook"),
         headers=outsider_headers,
-        params={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 404
 
@@ -407,7 +397,7 @@ def _mock_token_response():  # type: ignore[no-untyped-def]
     return TokenResponse(
         access_token="cb-access-tok",
         refresh_token="cb-refresh-tok",
-        expires_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        expires_at=datetime(2025, 1, 1, tzinfo=UTC),
         raw={},
     )
 
@@ -432,8 +422,6 @@ def _callback(client: TestClient, platform: str = "facebook", **params: str):  #
 
 
 def test_callback_creates_integration(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
@@ -464,7 +452,6 @@ def test_callback_reconnect_updates_existing_integration(
 ) -> None:
     from app import crud
     from app.models.integration import IntegrationStatus
-    from tests.utils.workspace import create_random_workspace
 
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
@@ -492,8 +479,6 @@ def test_callback_reconnect_updates_existing_integration(
 
 
 def test_callback_passes_pkce_verifier(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id, Platform.twitter, pkce_verifier="the-verifier")
@@ -513,7 +498,6 @@ def test_callback_forged_state_does_not_create_integration(
 ) -> None:
     """A hand-crafted state naming a victim's workspace must be rejected."""
     from app import crud
-    from tests.utils.workspace import create_random_workspace
 
     victim, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, victim)
@@ -529,8 +513,6 @@ def test_callback_forged_state_does_not_create_integration(
 
 
 def test_callback_platform_mismatch_rejected(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id, Platform.facebook)
@@ -542,7 +524,6 @@ def test_callback_platform_mismatch_rejected(client: TestClient, db: Session) ->
 def test_callback_rejects_user_no_longer_admin(client: TestClient, db: Session) -> None:
     from app import crud
     from app.models.workspace import WorkspaceRole
-    from tests.utils.workspace import create_random_workspace
 
     owner, _ = create_user_with_headers(client, db)
     admin, _ = create_user_with_headers(client, db)
@@ -564,8 +545,6 @@ def test_callback_rejects_user_no_longer_admin(client: TestClient, db: Session) 
 def test_callback_provider_error_redirects_with_error(
     client: TestClient, db: Session
 ) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
@@ -597,8 +576,6 @@ def test_callback_missing_state_redirects(client: TestClient) -> None:
 
 def test_callback_user_denied_without_code(client: TestClient, db: Session) -> None:
     """Providers send `error` and no `code` when the user clicks Deny."""
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     state = _make_state(ws.id, user.id)
@@ -609,8 +586,6 @@ def test_callback_user_denied_without_code(client: TestClient, db: Session) -> N
 
 
 def test_callback_missing_code_redirects(client: TestClient, db: Session) -> None:
-    from tests.utils.workspace import create_random_workspace
-
     user, _ = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
 

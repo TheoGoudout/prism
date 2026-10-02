@@ -82,7 +82,7 @@ class LinkedInOAuthProvider(OAuthProvider):
         try:
             elements = data["profilePicture"]["displayImage~"]["elements"]
             avatar_url = elements[0]["identifiers"][0]["identifier"]
-        except (KeyError, IndexError):
+        except KeyError, IndexError:
             avatar_url = None
         return AccountInfo(external_id=data["id"], name=name, avatar_url=avatar_url)
 

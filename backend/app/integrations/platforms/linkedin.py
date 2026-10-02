@@ -9,7 +9,7 @@ For every company Page the user administers:
 
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -40,7 +40,7 @@ def _logo_url(org: dict[str, Any]) -> str | None:
         return str(
             org["logoV2"]["original~"]["elements"][0]["identifiers"][0]["identifier"]
         )
-    except (KeyError, IndexError, TypeError):
+    except KeyError, IndexError, TypeError:
         return None
 
 
@@ -126,7 +126,7 @@ def _share_text(share: dict[str, Any]) -> str | None:
 def _sync_org_posts(
     session: Session, platform_account_id: uuid.UUID, org_urn: str, token: str
 ) -> None:
-    window_start = datetime.now(timezone.utc) - timedelta(days=SYNC_WINDOW_DAYS)
+    window_start = datetime.now(UTC) - timedelta(days=SYNC_WINDOW_DAYS)
     data = _get(
         "shares",
         token,
@@ -136,7 +136,7 @@ def _sync_org_posts(
         created_ms = share.get("created", {}).get("time")
         if not share.get("id") or not created_ms:
             continue
-        published_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+        published_at = datetime.fromtimestamp(created_ms / 1000, tz=UTC)
         if published_at < window_start:
             continue
 

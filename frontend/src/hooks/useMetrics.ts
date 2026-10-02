@@ -4,8 +4,8 @@ import { MetricsService } from "@/client"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import type { DateRange } from "@/lib/format"
 
-/** Metrics of the current workspace over a date range. */
-function useMetricsParams(range: DateRange) {
+/** Query params selecting the current workspace's metrics over a date range. */
+export function useMetricsParams(range: DateRange) {
   const workspace = useCurrentWorkspace()
   return { workspaceId: workspace.id, ...range }
 }

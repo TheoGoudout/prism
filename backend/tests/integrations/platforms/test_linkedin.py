@@ -4,7 +4,7 @@ All HTTP calls are mocked — no real LinkedIn API calls.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -114,7 +114,7 @@ def test_sync_follower_stats_upserts_snapshot(mock_get, mock_crud):
 @patch("app.integrations.platforms.linkedin.crud")
 @patch("httpx.get")
 def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     shares_resp = {
         "elements": [
             {
@@ -166,7 +166,7 @@ def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
 @patch("httpx.get")
 def test_sync_org_posts_stats_error_still_upserts(mock_get, mock_crud):
     """Statistics fetch failure should not skip the post upsert."""
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
     shares_resp = {
         "elements": [{"id": "share-2", "created": {"time": now_ms - 3600000}}]
     }
@@ -196,7 +196,7 @@ def test_sync_org_posts_stats_error_still_upserts(mock_get, mock_crud):
 @patch("httpx.get")
 def test_sync_org_posts_skips_old_shares(mock_get, mock_crud):
     """Shares older than 30 days should be skipped."""
-    old_ms = int((datetime.now(timezone.utc).timestamp() - 35 * 86400) * 1000)
+    old_ms = int((datetime.now(UTC).timestamp() - 35 * 86400) * 1000)
     shares_resp = {"elements": [{"id": "old-share", "created": {"time": old_ms}}]}
     mock_get.return_value = MagicMock(status_code=200, json=lambda: shares_resp)
     mock_get.return_value.raise_for_status = MagicMock()

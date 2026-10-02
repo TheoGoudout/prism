@@ -21,7 +21,7 @@ import urllib.parse
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -82,7 +82,7 @@ class OAuthState:
         )
 
     @classmethod
-    def decode(cls, state: str) -> "OAuthState":
+    def decode(cls, state: str) -> OAuthState:
         payload = open_oauth_state(state, max_age_seconds=STATE_MAX_AGE_SECONDS)
         try:
             return cls(
@@ -204,4 +204,4 @@ class OAuthProvider(ABC):
         return result
 
     def _now_utc(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)

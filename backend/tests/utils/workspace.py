@@ -24,3 +24,9 @@ def get_member_role(
 ) -> WorkspaceRole | None:
     member = crud.get_member(session=db, workspace_id=workspace.id, user_id=user.id)
     return member.role if member else None
+
+
+def add_member(
+    db: Session, workspace: Workspace, user: User, role: WorkspaceRole
+) -> None:
+    crud.add_member(session=db, workspace_id=workspace.id, user_id=user.id, role=role)

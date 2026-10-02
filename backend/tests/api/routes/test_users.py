@@ -8,7 +8,6 @@ from app import crud
 from app.core.config import settings
 from app.core.security import verify_password
 from app.models.user import User, UserCreate
-from tests.utils.user import create_random_user
 from tests.utils.utils import random_email, random_lower_string
 
 
@@ -55,92 +54,6 @@ def test_create_user_new_email(
         user = crud.get_user_by_email(session=db, email=username)
         assert user
         assert user.email == created_user["email"]
-
-
-def test_get_existing_user_as_superuser(
-    client: TestClient, superuser_token_headers: dict[str, str], db: Session
-) -> None:
-    username = random_email()
-    password = random_lower_string()
-    user_in = UserCreate(email=username, password=password)
-    user = crud.create_user(session=db, user_create=user_in)
-    user_id = user.id
-    r = client.get(
-        f"{settings.API_V1_STR}/users/{user_id}",
-        headers=superuser_token_headers,
-    )
-    assert 200 <= r.status_code < 300
-    api_user = r.json()
-    existing_user = crud.get_user_by_email(session=db, email=username)
-    assert existing_user
-    assert existing_user.email == api_user["email"]
-
-
-def test_get_non_existing_user_as_superuser(
-    client: TestClient, superuser_token_headers: dict[str, str]
-) -> None:
-    r = client.get(
-        f"{settings.API_V1_STR}/users/{uuid.uuid4()}",
-        headers=superuser_token_headers,
-    )
-    assert r.status_code == 404
-    assert r.json() == {"detail": "User not found"}
-
-
-def test_get_existing_user_current_user(client: TestClient, db: Session) -> None:
-    username = random_email()
-    password = random_lower_string()
-    user_in = UserCreate(email=username, password=password)
-    user = crud.create_user(session=db, user_create=user_in)
-    user_id = user.id
-
-    login_data = {
-        "username": username,
-        "password": password,
-    }
-    r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
-    tokens = r.json()
-    a_token = tokens["access_token"]
-    headers = {"Authorization": f"Bearer {a_token}"}
-
-    r = client.get(
-        f"{settings.API_V1_STR}/users/{user_id}",
-        headers=headers,
-    )
-    assert 200 <= r.status_code < 300
-    api_user = r.json()
-    existing_user = crud.get_user_by_email(session=db, email=username)
-    assert existing_user
-    assert existing_user.email == api_user["email"]
-
-
-def test_get_existing_user_permissions_error(
-    db: Session,
-    client: TestClient,
-    normal_user_token_headers: dict[str, str],
-) -> None:
-    user = create_random_user(db)
-
-    r = client.get(
-        f"{settings.API_V1_STR}/users/{user.id}",
-        headers=normal_user_token_headers,
-    )
-    assert r.status_code == 403
-    assert r.json() == {"detail": "The user doesn't have enough privileges"}
-
-
-def test_get_non_existing_user_permissions_error(
-    client: TestClient,
-    normal_user_token_headers: dict[str, str],
-) -> None:
-    user_id = uuid.uuid4()
-
-    r = client.get(
-        f"{settings.API_V1_STR}/users/{user_id}",
-        headers=normal_user_token_headers,
-    )
-    assert r.status_code == 403
-    assert r.json() == {"detail": "The user doesn't have enough privileges"}
 
 
 def test_create_user_existing_username(
@@ -192,10 +105,10 @@ def test_retrieve_users(
     r = client.get(f"{settings.API_V1_STR}/users/", headers=superuser_token_headers)
     all_users = r.json()
 
-    assert len(all_users["data"]) > 1
-    assert "count" in all_users
-    for item in all_users["data"]:
-        assert "email" in item
+    assert r.status_code == 200
+    emails = [item["email"] for item in all_users]
+    # Newest first
+    assert emails.index(username2) < emails.index(username)
 
 
 def test_update_user_me(
@@ -234,9 +147,7 @@ def test_update_password_me(
         headers=superuser_token_headers,
         json=data,
     )
-    assert r.status_code == 200
-    updated_user = r.json()
-    assert updated_user["message"] == "Password updated successfully"
+    assert r.status_code == 204
 
     user_query = select(User).where(User.email == settings.FIRST_SUPERUSER)
     user_db = db.exec(user_query).first()
@@ -257,7 +168,7 @@ def test_update_password_me(
     )
     db.refresh(user_db)
 
-    assert r.status_code == 200
+    assert r.status_code == 204
     verified, _ = verify_password(
         settings.FIRST_SUPERUSER_PASSWORD, user_db.hashed_password
     )
@@ -437,9 +348,7 @@ def test_delete_user_me(client: TestClient, db: Session) -> None:
         f"{settings.API_V1_STR}/users/me",
         headers=headers,
     )
-    assert r.status_code == 200
-    deleted_user = r.json()
-    assert deleted_user["message"] == "User deleted successfully"
+    assert r.status_code == 204
     result = db.exec(select(User).where(User.id == user_id)).first()
     assert result is None
 
@@ -472,9 +381,7 @@ def test_delete_user_super_user(
         f"{settings.API_V1_STR}/users/{user_id}",
         headers=superuser_token_headers,
     )
-    assert r.status_code == 200
-    deleted_user = r.json()
-    assert deleted_user["message"] == "User deleted successfully"
+    assert r.status_code == 204
     result = db.exec(select(User).where(User.id == user_id)).first()
     assert result is None
 

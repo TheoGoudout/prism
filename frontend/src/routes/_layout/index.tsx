@@ -26,7 +26,7 @@ function Dashboard() {
   const workspace = useCurrentWorkspace()
   const summary = useMetricsSummary(lastDays(7))
   const integrationsQuery = useIntegrations()
-  const integrations = integrationsQuery.data?.data ?? []
+  const integrations = integrationsQuery.data ?? []
   const editable = canManage(workspace)
 
   return (

@@ -30,7 +30,7 @@ export default function WorkspaceMembers() {
     queryKey: ["members", workspace.id],
     queryFn: () => WorkspacesService.listMembers({ workspaceId: workspace.id }),
   })
-  const members = membersQ.data?.data ?? []
+  const members = membersQ.data ?? []
   const ownerCount = members.filter((m) => m.role === "owner").length
 
   return (
@@ -54,7 +54,7 @@ export default function WorkspaceMembers() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Members{membersQ.data ? ` (${membersQ.data.count})` : ""}
+            Members{membersQ.data ? ` (${members.length})` : ""}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
