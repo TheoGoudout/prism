@@ -63,3 +63,20 @@ docker compose up -d --wait backend mailcatcher
 bunx playwright test          # or: bunx playwright test --ui
 docker compose down -v        # removes the data the tests created
 ```
+
+## Connection guides
+
+The Integrations page has a step-by-step guide per platform
+(`src/components/Integrations/guideContent.tsx`). The platforms change their
+login screens often: re-check each guide against the live flow from time to
+time and update `GUIDES_REVIEWED_ON`.
+
+The Prism screenshots in `public/assets/images/tutorials/` are generated
+against a mocked API, so no backend is needed. Re-run this after changing the
+Integrations page:
+
+```bash
+bun run tutorial-screenshots
+# If Playwright's own browser isn't installed, point it at another Chromium:
+PLAYWRIGHT_CHROMIUM=/path/to/chromium bun run tutorial-screenshots
+```
