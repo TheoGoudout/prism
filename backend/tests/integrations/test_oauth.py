@@ -3,6 +3,7 @@ OAuth2 provider unit tests and connect/callback route tests.
 All external HTTP calls are mocked — no real provider is contacted.
 """
 
+import logging
 import urllib.parse
 import uuid
 from datetime import UTC, datetime
@@ -17,7 +18,12 @@ from app.integrations.oauth.base import OAuthState
 from app.integrations.oauth.facebook import facebook_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.instagram import instagram_provider
-from app.integrations.oauth.registry import get_provider
+from app.integrations.oauth.registry import (
+    available_platforms,
+    get_provider,
+    is_available,
+    log_availability,
+)
 from app.integrations.oauth.tiktok import tiktok_provider
 from app.integrations.oauth.twitter import twitter_provider
 from app.models.integration import Platform
@@ -122,6 +128,53 @@ def test_all_platforms_registered() -> None:
 def test_get_provider_unknown_raises() -> None:
     with pytest.raises(ValueError):
         get_provider("nonexistent")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# Platform availability
+# ---------------------------------------------------------------------------
+
+
+def test_every_platform_available_once_its_app_is_set_up() -> None:
+    assert available_platforms() == list(Platform)
+
+
+@pytest.mark.parametrize("missing", ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"])
+def test_platform_unavailable_without_its_credentials(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    monkeypatch.setattr(settings, missing, "")
+    assert not twitter_provider.is_configured
+    assert twitter_provider.missing_settings == [missing]
+    assert not is_available(Platform.twitter)
+    assert Platform.twitter not in available_platforms()
+    assert is_available(Platform.linkedin)
+
+
+def test_meta_platforms_share_the_facebook_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "FACEBOOK_APP_SECRET", "")
+    assert not is_available(Platform.facebook)
+    assert not is_available(Platform.instagram)
+
+
+def test_log_availability(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "TIKTOK_CLIENT_KEY", "")
+    monkeypatch.setattr(settings, "TIKTOK_CLIENT_SECRET", "")
+    with caplog.at_level(logging.INFO, logger="app.integrations.oauth.registry"):
+        log_availability()
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert "Platform integration activated: twitter" in messages
+    assert (
+        "Platform integration not activated: tiktok "
+        "(missing TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET)"
+    ) in messages
+    assert "Platform integration activated: tiktok" not in messages
+    assert messages[-1].startswith("5 of 6 platform integrations activated: ")
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +414,18 @@ def test_connect_twitter_keeps_pkce_verifier_server_side(
     assert params["code_challenge"] == expected
 
 
+def test_connect_unavailable_platform_rejected(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "LINKEDIN_CLIENT_ID", "")
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    r = client.get(_connect_url(ws, "linkedin"), headers=headers)
+    assert r.status_code == 400
+    assert "not set up" in r.json()["detail"]
+
+
 def test_connect_viewer_forbidden(client: TestClient, db: Session) -> None:
     owner, owner_headers = create_user_with_headers(client, db)
     viewer, viewer_headers = create_user_with_headers(client, db)
@@ -591,3 +656,19 @@ def test_callback_missing_code_redirects(client: TestClient, db: Session) -> Non
 
     r = _callback(client, state=_make_state(ws.id, user.id))
     assert "error=missing_code" in r.headers["location"]
+
+
+def test_callback_unavailable_platform_redirects(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The app may be removed while the user is on the provider's site."""
+    user, _ = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    state = _make_state(ws.id, user.id)
+    monkeypatch.setattr(settings, "FACEBOOK_APP_ID", "")
+
+    with patch.object(facebook_provider, "exchange_code") as exchange:
+        r = _callback(client, code="x", state=state)
+    assert r.status_code == 302
+    assert "error=platform_unavailable" in r.headers["location"]
+    exchange.assert_not_called()

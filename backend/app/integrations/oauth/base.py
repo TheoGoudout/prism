@@ -3,6 +3,8 @@ Abstract OAuth2 base for all platform integrations.
 
 Each platform implements a concrete subclass and overrides:
   - PLATFORM          – the Platform enum value
+  - CLIENT_ID_SETTING / CLIENT_SECRET_SETTING
+                      – the settings holding the platform app's credentials
   - SCOPES            – list of required OAuth scopes
   - AUTH_URL          – the provider's authorization endpoint
   - TOKEN_URL         – the provider's token endpoint
@@ -27,6 +29,7 @@ from typing import Any
 
 import httpx
 
+from app.core.config import settings
 from app.core.encryption import open_oauth_state, seal_oauth_state
 from app.models.integration import Platform
 
@@ -123,6 +126,27 @@ class OAuthProvider(ABC):
     USES_PKCE: bool = False
     # Name of the client identifier query param on the authorization URL
     CLIENT_ID_PARAM: str = "client_id"
+    # Names of the settings holding the platform app's credentials
+    CLIENT_ID_SETTING: str
+    CLIENT_SECRET_SETTING: str
+
+    # -----------------------------------------------------------------------
+    # Availability
+    # -----------------------------------------------------------------------
+
+    @property
+    def missing_settings(self) -> list[str]:
+        """The credential settings left empty; the platform needs them all."""
+        return [
+            name
+            for name in (self.CLIENT_ID_SETTING, self.CLIENT_SECRET_SETTING)
+            if not getattr(settings, name)
+        ]
+
+    @property
+    def is_configured(self) -> bool:
+        """Whether the platform app is set up, so the platform can be used."""
+        return not self.missing_settings
 
     # -----------------------------------------------------------------------
     # Authorization URL
@@ -212,11 +236,13 @@ class OAuthProvider(ABC):
     # Subclass helpers
     # -----------------------------------------------------------------------
 
-    @abstractmethod
-    def _client_id(self) -> str: ...
+    def _client_id(self) -> str:
+        value: str = getattr(settings, self.CLIENT_ID_SETTING)
+        return value
 
-    @abstractmethod
-    def _client_secret(self) -> str: ...
+    def _client_secret(self) -> str:
+        value: str = getattr(settings, self.CLIENT_SECRET_SETTING)
+        return value
 
     def _post_token(self, data: dict[str, Any]) -> dict[str, Any]:
         """POST to TOKEN_URL and return the JSON response."""

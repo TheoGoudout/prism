@@ -4,9 +4,11 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.integrations.oauth.facebook import facebook_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.linkedin import linkedin_provider
@@ -84,6 +86,20 @@ def test_revoke_access_revokes_unshared_grant(client: TestClient, db: Session) -
     with patch("httpx.post", return_value=_ok()) as post:
         assert revoke_access(db, integration)
     assert post.call_args.kwargs["data"] == {"token": "fake-refresh-token"}
+
+
+def test_revoke_access_skips_unavailable_platform(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, _ = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(
+        db, ws, platform=Platform.google_analytics, external_account_id=_unique()
+    )
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "")
+    with patch("httpx.post") as post:
+        assert not revoke_access(db, integration)
+    post.assert_not_called()
 
 
 def test_revoke_access_skips_grant_used_by_another_workspace(

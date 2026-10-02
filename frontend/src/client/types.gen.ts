@@ -557,6 +557,12 @@ export type IntegrationsListIntegrationsData = {
 
 export type IntegrationsListIntegrationsResponse = (Array<IntegrationPublic>);
 
+export type IntegrationsListAvailablePlatformsData = {
+    workspaceId: string;
+};
+
+export type IntegrationsListAvailablePlatformsResponse = (Array<Platform>);
+
 export type IntegrationsConnectData = {
     platform: Platform;
     workspaceId: string;

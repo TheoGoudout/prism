@@ -4,7 +4,6 @@ from datetime import timedelta
 
 import httpx
 
-from app.core.config import settings
 from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
@@ -19,11 +18,8 @@ class LinkedInOAuthProvider(OAuthProvider):
     AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
     TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 
-    def _client_id(self) -> str:
-        return settings.LINKEDIN_CLIENT_ID
-
-    def _client_secret(self) -> str:
-        return settings.LINKEDIN_CLIENT_SECRET
+    CLIENT_ID_SETTING = "LINKEDIN_CLIENT_ID"
+    CLIENT_SECRET_SETTING = "LINKEDIN_CLIENT_SECRET"
 
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None

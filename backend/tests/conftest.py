@@ -6,6 +6,7 @@ from sqlmodel import Session, delete
 
 from app.core.config import settings
 from app.core.db import engine, init_db
+from app.integrations.oauth.registry import PROVIDERS
 from app.main import app
 from app.models.analysis import AnalysisSchedule, PerformanceAnalysis
 from app.models.integration import Integration, PlatformAccount
@@ -14,6 +15,16 @@ from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
+
+
+@pytest.fixture(scope="session", autouse=True)
+def platform_apps() -> Generator[None]:
+    """Set up every platform's app, so every integration is available."""
+    with pytest.MonkeyPatch.context() as mp:
+        for provider in PROVIDERS.values():
+            for name in (provider.CLIENT_ID_SETTING, provider.CLIENT_SECRET_SETTING):
+                mp.setattr(settings, name, f"test-{name.lower()}")
+        yield
 
 
 @pytest.fixture(scope="session", autouse=True)

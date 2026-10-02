@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useConnectPlatform } from "@/hooks/useIntegrations"
-import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platforms"
+import { PLATFORM_LABELS } from "@/lib/platforms"
 import {
   CONNECTION_GUIDES,
   type ConnectionGuide,
@@ -21,8 +21,15 @@ import {
 } from "./guideContent"
 import { PlatformIcon } from "./PlatformIcon"
 
-/** One step-by-step tutorial per platform, as tabs. */
-export function ConnectionGuides({ editable }: { editable: boolean }) {
+/** One step-by-step tutorial per available platform, as tabs. */
+export function ConnectionGuides({
+  available,
+  editable,
+}: {
+  available: Platform[]
+  editable: boolean
+}) {
+  if (available.length === 0) return null
   return (
     <Card data-connection-guides>
       <CardHeader>
@@ -36,9 +43,9 @@ export function ConnectionGuides({ editable }: { editable: boolean }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue={PLATFORMS[0]}>
+        <Tabs defaultValue={available[0]}>
           <TabsList className="h-auto w-full flex-wrap justify-start">
-            {PLATFORMS.map((platform) => (
+            {available.map((platform) => (
               <TabsTrigger
                 key={platform}
                 value={platform}
@@ -52,7 +59,7 @@ export function ConnectionGuides({ editable }: { editable: boolean }) {
               </TabsTrigger>
             ))}
           </TabsList>
-          {PLATFORMS.map((platform) => (
+          {available.map((platform) => (
             <TabsContent key={platform} value={platform} className="pt-4">
               <Guide
                 platform={platform}

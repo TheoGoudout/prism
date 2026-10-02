@@ -18,7 +18,7 @@ import {
 import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
-import { useIntegrations } from "@/hooks/useIntegrations"
+import { useAvailablePlatforms, useIntegrations } from "@/hooks/useIntegrations"
 
 // Set by the backend's OAuth callback when it redirects back here
 interface OAuthResult {
@@ -46,6 +46,7 @@ const OAUTH_ERRORS: Record<string, string> = {
     "The connection link expired or is invalid. Please try connecting again.",
   missing_code: "The platform didn't complete the authorization. Please retry.",
   forbidden: "Only workspace owners and admins can connect platforms.",
+  platform_unavailable: "This platform is no longer set up on this server.",
   connection_failed:
     "We couldn't connect to the platform. Please try again in a moment.",
 }
@@ -87,6 +88,7 @@ function IntegrationsPage() {
   const workspace = useCurrentWorkspace()
   const { data, isLoading } = useIntegrations()
   const integrations = data ?? []
+  const { data: available } = useAvailablePlatforms()
   const editable = canManage(workspace)
 
   return (
@@ -96,8 +98,9 @@ function IntegrationsPage() {
           <h1 className="text-2xl font-semibold">Integrations</h1>
           <p className="mt-1 text-sm text-muted-foreground">{workspace.name}</p>
         </div>
-        {editable && (
+        {editable && available && (
           <ConnectPlatformMenu
+            available={available}
             connected={new Set(integrations.map((i) => i.platform))}
           />
         )}
@@ -146,7 +149,9 @@ function IntegrationsPage() {
         </CardContent>
       </Card>
 
-      <ConnectionGuides editable={editable} />
+      {available && (
+        <ConnectionGuides available={available} editable={editable} />
+      )}
     </div>
   )
 }

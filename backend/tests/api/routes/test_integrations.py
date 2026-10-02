@@ -27,6 +27,37 @@ def revoke_access() -> Iterator[MagicMock]:
 
 
 # ---------------------------------------------------------------------------
+# Available platforms
+# ---------------------------------------------------------------------------
+
+
+def test_list_available_platforms(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "TWITTER_CLIENT_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+    owner, _ = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+    add_member(db, ws, viewer, WorkspaceRole.viewer)
+
+    r = client.get(_url(ws, "platforms"), headers=viewer_headers)
+    assert r.status_code == 200
+    assert r.json() == ["facebook", "instagram", "linkedin", "tiktok"]
+
+
+def test_list_available_platforms_non_member_returns_404(
+    client: TestClient, db: Session
+) -> None:
+    owner, _ = create_user_with_headers(client, db)
+    _, outsider_headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+
+    r = client.get(_url(ws, "platforms"), headers=outsider_headers)
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # Listing integrations
 # ---------------------------------------------------------------------------
 
@@ -189,6 +220,21 @@ def test_trigger_sync_accepted(client: TestClient, db: Session) -> None:
 
     assert r.status_code == 202
     mock_task.delay.assert_called_once_with(str(integration.id))
+
+
+def test_trigger_sync_unavailable_platform_rejected(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.facebook)
+    monkeypatch.setattr(settings, "FACEBOOK_APP_ID", "")
+
+    with patch("app.worker.tasks.sync.sync_integration") as mock_task:
+        r = client.post(_url(ws, f"{integration.id}/sync"), headers=headers)
+
+    assert r.status_code == 400
+    mock_task.delay.assert_not_called()
 
 
 def test_trigger_sync_viewer_forbidden(client: TestClient, db: Session) -> None:

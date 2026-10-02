@@ -9,13 +9,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useConnectPlatform } from "@/hooks/useIntegrations"
-import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platforms"
+import { PLATFORM_LABELS } from "@/lib/platforms"
 import { PlatformIcon } from "./PlatformIcon"
 
-/** "Connect platform" dropdown; already-connected platforms are labelled. */
+/**
+ * "Connect platform" dropdown, listing the platforms set up on the server;
+ * already-connected platforms are labelled.
+ */
 export function ConnectPlatformMenu({
+  available,
   connected,
 }: {
+  available: Platform[]
   connected: Set<Platform>
 }) {
   const { connect, pending } = useConnectPlatform()
@@ -32,7 +37,12 @@ export function ConnectPlatformMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {PLATFORMS.map((platform) => (
+        {available.length === 0 && (
+          <DropdownMenuItem disabled>
+            No platforms are set up yet
+          </DropdownMenuItem>
+        )}
+        {available.map((platform) => (
           <DropdownMenuItem key={platform} onClick={() => connect(platform)}>
             <PlatformIcon platform={platform} className="size-5 text-[10px]" />
             {PLATFORM_LABELS[platform]}
