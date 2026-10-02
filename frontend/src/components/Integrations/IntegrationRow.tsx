@@ -12,6 +12,7 @@ import {
 import { formatRelative } from "@/lib/format"
 import { needsReconnect, platformLabel } from "@/lib/platforms"
 import { IntegrationStatusBadge } from "./IntegrationStatusBadge"
+import { PlatformIcon } from "./PlatformIcon"
 import { SyncButton } from "./SyncButton"
 
 interface IntegrationRowProps {
@@ -28,7 +29,12 @@ export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{label}</TableCell>
+      <TableCell className="font-medium">
+        <span className="flex items-center gap-2">
+          <PlatformIcon platform={integration.platform} className="size-6" />
+          {label}
+        </span>
+      </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {integration.external_account_name}
       </TableCell>
