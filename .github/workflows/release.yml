@@ -1,0 +1,98 @@
+name: Release
+
+# Publishing a GitHub release deploys it to production, as one run:
+#
+#   1. the backend to Coolify, pinned to the release's tag;
+#   2. then the frontend to Cloudflare, built from the same tag.
+#
+# The order is deliberate: the API is upgraded before the clients that call it,
+# and a backend that failed to deploy stops the frontend. "Re-run failed jobs"
+# retries only the target that broke.
+#
+# Pre-releases are not deployed. A manual dispatch re-deploys an existing
+# release, all of it or one target.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re-)deploy, e.g. v1.2.0"
+        required: true
+        type: string
+      targets:
+        description: "Which targets to deploy"
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - backend
+          - frontend
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # To check out .github/scripts/ and read the release.
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Resolve the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: .github/scripts/release/resolve-the-release.sh
+
+  backend:
+    name: Backend
+    needs: resolve
+    if: >-
+      needs.resolve.outputs.prerelease != 'true' &&
+      (inputs.targets || 'all') != 'frontend'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-coolify.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+    secrets:
+      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+
+  frontend:
+    name: Frontend
+    needs: [resolve, backend]
+    # `always()` lets a *skipped* backend (targets: frontend) through; a backend
+    # that failed still blocks the frontend.
+    if: >-
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.resolve.outputs.prerelease != 'true' &&
+      needs.backend.result != 'failure' &&
+      needs.backend.result != 'cancelled' &&
+      (inputs.targets || 'all') != 'backend'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-cloudflare.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

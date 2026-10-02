@@ -3,12 +3,18 @@ version: 2
 # Minor and patch updates are grouped into one PR per ecosystem to keep the
 # noise down; major updates get their own PR since they may need code changes.
 # The labels satisfy the PR label check (.github/workflows/labeler.yml).
+#
+# Every ecosystem waits a week before proposing a new release: most malicious
+# package versions are found and yanked within days, and a week-old release
+# has also had its obvious regressions reported.
 updates:
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
@@ -21,6 +27,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
@@ -33,6 +41,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
@@ -50,6 +60,8 @@ updates:
       - /frontend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]
@@ -67,6 +79,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ⬆
     labels: [dependencies, internal]

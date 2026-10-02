@@ -1,0 +1,43 @@
+# zizmor's ruleset for this repository.
+# Schema: https://docs.zizmor.sh/configuration/
+#
+# Only two kinds of entry belong here: policies that ratchet in a practice we
+# already follow, and repository-wide suppressions that say why. A per-line
+# exception goes next to its line as `# zizmor: ignore[audit-id] reason`.
+#
+# Audit IDs are not validated: check an edit with
+# `uvx zizmor --no-online-audits .` before pushing.
+
+rules:
+  # Which actions this repository may run at all. Pinning (zizmor's default
+  # `unpinned-uses` policy is hash-pin) cannot stop a new, unvetted publisher
+  # from appearing in a workflow — and the deploy workflows hold the Coolify
+  # and Cloudflare credentials. A new publisher now needs an edit here, which
+  # shows up in review as "we are trusting someone new".
+  forbidden-uses:
+    config:
+      allow:
+        # GitHub-maintained.
+        - actions/*
+        # zizmor's own action.
+        - zizmorcore/*
+        # Toolchains and platforms the build depends on by construction.
+        - astral-sh/*
+        - cloudflare/*
+        - oven-sh/*
+        # `collect: all` reaches .pre-commit-config.yaml too, so the hook
+        # repositories are held to the same allowlist: a hook runs arbitrary
+        # code on every contributor's machine.
+        - pre-commit/*
+        - AleksaC/hadolint-py
+        - gitleaks/gitleaks
+        - Mateusz-Grzelinski/actionlint-py
+        - python-jsonschema/check-jsonschema
+        - shellcheck-py/shellcheck-py
+        # Vetted individually: single-purpose actions, no org-wide trust.
+        - agilepathway/pull-request-label-checker
+        - dorny/paths-filter
+        - eps1lon/actions-label-merge-conflict
+        - mxschmitt/action-tmate
+        - pre-commit-ci/lite-action
+        - re-actors/alls-green

@@ -1,0 +1,125 @@
+name: Deploy backend to Coolify
+
+# Deploys `backend/` and the database (the stack in the root `compose.yml`) by
+# pinning the production Coolify application to a git ref and redeploying it.
+# Coolify builds from source, so the ref it tracks *is* the version running.
+#
+#   called by release.yml -> the published release's tag
+#   workflow_dispatch     -> any ref; an older tag is the rollback path
+#
+# The application's auto-deploy webhook is off, so pushes to master never reach
+# production — see deployment.md.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref for Coolify to track, e.g. v1.2.0"
+        required: true
+        type: string
+      force:
+        description: "Rebuild without the build cache"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      # Named rather than inherited, and checked by the first step: a backend
+      # that silently did not deploy is a frontend talking to the wrong API.
+      COOLIFY_URL:
+        required: false
+      COOLIFY_API_TOKEN:
+        required: false
+      COOLIFY_APP_UUID:
+        required: false
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref for Coolify to track, e.g. v1.2.0. An older tag rolls back."
+        required: true
+        type: string
+      force:
+        description: "Rebuild without the build cache (needed to redeploy the ref already pinned)"
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  # Two deploys racing would leave the application pinned to a ref nobody
+  # asked for. Never cancelled half-way, either.
+  group: deploy-coolify-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend (production)
+    runs-on: ubuntu-latest
+    # Generous: the job waits on a container build on the Coolify host.
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.API_URL || 'https://api.prism.ai' }}
+    permissions:
+      contents: read # To check out .github/scripts/ and resolve the ref.
+    steps:
+      # Nothing is built here; the steps run scripts from .github/scripts/.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Require Coolify credentials
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: .github/scripts/deploy-coolify/require-coolify-credentials.sh
+
+      - name: Resolve the ref
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: .github/scripts/deploy-coolify/resolve-the-ref.sh
+
+      - name: Point the application at the ref
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          REF: ${{ inputs.ref }}
+        run: .github/scripts/deploy-coolify/point-the-application-at-the-ref.sh
+
+      - name: Trigger the deployment
+        id: trigger
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          FORCE: ${{ inputs.force }}
+        run: .github/scripts/deploy-coolify/trigger-the-deployment.sh
+
+      - name: Wait for the build to finish
+        if: steps.trigger.outputs.uuid != ''
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          DEPLOYMENT_UUID: ${{ steps.trigger.outputs.uuid }}
+        run: .github/scripts/deploy-coolify/wait-for-the-build-to-finish.sh
+
+      - name: Verify the deployed backend
+        id: verify
+        env:
+          API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
+        run: .github/scripts/deploy-coolify/verify-the-deployed-backend.sh
+
+      - name: Report
+        if: always()
+        env:
+          REF: ${{ inputs.ref }}
+          SHA: ${{ steps.target.outputs.sha }}
+          DEPLOYMENT: ${{ steps.trigger.outputs.uuid }}
+          API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
+          OUTCOME: ${{ steps.verify.outcome }}
+        run: .github/scripts/deploy-coolify/report.sh

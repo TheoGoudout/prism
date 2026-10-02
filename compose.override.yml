@@ -1,93 +1,53 @@
-services:
+# Local development on top of compose.yml. Compose merges this file
+# automatically; Coolify never reads it.
+#
+# It does three things:
+#   - maps the values from your .env onto the variables compose.yml takes from
+#     Coolify's magic SERVICE_* variables, which do not exist locally;
+#   - publishes ports and enables live reload;
+#   - adds the services that only exist locally: the frontend (Cloudflare in
+#     production), Adminer, MailCatcher and Playwright.
 
-  # Local services are available on their ports, but also available on:
-  # http://api.localhost.tiangolo.com: backend
-  # http://dashboard.localhost.tiangolo.com: frontend
-  # etc. To enable it, update .env, set:
-  # DOMAIN=localhost.tiangolo.com
-  proxy:
-    image: traefik:v3.7
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "80:80"
-      - "8090:8080"
-    # Duplicate the command from compose.yml to add --api.insecure=true
-    command:
-      # Enable Docker in Traefik, so that it reads labels from Docker services
-      - --providers.docker
-      # Add a constraint to only use services with the label for this stack
-      - --providers.docker.constraints=Label(`traefik.constraint-label`, `traefik-public`)
-      # Do not expose all Docker services, only the ones explicitly exposed
-      - --providers.docker.exposedbydefault=false
-      # Create an entrypoint "http" listening on port 80
-      - --entrypoints.http.address=:80
-      # Create an entrypoint "https" listening on port 443
-      - --entrypoints.https.address=:443
-      # Enable the access log, with HTTP requests
-      - --accesslog
-      # Enable the Traefik log, for configurations and errors
-      - --log
-      # Enable debug logging for local development
-      - --log.level=DEBUG
-      # Enable the Dashboard and API
-      - --api
-      # Enable the Dashboard and API in insecure mode for local development
-      - --api.insecure=true
-    labels:
-      # Enable Traefik for this service, to make it available in the public network
-      - traefik.enable=true
-      - traefik.constraint-label=traefik-public
-      # Dummy https-redirect middleware that doesn't really redirect, only to
-      # allow running it locally
-      - traefik.http.middlewares.https-redirect.contenttype.autodetect=false
-    networks:
-      - traefik-public
-      - default
+x-local-backend-env: &local-backend-env
+  ENVIRONMENT: ${ENVIRONMENT:-local}
+  FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:5173}
+  BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
+  API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+  SECRET_KEY: ${SECRET_KEY?Variable not set}
+  FIRST_SUPERUSER: ${FIRST_SUPERUSER?Variable not set}
+  FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD?Variable not set}
+  POSTGRES_USER: ${POSTGRES_USER?Variable not set}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD?Variable not set}
+  SMTP_HOST: "mailcatcher"
+  SMTP_PORT: "1025"
+  SMTP_TLS: "false"
+  EMAILS_FROM_EMAIL: "noreply@example.com"
+
+services:
 
   db:
     restart: "no"
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-app}"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER?Variable not set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD?Variable not set}
 
   redis:
     restart: "no"
     ports:
       - "6379:6379"
 
-  celery-worker:
-    restart: "no"
-    environment:
-      REDIS_URL: "redis://redis:6379/0"
-    develop:
-      watch:
-        - path: ./backend
-          action: sync
-          target: /app/backend
-          ignore:
-            - ./backend/.venv
-            - .venv
-        - path: ./backend/pyproject.toml
-          action: rebuild
-
-  celery-beat:
-    restart: "no"
-    environment:
-      REDIS_URL: "redis://redis:6379/0"
-
-  adminer:
-    restart: "no"
-    ports:
-      - "8080:8080"
+  prestart:
+    environment: *local-backend-env
 
   backend:
     restart: "no"
     ports:
       - "8000:8000"
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    # command: sleep infinity  # Infinite loop to keep container alive doing nothing
+    environment: *local-backend-env
     command:
       - fastapi
       - run
@@ -106,11 +66,34 @@ services:
     # TODO: remove once coverage is done locally
     volumes:
       - ./backend/htmlcov:/app/backend/htmlcov
+
+  celery-worker:
+    restart: "no"
+    environment: *local-backend-env
+    develop:
+      watch:
+        - path: ./backend
+          action: sync
+          target: /app/backend
+          ignore:
+            - ./backend/.venv
+            - .venv
+        - path: ./backend/pyproject.toml
+          action: rebuild
+
+  celery-beat:
+    restart: "no"
+    environment: *local-backend-env
+
+  adminer:
+    image: adminer
+    restart: "no"
+    depends_on:
+      - db
     environment:
-      SMTP_HOST: "mailcatcher"
-      SMTP_PORT: "1025"
-      SMTP_TLS: "false"
-      EMAILS_FROM_EMAIL: "noreply@example.com"
+      - ADMINER_DESIGN=pepa-linha-dark
+    ports:
+      - "8080:8080"
 
   mailcatcher:
     image: schickling/mailcatcher
@@ -118,6 +101,8 @@ services:
       - "1080:1080"
       - "1025:1025"
 
+  # Production serves the frontend from Cloudflare Workers (frontend/wrangler.jsonc);
+  # locally it is the same build behind Nginx.
   frontend:
     restart: "no"
     ports:
@@ -138,8 +123,12 @@ services:
         - NODE_ENV=production
     ipc: host
     depends_on:
-      - backend
-      - mailcatcher
+      # Healthy, not merely started: the first test's API call otherwise races
+      # uvicorn's startup and fails with "socket hang up".
+      backend:
+        condition: service_healthy
+      mailcatcher:
+        condition: service_started
     env_file:
       - .env
     environment:
@@ -153,8 +142,3 @@ services:
       - ./frontend/test-results:/app/frontend/test-results
     ports:
       - 9323:9323
-
-networks:
-  traefik-public:
-    # For local dev, don't expect an external Traefik network
-    external: false

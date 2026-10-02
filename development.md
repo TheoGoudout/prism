@@ -21,7 +21,6 @@ docker compose watch
 | <http://localhost:8000/docs> | API and interactive docs |
 | <http://localhost:8080> | Adminer (database admin) |
 | <http://localhost:1080> | MailCatcher: every email the backend sends |
-| <http://localhost:8090> | Traefik dashboard |
 
 `docker compose watch` syncs code changes into the containers and reloads
 the API. The first start takes a minute while the database is migrated and
@@ -74,10 +73,19 @@ uv run prek install            # run them before each commit
 uv run prek run --all-files    # run them now
 ```
 
-## Testing the domains locally
+## Running the production stack locally
 
-To try the Traefik subdomain routing used in production, set
-`DOMAIN=localhost.tiangolo.com` in `.env` (that domain and all its
-subdomains resolve to `127.0.0.1`) and restart the stack: the frontend is
-then at <http://dashboard.localhost.tiangolo.com> and the API at
-<http://api.localhost.tiangolo.com>.
+Production runs `compose.yml` alone on Coolify (see
+[deployment.md](deployment.md)). To boot exactly that, without the local
+override, give it stand-ins for the variables Coolify generates:
+
+```bash
+export SERVICE_USER_POSTGRES=prism SERVICE_PASSWORD_POSTGRES=local-password \
+  SERVICE_PASSWORD_64_SECRETKEY=local-secret-key \
+  SERVICE_PASSWORD_FIRSTSUPERUSER=local-superuser-password \
+  FIRST_SUPERUSER=admin@example.com
+docker compose -f compose.yml up -d --wait
+```
+
+It publishes no ports (Coolify's proxy routes to the containers), so reach the
+API with `docker compose -f compose.yml exec backend curl localhost:8000/api/v1/utils/health-check/`.

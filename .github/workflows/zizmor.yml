@@ -1,0 +1,80 @@
+name: Zizmor
+
+# Static security analysis of this repository's own GitHub Actions workflows.
+#
+# Two jobs, because one job cannot both upload SARIF and fail: under
+# `advanced-security: true` zizmor emits SARIF and deliberately exits 0.
+#
+#   report  every audit at the widest persona, uploaded to code scanning.
+#           Never fails; it is the record.
+#   gate    the findings worth blocking a merge on, annotated on the line.
+#           `min-confidence: medium` keeps speculative findings from spending a
+#           red check; `min-severity: low` does the same for purely stylistic
+#           audits. Both floors cost no visibility: the report job has none.
+#
+# Policy (which publishers may be used at all) lives in .github/zizmor.yml,
+# which zizmor discovers itself.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions: {}
+
+# Not cancelled for a push to master: cancelling the report would leave the
+# Security tab describing an older commit with nothing saying so.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  report:
+    name: Report to code scanning
+    # Code scanning uploads are refused for fork pull requests.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # To check out the repository below.
+      security-events: write # For upload-sarif, which zizmor-action wraps.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          persona: auditor
+          # `all` also picks up the Dependabot and pre-commit configs.
+          collect: all
+          online-audits: true
+          advanced-security: true
+
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # To check out the repository below.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          # `--format=github`, and with it a non-zero exit on findings.
+          annotations: true
+          collect: all
+          # The online audits are the reason this job exists alongside the
+          # pre-commit hook: they catch a pinned SHA that is not in the
+          # repository it claims, or a version comment that no longer matches.
+          online-audits: true
+          min-confidence: medium
+          min-severity: low

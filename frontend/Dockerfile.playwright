@@ -2,7 +2,10 @@ FROM mcr.microsoft.com/playwright:v1.63.0-noble
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y unzip \
+# The bun installer below is piped into bash: fail the build if curl fails
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://bun.sh/install | bash

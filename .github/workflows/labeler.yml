@@ -1,5 +1,13 @@
 name: Labels
+
+# pull_request_target, so a pull request from a fork can be labelled — the
+# `pull_request` token is read-only there.
+#
+# Safe for the one reason that makes this trigger safe anywhere: the fork's code
+# is never checked out, built or run. There is no `actions/checkout` in this
+# file; both jobs read the pull request's metadata through the API.
 on:
+  # zizmor: ignore[dangerous-triggers] -- no checkout of the head ref; see above
   pull_request_target:
     types:
       - opened
@@ -9,25 +17,37 @@ on:
       - labeled
       - unlabeled
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   labeler:
-    permissions:
-      contents: read
-      pull-requests: write
+    name: Apply labels
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # To read .github/labeler.yml.
+      pull-requests: write # To add the labels.
     steps:
-    - uses: actions/labeler@v7
-      if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
-    - run: echo "Done adding labels"
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
+      - run: echo "Done adding labels"
   # Run this after labeler applied labels
   check-labels:
+    name: Check labels
     needs:
       - labeler
-    permissions:
-      pull-requests: read
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read # To read the labels it checks.
     steps:
-      - uses: docker://agilepathway/pull-request-label-checker:latest
+      # A docker:// reference must be pinned by OCI digest, not by a git SHA.
+      # This digest is the v1.6.65 image.
+      - uses: docker://agilepathway/pull-request-label-checker@sha256:14f5f3dfda922496d07d53494e2d2b42885165f90677a1c03d600059b7706a61 # v1.6.65
         with:
           one_of: breaking,security,feature,bug,refactor,upgrade,docs,internal
           repo_token: ${{ secrets.GITHUB_TOKEN }}
