@@ -72,7 +72,7 @@ class MetricsQuery:
         return cls(workspace_id, platform, date_from, date_to)
 
 
-def _account_platforms(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
+def account_platforms(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
     """{account id: platform name} for the workspace's active accounts."""
     accounts = crud.get_accounts_for_workspace(
         session=session, workspace_id=query.workspace_id, platform=query.platform
@@ -215,7 +215,7 @@ def _totals(
 
 def summarize(session: Session, query: MetricsQuery) -> MetricsSummary:
     """Overall and per-platform totals over the range."""
-    account_platform = _account_platforms(session, query)
+    account_platform = account_platforms(session, query)
     snapshots, daily = _load_daily_metrics(session, query, list(account_platform))
 
     account_sums: dict[uuid.UUID, dict[str, int]] = {}
@@ -248,7 +248,7 @@ def summarize(session: Session, query: MetricsQuery) -> MetricsSummary:
 
 def timeseries(session: Session, query: MetricsQuery) -> list[TimeSeriesPoint]:
     """One point per calendar day in the range (zeros for days without data)."""
-    account_platform = _account_platforms(session, query)
+    account_platform = account_platforms(session, query)
     if not account_platform:
         return []
     _, daily = _load_daily_metrics(session, query, list(account_platform))
@@ -270,7 +270,7 @@ def followers_timeseries(
     session: Session, query: MetricsQuery
 ) -> list[PlatformFollowers]:
     """Each platform's daily follower count over the range."""
-    account_platform = _account_platforms(session, query)
+    account_platform = account_platforms(session, query)
     snapshots = _snapshots(session, query, list(account_platform))
 
     counts: dict[uuid.UUID, dict[date, int]] = defaultdict(dict)
@@ -304,7 +304,7 @@ def top_posts(
     session: Session, query: MetricsQuery, limit: int = 10
 ) -> list[PostPublic]:
     """The workspace's most-engaging posts published in the range."""
-    account_platform = _account_platforms(session, query)
+    account_platform = account_platforms(session, query)
     posts = crud.get_top_posts(
         session=session,
         platform_account_ids=list(account_platform),

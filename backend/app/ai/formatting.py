@@ -1,5 +1,6 @@
-"""Render workspace metrics as plain text for the LLM prompts."""
+"""Render workspace metrics as plain text for the LLM prompts, and parse answers."""
 
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -16,7 +17,7 @@ METRIC_DEFINITIONS = """\
 - followers_growth_rate: followers_growth / followers at the start"""
 
 
-def _format_value(name: str, value: float) -> str:
+def format_value(name: str, value: float) -> str:
     if name in ("engagement_rate", "followers_growth_rate"):
         return f"{value:.2%}"
     return f"{value:,}"
@@ -25,7 +26,7 @@ def _format_value(name: str, value: float) -> str:
 def _metric_lines(totals: MetricTotals, indent: str) -> list[str]:
     """One line per non-zero metric, e.g. "  impressions: 1,234"."""
     return [
-        f"{indent}{name}: {_format_value(name, value)}"
+        f"{indent}{name}: {format_value(name, value)}"
         for name, value in totals.model_dump().items()
         if value  # skip zeros and unknowns: they only add noise
     ]
@@ -63,3 +64,11 @@ def format_posts(posts: Sequence[PostPublic]) -> str:
             f"engagements={post.engagements or 0:,}  — {snippet!r}"
         )
     return "\n".join(lines)
+
+
+def parse_json(text: str) -> Any:
+    """Parse a JSON answer, stripping markdown fences in case the model added them."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    return json.loads(text)

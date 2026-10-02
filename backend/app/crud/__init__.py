@@ -1,5 +1,12 @@
 """Database access helpers, re-exported so callers can use ``crud.<name>``."""
 
+from app.crud.analysis import (
+    get_analyses,
+    get_analysis,
+    get_due_schedules,
+    get_schedule,
+    has_unfinished_analysis,
+)
 from app.crud.common import (
     delete,
     save,
@@ -18,6 +25,8 @@ from app.crud.integration import (
     upsert_platform_account,
 )
 from app.crud.metrics import (
+    get_posts,
+    get_posts_by_ids,
     get_posts_for_accounts,
     get_snapshots_for_accounts,
     get_top_posts,
@@ -52,18 +61,25 @@ __all__ = [
     "delete",
     "get_access_token",
     "get_accounts_for_workspace",
+    "get_analyses",
+    "get_analysis",
+    "get_due_schedules",
     "get_integration",
     "get_integrations_for_workspace",
     "get_member",
     "get_members",
     "get_memberships_for_user",
+    "get_posts",
+    "get_posts_by_ids",
     "get_refresh_token",
     "get_posts_for_accounts",
+    "get_schedule",
     "get_snapshots_for_accounts",
     "get_top_posts",
     "get_user_by_email",
     "get_user_by_email_case_insensitive",
     "get_workspace",
+    "has_unfinished_analysis",
     "mark_integration_error",
     "mark_integration_expired",
     "mark_integration_synced",

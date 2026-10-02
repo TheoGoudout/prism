@@ -1,6 +1,7 @@
 import logging
+import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from jwt.exceptions import InvalidTokenError
 
 from app.core import security
 from app.core.config import settings
+from app.models.analysis import AnalysisResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,7 +28,8 @@ def render_email_template(*, template_name: str, context: dict[str, Any]) -> str
     template_str = (
         Path(__file__).parent / "email-templates" / "build" / template_name
     ).read_text()
-    html_content = Template(template_str).render(context)
+    # Escaped: contexts can hold text we don't control (e.g. AI output)
+    html_content = Template(template_str, autoescape=True).render(context)
     return html_content
 
 
@@ -88,6 +91,40 @@ def generate_new_account_email(
             "password": password,
             "email": email_to,
             "link": settings.FRONTEND_HOST,
+        },
+    )
+    return EmailData(html_content=html_content, subject=subject)
+
+
+def generate_analysis_email(
+    *,
+    workspace_name: str,
+    analysis_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+    result: AnalysisResult,
+    yearly: bool = False,
+) -> EmailData:
+    title = "AI year in review" if yearly else "AI performance analysis"
+    subject = (
+        f"{settings.PROJECT_NAME} - {workspace_name} {title.removeprefix('AI ')} "
+        f"({date_from} to {date_to})"
+    )
+    html_content = render_email_template(
+        template_name="performance_analysis.html",
+        context={
+            "project_name": settings.PROJECT_NAME,
+            "workspace_name": workspace_name,
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+            "summary": result.summary,
+            "what_worked": result.what_worked,
+            "what_didnt_work": result.what_didnt_work,
+            "recommendations": result.recommendations,
+            "topics": result.topics,
+            "periods": result.periods,
+            "title": title,
+            "link": f"{settings.FRONTEND_HOST}/ai-analysis?analysis={analysis_id}",
         },
     )
     return EmailData(html_content=html_content, subject=subject)
