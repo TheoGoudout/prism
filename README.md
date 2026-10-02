@@ -44,6 +44,14 @@
 - **AI insights and reports** (LangChain): actionable insights and a full
   markdown performance report generated from your metrics. Works with
   OpenAI, Anthropic or Google models.
+- **AI analysis**: a full performance review of every connected platform:
+  each post is analyzed and grouped by topic, each platform judged against
+  the previous period, with what worked, what didn't and prioritized
+  recommendations. Run it on demand, or schedule it weekly, every two weeks
+  or monthly (e.g. every Monday at 8am in your time zone) and have the
+  report emailed to your team. Owners and admins can also run a **year in
+  review** on demand: a month-by-month breakdown of up to 300 posts (a
+  costlier AI call).
 
 | Dashboard | Integrations | Members |
 |:-:|:-:|:-:|
@@ -66,8 +74,8 @@ backend/app/
 │   ├── platforms/       # one sync module per platform
 │   └── tokens.py        # refresh-before-expiry logic
 ├── services/metrics.py  # metrics aggregation shared by dashboards and AI
-├── worker/              # Celery app, sync tasks, nightly Beat schedule
-└── ai/                  # LLM factory and insight / report chains
+├── worker/              # Celery app, sync and analysis tasks, Beat schedule
+└── ai/                  # LLM factory and insight / report / analysis chains
 frontend/src/
 ├── routes/              # pages (dashboard, analytics, posts, integrations, settings, admin)
 ├── components/          # UI, including Workspaces/ (onboarding, members)

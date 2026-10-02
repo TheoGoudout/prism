@@ -6,6 +6,6 @@ this package registers every table with ``SQLModel.metadata``, which Alembic
 and cross-module relationships rely on.
 """
 
-from app.models import ai, common, integration, metrics, user, workspace
+from app.models import ai, analysis, common, integration, metrics, user, workspace
 
-__all__ = ["ai", "common", "integration", "metrics", "user", "workspace"]
+__all__ = ["ai", "analysis", "common", "integration", "metrics", "user", "workspace"]

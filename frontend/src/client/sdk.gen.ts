@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -58,6 +58,174 @@ export class AiService {
                 date_from: data.dateFrom,
                 date_to: data.dateTo
             },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class AnalysesService {
+    /**
+     * List Analyses
+     * The workspace's analyses, newest first, without their results.
+     * @param data The data for the request.
+     * @param data.workspaceId
+     * @param data.skip
+     * @param data.limit
+     * @returns AnalysesPublic Successful Response
+     * @throws ApiError
+     */
+    public static listAnalyses(data: AnalysesListAnalysesData): CancelablePromise<AnalysesListAnalysesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/workspaces/{workspace_id}/analyses',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            query: {
+                skip: data.skip,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Analysis
+     * Start an analysis of a period: by default the last 7 days, or the last 12
+     * months for a yearly analysis. Yearly analyses cost more, so only owners and
+     * admins can start them. The analysis is emailed to `email_recipients` once
+     * it completes.
+     * @param data The data for the request.
+     * @param data.workspaceId
+     * @param data.requestBody
+     * @returns AnalysisPublic Successful Response
+     * @throws ApiError
+     */
+    public static createAnalysis(data: AnalysesCreateAnalysisData): CancelablePromise<AnalysesCreateAnalysisResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/workspaces/{workspace_id}/analyses',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Read Analysis
+     * An analysis with its full result and the posts it analyzed.
+     * @param data The data for the request.
+     * @param data.analysisId
+     * @param data.workspaceId
+     * @returns AnalysisPublic Successful Response
+     * @throws ApiError
+     */
+    public static readAnalysis(data: AnalysesReadAnalysisData): CancelablePromise<AnalysesReadAnalysisResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/workspaces/{workspace_id}/analyses/{analysis_id}',
+            path: {
+                analysis_id: data.analysisId,
+                workspace_id: data.workspaceId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Analysis
+     * @param data The data for the request.
+     * @param data.analysisId
+     * @param data.workspaceId
+     * @returns void Successful Response
+     * @throws ApiError
+     */
+    public static deleteAnalysis(data: AnalysesDeleteAnalysisData): CancelablePromise<AnalysesDeleteAnalysisResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/workspaces/{workspace_id}/analyses/{analysis_id}',
+            path: {
+                analysis_id: data.analysisId,
+                workspace_id: data.workspaceId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Email Analysis
+     * Email a completed analysis to the current user.
+     * @param data The data for the request.
+     * @param data.analysisId
+     * @param data.workspaceId
+     * @returns void Successful Response
+     * @throws ApiError
+     */
+    public static emailAnalysis(data: AnalysesEmailAnalysisData): CancelablePromise<AnalysesEmailAnalysisResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/workspaces/{workspace_id}/analyses/{analysis_id}/email',
+            path: {
+                analysis_id: data.analysisId,
+                workspace_id: data.workspaceId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Read Schedule
+     * The workspace's schedule; disabled defaults if it was never set.
+     * @param data The data for the request.
+     * @param data.workspaceId
+     * @returns SchedulePublic Successful Response
+     * @throws ApiError
+     */
+    public static readSchedule(data: AnalysesReadScheduleData): CancelablePromise<AnalysesReadScheduleResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/workspaces/{workspace_id}/analysis-schedule',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Schedule
+     * @param data The data for the request.
+     * @param data.workspaceId
+     * @param data.requestBody
+     * @returns SchedulePublic Successful Response
+     * @throws ApiError
+     */
+    public static updateSchedule(data: AnalysesUpdateScheduleData): CancelablePromise<AnalysesUpdateScheduleResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/workspaces/{workspace_id}/analysis-schedule',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: 'Validation Error'
             }

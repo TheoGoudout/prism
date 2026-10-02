@@ -1,4 +1,11 @@
-import { BarChart2, Home, Link2, Newspaper, Users } from "lucide-react"
+import {
+  BarChart2,
+  Home,
+  Link2,
+  Newspaper,
+  Sparkles,
+  Users,
+} from "lucide-react"
 
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
@@ -18,6 +25,7 @@ const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: BarChart2, title: "Analytics", path: "/analytics" },
   { icon: Newspaper, title: "Posts", path: "/posts" },
+  { icon: Sparkles, title: "AI Analysis", path: "/ai-analysis" },
   { icon: Link2, title: "Integrations", path: "/integrations" },
 ]
 
