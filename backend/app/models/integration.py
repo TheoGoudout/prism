@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from app.models.metrics import MetricSnapshot, Post
 
 
-class Platform(str, Enum):
+class Platform(StrEnum):
     facebook = "facebook"
     instagram = "instagram"
     twitter = "twitter"
@@ -22,7 +22,7 @@ class Platform(str, Enum):
     google_analytics = "google_analytics"
 
 
-class IntegrationStatus(str, Enum):
+class IntegrationStatus(StrEnum):
     active = "active"
     expired = "expired"
     error = "error"
@@ -49,7 +49,7 @@ class Integration(SQLModel, table=True):
     refresh_token_encrypted: str | None = Field(default=None)
     token_expires_at: datetime | None = Field(
         default=None,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(timezone=True),
     )
 
     # External account snapshot (cached at connect time)
@@ -60,17 +60,17 @@ class Integration(SQLModel, table=True):
     # Sync state
     last_synced_at: datetime | None = Field(
         default=None,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(timezone=True),
     )
     sync_error: str | None = Field(default=None, max_length=1024)
 
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(timezone=True),
     )
 
     workspace: Workspace | None = Relationship(back_populates="integrations")
-    accounts: list["PlatformAccount"] = Relationship(
+    accounts: list[PlatformAccount] = Relationship(
         back_populates="integration", cascade_delete=True
     )
 
@@ -99,15 +99,15 @@ class PlatformAccount(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(timezone=True),
     )
 
     integration: Integration | None = Relationship(back_populates="accounts")
     workspace: Workspace | None = Relationship(back_populates="platform_accounts")
-    metric_snapshots: list["MetricSnapshot"] = Relationship(
+    metric_snapshots: list[MetricSnapshot] = Relationship(
         back_populates="platform_account", cascade_delete=True
     )
-    posts: list["Post"] = Relationship(
+    posts: list[Post] = Relationship(
         back_populates="platform_account", cascade_delete=True
     )
 
@@ -130,29 +130,6 @@ class IntegrationPublic(SQLModel):
     last_synced_at: datetime | None = None
     sync_error: str | None = None
     created_at: datetime | None = None
-
-
-class IntegrationsPublic(SQLModel):
-    data: list[IntegrationPublic]
-    count: int
-
-
-class PlatformAccountPublic(SQLModel):
-    id: uuid.UUID
-    integration_id: uuid.UUID
-    workspace_id: uuid.UUID
-    platform: Platform
-    external_id: str
-    name: str
-    avatar_url: str | None = None
-    account_type: str | None = None
-    is_active: bool
-    created_at: datetime | None = None
-
-
-class PlatformAccountsPublic(SQLModel):
-    data: list[PlatformAccountPublic]
-    count: int
 
 
 class IntegrationCreate(SQLModel):

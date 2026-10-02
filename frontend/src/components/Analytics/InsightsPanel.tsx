@@ -7,12 +7,12 @@ import {
   TrendingUp,
 } from "lucide-react"
 
-import type { AIRequest, Insight } from "@/client"
+import type { Insight } from "@/client"
 import { AiService } from "@/client"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
+import { useMetricsParams } from "@/hooks/useMetrics"
 import type { DateRange } from "@/lib/format"
 
 const INSIGHT_ICONS: Record<Insight["type"], React.ReactNode> = {
@@ -38,18 +38,13 @@ function downloadMarkdown(markdown: string, filename: string) {
 
 /** AI-generated insights, plus a downloadable markdown report. */
 export function InsightsPanel({ range }: { range: DateRange }) {
-  const workspace = useCurrentWorkspace()
-  const request: AIRequest = {
-    workspace_id: workspace.id,
-    date_from: range.dateFrom,
-    date_to: range.dateTo,
-  }
+  const params = useMetricsParams(range)
 
   const insights = useMutation({
-    mutationFn: () => AiService.generateInsights({ requestBody: request }),
+    mutationFn: () => AiService.generateInsights(params),
   })
   const report = useMutation({
-    mutationFn: () => AiService.generateReport({ requestBody: request }),
+    mutationFn: () => AiService.generateReport(params),
     onSuccess: (data) =>
       downloadMarkdown(
         data.report,

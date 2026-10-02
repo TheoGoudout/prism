@@ -41,7 +41,9 @@ def create_workspace(
     slug = _unique_slug(session, workspace_in.slug or workspace_in.name)
     workspace = Workspace(name=workspace_in.name, slug=slug)
     workspace.members.append(
-        WorkspaceMember(user_id=owner_id, role=WorkspaceRole.owner)
+        WorkspaceMember(
+            workspace_id=workspace.id, user_id=owner_id, role=WorkspaceRole.owner
+        )
     )
     return save(session, workspace)
 
@@ -51,20 +53,16 @@ def get_workspace(*, session: Session, workspace_id: uuid.UUID) -> Workspace | N
 
 
 def get_memberships_for_user(
-    *, session: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 100
-) -> tuple[Sequence[WorkspaceMember], int]:
-    """The user's memberships (oldest workspace first) and their total count."""
-    is_member = WorkspaceMember.user_id == user_id
+    *, session: Session, user_id: uuid.UUID
+) -> Sequence[WorkspaceMember]:
+    """The user's memberships, oldest workspace first."""
     statement = (
         select(WorkspaceMember)
         .join(Workspace)
-        .where(is_member)
+        .where(WorkspaceMember.user_id == user_id)
         .order_by(col(Workspace.created_at))
-        .offset(skip)
-        .limit(limit)
     )
-    count_statement = select(func.count()).select_from(WorkspaceMember).where(is_member)
-    return session.exec(statement).all(), session.exec(count_statement).one()
+    return session.exec(statement).all()
 
 
 def update_workspace(

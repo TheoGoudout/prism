@@ -34,18 +34,6 @@ def test_get_access_token_incorrect_password(client: TestClient) -> None:
     assert r.status_code == 400
 
 
-def test_use_access_token(
-    client: TestClient, superuser_token_headers: dict[str, str]
-) -> None:
-    r = client.post(
-        f"{settings.API_V1_STR}/login/test-token",
-        headers=superuser_token_headers,
-    )
-    result = r.json()
-    assert r.status_code == 200
-    assert "email" in result
-
-
 def test_recovery_password(
     client: TestClient, normal_user_token_headers: dict[str, str]
 ) -> None:
@@ -58,10 +46,7 @@ def test_recovery_password(
             f"{settings.API_V1_STR}/password-recovery/{email}",
             headers=normal_user_token_headers,
         )
-        assert r.status_code == 200
-        assert r.json() == {
-            "message": "If that email is registered, we sent a password recovery link"
-        }
+        assert r.status_code == 202
 
 
 def test_recovery_password_user_not_exits(
@@ -72,11 +57,8 @@ def test_recovery_password_user_not_exits(
         f"{settings.API_V1_STR}/password-recovery/{email}",
         headers=normal_user_token_headers,
     )
-    # Should return 200 with generic message to prevent email enumeration attacks
-    assert r.status_code == 200
-    assert r.json() == {
-        "message": "If that email is registered, we sent a password recovery link"
-    }
+    # Same response as for a registered email, to prevent email enumeration
+    assert r.status_code == 202
 
 
 def test_reset_password(client: TestClient, db: Session) -> None:
@@ -102,8 +84,7 @@ def test_reset_password(client: TestClient, db: Session) -> None:
         json=data,
     )
 
-    assert r.status_code == 200
-    assert r.json() == {"message": "Password updated successfully"}
+    assert r.status_code == 204
 
     db.refresh(user)
     verified, _ = verify_password(new_password, user.hashed_password)

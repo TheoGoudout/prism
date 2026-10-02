@@ -2,7 +2,7 @@
 OAuth2 connect / callback routes.
 
 Flow:
-  1. Frontend calls GET /oauth/connect/{platform}?workspace_id=<id>
+  1. Frontend calls GET /workspaces/{id}/integrations/connect/{platform}
      → receives a redirect URL for the provider. The URL carries an
        encrypted, expiring `state` that binds the request to the user,
        workspace and platform (and holds the PKCE verifier, if any).
@@ -14,24 +14,18 @@ Flow:
 """
 
 import logging
-from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
 from app import crud
-from app.api.deps import CurrentMember, CurrentUser, SessionDep, require_manager
+from app.api.deps import SessionDep
 from app.core.config import settings
 from app.integrations.oauth import registry
-from app.integrations.oauth.base import OAuthState, generate_pkce_pair
-from app.models.integration import (
-    Integration,
-    IntegrationCreate,
-    OAuthConnectResponse,
-    Platform,
-)
+from app.integrations.oauth.base import OAuthState
+from app.models.integration import Integration, IntegrationCreate, Platform
 from app.worker.tasks import sync as sync_tasks
 
 logger = logging.getLogger(__name__)
@@ -39,7 +33,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/oauth", tags=["oauth"])
 
 
-def _redirect_uri(platform: Platform) -> str:
+def redirect_uri(platform: Platform) -> str:
+    """The callback URL registered with each provider."""
     return (
         f"{settings.API_BASE_URL}{settings.API_V1_STR}/oauth/callback/{platform.value}"
     )
@@ -51,30 +46,6 @@ def _back_to_frontend(**params: str) -> RedirectResponse:
         url=f"{settings.FRONTEND_HOST}/integrations?{urlencode(params)}",
         status_code=302,
     )
-
-
-@router.get("/connect/{platform}", response_model=OAuthConnectResponse)
-def connect(
-    platform: Platform, member: CurrentMember, current_user: CurrentUser
-) -> Any:
-    """Return the provider's authorization URL to redirect the user to."""
-    require_manager(member, "connect integrations")
-    try:
-        provider = registry.get_provider(platform)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
-    state = OAuthState(
-        workspace_id=member.workspace_id,
-        user_id=current_user.id,
-        platform=platform,
-        pkce_verifier=verifier,
-    ).encode()
-    auth_url = provider.get_auth_url(
-        redirect_uri=_redirect_uri(platform), state=state, code_challenge=challenge
-    )
-    return OAuthConnectResponse(authorization_url=auth_url)
 
 
 @router.get("/callback/{platform}", include_in_schema=False)
@@ -133,7 +104,7 @@ def _connect_integration(
     provider = registry.get_provider(oauth_state.platform)
     token = provider.exchange_code(
         code=code,
-        redirect_uri=_redirect_uri(oauth_state.platform),
+        redirect_uri=redirect_uri(oauth_state.platform),
         code_verifier=oauth_state.pkce_verifier,
     )
     account = provider.get_account_info(token.access_token)

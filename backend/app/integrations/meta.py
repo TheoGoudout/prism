@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Sequence
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 import httpx
@@ -49,8 +49,8 @@ def daily_insights(
     start = end - timedelta(days=SYNC_WINDOW_DAYS)
     params: dict[str, Any] = {
         "period": "day",
-        "since": int(datetime.combine(start, time(), timezone.utc).timestamp()),
-        "until": int(datetime.combine(end, time(), timezone.utc).timestamp()),
+        "since": int(datetime.combine(start, time(), UTC).timestamp()),
+        "until": int(datetime.combine(end, time(), UTC).timestamp()),
     }
 
     def fetch(metric_names: str) -> list[dict[str, Any]]:

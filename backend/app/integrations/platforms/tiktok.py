@@ -10,7 +10,7 @@ parameter; request options (e.g. max_count) go in the JSON body.
 """
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlmodel import Session
@@ -59,7 +59,7 @@ def _sync_account_snapshot(
 
 
 def _sync_videos(session: Session, platform_account_id: uuid.UUID, token: str) -> None:
-    window_start = datetime.now(timezone.utc) - timedelta(days=SYNC_WINDOW_DAYS)
+    window_start = datetime.now(UTC) - timedelta(days=SYNC_WINDOW_DAYS)
     data = post_json(
         f"{TIKTOK_API}/video/list/",
         token=token,
@@ -70,8 +70,8 @@ def _sync_videos(session: Session, platform_account_id: uuid.UUID, token: str) -
         if not video.get("id"):
             continue
         try:
-            published_at = datetime.fromtimestamp(video["create_time"], tz=timezone.utc)
-        except (KeyError, TypeError, ValueError):
+            published_at = datetime.fromtimestamp(video["create_time"], tz=UTC)
+        except KeyError, TypeError, ValueError:
             continue
         if published_at < window_start:
             continue

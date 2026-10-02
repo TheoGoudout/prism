@@ -1,6 +1,6 @@
 """Tests for access-token refresh before sync (app.integrations.tokens)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -24,7 +24,7 @@ def _integration(
     ws = create_random_workspace(db, create_random_user(db))
     integ = create_fake_integration(db, ws, platform=platform)
     integ.token_expires_at = (
-        datetime.now(timezone.utc) + expires_in if expires_in is not None else None
+        datetime.now(UTC) + expires_in if expires_in is not None else None
     )
     db.add(integ)
     db.commit()
@@ -69,7 +69,7 @@ def test_token_far_from_expiry_not_refreshed(db: Session) -> None:
 
 def test_expired_token_is_refreshed_and_stored(db: Session) -> None:
     integ = _integration(db, Platform.google_analytics, timedelta(hours=-3))
-    new_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+    new_expiry = datetime.now(UTC) + timedelta(hours=1)
     provider = _provider(
         TokenResponse(
             access_token="new-access",

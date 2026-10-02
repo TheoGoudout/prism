@@ -1,8 +1,8 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import col, func, select
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import col, select
 
 from app import crud
 from app.api.deps import (
@@ -12,14 +12,12 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
-from app.models.common import Message
 from app.models.user import (
     UpdatePassword,
     User,
     UserCreate,
     UserPublic,
     UserRegister,
-    UsersPublic,
     UserUpdate,
     UserUpdateMe,
 )
@@ -31,22 +29,13 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get(
     "/",
     dependencies=[Depends(get_current_active_superuser)],
-    response_model=UsersPublic,
+    response_model=list[UserPublic],
 )
-def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
+def read_users(session: SessionDep) -> Any:
     """
-    Retrieve users.
+    Retrieve all users, newest first.
     """
-
-    count_statement = select(func.count()).select_from(User)
-    count = session.exec(count_statement).one()
-
-    statement = (
-        select(User).order_by(col(User.created_at).desc()).offset(skip).limit(limit)
-    )
-    users = session.exec(statement).all()
-
-    return UsersPublic(data=users, count=count)
+    return session.exec(select(User).order_by(col(User.created_at).desc())).all()
 
 
 @router.post(
@@ -95,10 +84,10 @@ def update_user_me(
     return crud.save(session, current_user)
 
 
-@router.patch("/me/password", response_model=Message)
+@router.patch("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 def update_password_me(
     *, session: SessionDep, body: UpdatePassword, current_user: CurrentUser
-) -> Any:
+) -> None:
     """
     Update own password.
     """
@@ -111,7 +100,6 @@ def update_password_me(
         )
     current_user.hashed_password = get_password_hash(body.new_password)
     crud.save(session, current_user)
-    return Message(message="Password updated successfully")
 
 
 @router.get("/me", response_model=UserPublic)
@@ -122,8 +110,8 @@ def read_user_me(current_user: CurrentUser) -> Any:
     return current_user
 
 
-@router.delete("/me", response_model=Message)
-def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_me(session: SessionDep, current_user: CurrentUser) -> None:
     """
     Delete own user.
     """
@@ -132,7 +120,6 @@ def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
     crud.delete(session, current_user)
-    return Message(message="User deleted successfully")
 
 
 @router.post("/signup", response_model=UserPublic)
@@ -148,26 +135,6 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
         )
     user_create = UserCreate.model_validate(user_in)
     user = crud.create_user(session=session, user_create=user_create)
-    return user
-
-
-@router.get("/{user_id}", response_model=UserPublic)
-def read_user_by_id(
-    user_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
-) -> Any:
-    """
-    Get a specific user by id.
-    """
-    user = session.get(User, user_id)
-    if user == current_user:
-        return user
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403,
-            detail="The user doesn't have enough privileges",
-        )
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
     return user
 
 
@@ -203,10 +170,14 @@ def update_user(
     return db_user
 
 
-@router.delete("/{user_id}", dependencies=[Depends(get_current_active_superuser)])
+@router.delete(
+    "/{user_id}",
+    dependencies=[Depends(get_current_active_superuser)],
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_user(
     session: SessionDep, current_user: CurrentUser, user_id: uuid.UUID
-) -> Message:
+) -> None:
     """
     Delete a user.
     """
@@ -218,4 +189,3 @@ def delete_user(
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
     crud.delete(session, user)
-    return Message(message="User deleted successfully")

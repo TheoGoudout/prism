@@ -8,7 +8,7 @@ Twitter/X sync (API v2, OAuth 2.0 user context).
 
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlmodel import Session
@@ -62,7 +62,7 @@ def _sync_tweets(
     session: Session, platform_account_id: uuid.UUID, user_id: str, token: str
 ) -> None:
     # end_time must be at least 10 seconds in the past
-    end_time = datetime.now(timezone.utc) - timedelta(seconds=15)
+    end_time = datetime.now(UTC) - timedelta(seconds=15)
     data = get_json(
         f"{TWITTER_API}/users/{user_id}/tweets",
         token=token,

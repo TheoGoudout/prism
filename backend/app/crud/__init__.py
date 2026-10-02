@@ -6,7 +6,6 @@ from app.crud.common import (
 )
 from app.crud.integration import (
     get_access_token,
-    get_accounts_for_integration,
     get_accounts_for_workspace,
     get_integration,
     get_integrations_for_workspace,
@@ -51,7 +50,6 @@ __all__ = [
     "create_workspace",
     "delete",
     "get_access_token",
-    "get_accounts_for_integration",
     "get_accounts_for_workspace",
     "get_integration",
     "get_integrations_for_workspace",

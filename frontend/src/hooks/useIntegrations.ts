@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
 import type { IntegrationPublic, Platform } from "@/client"
-import { IntegrationsService, OauthService } from "@/client"
+import { IntegrationsService } from "@/client"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
 
@@ -21,7 +21,10 @@ export function useSyncIntegration(integration: IntegrationPublic) {
   const { showSuccessToast, showApiError } = useCustomToast()
   return useMutation({
     mutationFn: () =>
-      IntegrationsService.triggerSync({ integrationId: integration.id }),
+      IntegrationsService.triggerSync({
+        workspaceId: integration.workspace_id,
+        integrationId: integration.id,
+      }),
     onSuccess: () => showSuccessToast("Sync enqueued"),
     onError: showApiError,
     onSettled: () =>
@@ -34,7 +37,10 @@ export function useDeleteIntegration(integration: IntegrationPublic) {
   const { showSuccessToast, showApiError } = useCustomToast()
   return useMutation({
     mutationFn: () =>
-      IntegrationsService.deleteIntegration({ integrationId: integration.id }),
+      IntegrationsService.deleteIntegration({
+        workspaceId: integration.workspace_id,
+        integrationId: integration.id,
+      }),
     onSuccess: () => showSuccessToast("Integration removed"),
     onError: showApiError,
     onSettled: () =>
@@ -54,7 +60,7 @@ export function useConnectPlatform() {
   async function connect(platform: Platform) {
     setPending(platform)
     try {
-      const { authorization_url } = await OauthService.connect({
+      const { authorization_url } = await IntegrationsService.connect({
         platform,
         workspaceId: workspace.id,
       })

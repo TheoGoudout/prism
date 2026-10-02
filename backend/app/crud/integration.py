@@ -1,8 +1,8 @@
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.encryption import decrypt_token, encrypt_token
 from app.crud.common import save
@@ -59,11 +59,13 @@ def get_integration(
 
 
 def get_integrations_for_workspace(
-    *, session: Session, workspace_id: uuid.UUID, platform: Platform | None = None
+    *, session: Session, workspace_id: uuid.UUID
 ) -> Sequence[Integration]:
-    statement = select(Integration).where(Integration.workspace_id == workspace_id)
-    if platform is not None:
-        statement = statement.where(Integration.platform == platform)
+    statement = (
+        select(Integration)
+        .where(Integration.workspace_id == workspace_id)
+        .order_by(col(Integration.created_at))
+    )
     return session.exec(statement).all()
 
 
@@ -93,7 +95,7 @@ def mark_integration_synced(
     *, session: Session, integration: Integration
 ) -> Integration:
     integration.status = IntegrationStatus.active
-    integration.last_synced_at = datetime.now(timezone.utc)
+    integration.last_synced_at = datetime.now(UTC)
     integration.sync_error = None
     return save(session, integration)
 
@@ -140,15 +142,6 @@ def get_refresh_token(integration: Integration) -> str | None:
 # ---------------------------------------------------------------------------
 # Platform accounts (pages, profiles, properties found during a sync)
 # ---------------------------------------------------------------------------
-
-
-def get_accounts_for_integration(
-    *, session: Session, integration_id: uuid.UUID
-) -> Sequence[PlatformAccount]:
-    statement = select(PlatformAccount).where(
-        PlatformAccount.integration_id == integration_id
-    )
-    return session.exec(statement).all()
 
 
 def get_accounts_for_workspace(

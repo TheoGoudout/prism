@@ -58,7 +58,7 @@ class MetricsQuery:
         platform: Platform | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
-    ) -> "MetricsQuery":
+    ) -> MetricsQuery:
         """Missing bounds default to the last 30 days."""
         date_to = date_to or date.today()
         date_from = date_from or date_to - timedelta(days=DEFAULT_RANGE_DAYS - 1)

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -14,7 +14,7 @@ from app.integrations.common import parse_datetime, sum_known
     ],
 )
 def test_parse_datetime_formats(value: str) -> None:
-    assert parse_datetime(value) == datetime(2024, 1, 15, 8, tzinfo=timezone.utc)
+    assert parse_datetime(value) == datetime(2024, 1, 15, 8, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("value", [None, "", "not a date", 123])

@@ -1,15 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlmodel import Field, SQLModel
 
 
 def get_datetime_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-# Generic message
-class Message(SQLModel):
-    message: str
+    return datetime.now(UTC)
 
 
 # JSON payload containing access token

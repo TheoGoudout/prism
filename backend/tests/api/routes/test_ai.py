@@ -14,11 +14,15 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.models.integration import Platform
 from app.models.metrics import MetricSnapshotUpsert
+from app.models.workspace import Workspace
 from tests.utils.integration import create_fake_account, create_fake_integration
 from tests.utils.user import create_user_with_headers
 from tests.utils.workspace import create_random_workspace
 
-PREFIX = f"{settings.API_V1_STR}/ai"
+
+def _url(workspace: Workspace, path: str) -> str:
+    return f"{settings.API_V1_STR}/workspaces/{workspace.id}/ai/{path}"
+
 
 TODAY = date.today()
 
@@ -52,9 +56,8 @@ def test_insights_non_member_returns_404(client: TestClient, db: Session) -> Non
     ws = create_random_workspace(db, owner)
 
     r = client.post(
-        PREFIX + "/insights",
+        _url(ws, "insights"),
         headers=outsider_headers,
-        json={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 404
 
@@ -69,9 +72,8 @@ def test_insights_returns_structured_response(client: TestClient, db: Session) -
 
     with patch("app.api.routes.ai.build_insights_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/insights",
+            _url(ws, "insights"),
             headers=headers,
-            json={"workspace_id": str(ws.id)},
         )
 
     assert r.status_code == 200
@@ -107,10 +109,9 @@ def test_insights_with_metrics_data(client: TestClient, db: Session) -> None:
 
     with patch("app.api.routes.ai.build_insights_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/insights",
+            _url(ws, "insights"),
             headers=headers,
-            json={
-                "workspace_id": str(ws.id),
+            params={
                 "date_from": str(TODAY),
                 "date_to": str(TODAY),
             },
@@ -129,9 +130,8 @@ def test_insights_llm_error_returns_502(client: TestClient, db: Session) -> None
 
     with patch("app.api.routes.ai.build_insights_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/insights",
+            _url(ws, "insights"),
             headers=headers,
-            json={"workspace_id": str(ws.id)},
         )
 
     assert r.status_code == 502
@@ -149,9 +149,8 @@ def test_report_non_member_returns_404(client: TestClient, db: Session) -> None:
     ws = create_random_workspace(db, owner)
 
     r = client.post(
-        PREFIX + "/report",
+        _url(ws, "report"),
         headers=outsider_headers,
-        json={"workspace_id": str(ws.id)},
     )
     assert r.status_code == 404
 
@@ -165,9 +164,8 @@ def test_report_returns_markdown(client: TestClient, db: Session) -> None:
 
     with patch("app.api.routes.ai.build_report_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/report",
+            _url(ws, "report"),
             headers=headers,
-            json={"workspace_id": str(ws.id)},
         )
 
     assert r.status_code == 200
@@ -186,9 +184,8 @@ def test_report_llm_error_returns_502(client: TestClient, db: Session) -> None:
 
     with patch("app.api.routes.ai.build_report_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/report",
+            _url(ws, "report"),
             headers=headers,
-            json={"workspace_id": str(ws.id)},
         )
 
     assert r.status_code == 502
@@ -203,9 +200,9 @@ def test_report_with_platform_filter(client: TestClient, db: Session) -> None:
 
     with patch("app.api.routes.ai.build_report_chain", return_value=mock_chain):
         r = client.post(
-            PREFIX + "/report",
+            _url(ws, "report"),
             headers=headers,
-            json={"workspace_id": str(ws.id), "platform": "instagram"},
+            params={"platform": "instagram"},
         )
 
     assert r.status_code == 200
@@ -216,6 +213,6 @@ def test_insights_invalid_workspace_id_returns_422(
 ) -> None:
     _, headers = create_user_with_headers(client, db)
     r = client.post(
-        f"{PREFIX}/insights", headers=headers, json={"workspace_id": "not-a-uuid"}
+        f"{settings.API_V1_STR}/workspaces/not-a-uuid/ai/insights", headers=headers
     )
     assert r.status_code == 422

@@ -36,10 +36,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState(readStoredId)
   const { data, isLoading } = useQuery({
     queryKey: ["workspaces"],
-    queryFn: () => WorkspacesService.listWorkspaces({}),
+    queryFn: () => WorkspacesService.listWorkspaces(),
   })
 
-  const workspaces = data?.data ?? []
+  const workspaces = data ?? []
   // Derived rather than stored, so a renamed workspace shows its new name and
   // a deleted (or left) one falls back to the first remaining workspace.
   const currentWorkspace =

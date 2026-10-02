@@ -79,13 +79,13 @@ def _sync_property_report(
         try:
             day_str = row["dimensionValues"][0]["value"]  # YYYYMMDD
             day = date(int(day_str[:4]), int(day_str[4:6]), int(day_str[6:8]))
-        except (KeyError, IndexError, ValueError):
+        except KeyError, IndexError, ValueError:
             continue
         values: dict[str, float | None] = dict.fromkeys(_REPORT_METRICS)
         for name, cell in zip(metric_names, row.get("metricValues", []), strict=False):
             try:
                 values[name] = float(cell["value"])
-            except (KeyError, ValueError):
+            except KeyError, ValueError:
                 pass
 
         crud.upsert_metric_snapshot(

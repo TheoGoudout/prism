@@ -7,7 +7,7 @@ this every nightly sync after the first would fail.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlmodel import Session
@@ -46,9 +46,9 @@ def ensure_fresh_token(*, session: Session, integration: Integration) -> None:
     if expires_at is None:
         return  # provider issued a non-expiring token
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if expires_at - now > _margin(integration):
         return
 

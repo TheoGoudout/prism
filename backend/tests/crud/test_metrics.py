@@ -1,6 +1,6 @@
 """Tests for MetricSnapshot and Post CRUD helpers."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlmodel import Session
 
@@ -134,7 +134,7 @@ def test_upsert_post_creates(db: Session) -> None:
     account = _make_account(db)
     post_in = PostUpsert(
         external_id="post-abc",
-        published_at=datetime(2024, 3, 10, 12, 0, tzinfo=timezone.utc),
+        published_at=datetime(2024, 3, 10, 12, 0, tzinfo=UTC),
         content_type=ContentType.reel,
         text="Check out this reel!",
         impressions=8000,
@@ -153,7 +153,7 @@ def test_upsert_post_updates_existing(db: Session) -> None:
     account = _make_account(db)
     post_in = PostUpsert(
         external_id="post-update",
-        published_at=datetime(2024, 3, 11, 9, 0, tzinfo=timezone.utc),
+        published_at=datetime(2024, 3, 11, 9, 0, tzinfo=UTC),
         content_type=ContentType.post,
         likes=100,
     )
@@ -177,7 +177,7 @@ def test_get_top_posts(db: Session) -> None:
             platform_account_id=account.id,
             post_in=PostUpsert(
                 external_id=f"top-{i}",
-                published_at=datetime(2024, 7, 1, tzinfo=timezone.utc),
+                published_at=datetime(2024, 7, 1, tzinfo=UTC),
                 content_type=ContentType.post,
                 engagements=eng,
             ),

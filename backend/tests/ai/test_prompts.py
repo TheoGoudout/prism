@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.ai.formatting import format_posts, prompt_variables
 from app.ai.insights import _parse_json, to_insights
@@ -45,7 +45,7 @@ def test_format_posts() -> None:
         platform_account_id=uuid.uuid4(),
         external_id="1",
         content_type=ContentType.tweet,
-        published_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        published_at=datetime(2024, 1, 2, tzinfo=UTC),
         text="Hello\nworld",
         engagements=1234,
     )

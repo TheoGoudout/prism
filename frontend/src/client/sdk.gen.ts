@@ -3,23 +3,32 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsGetIntegrationData, IntegrationsGetIntegrationResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsListAccountsData, IntegrationsListAccountsResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, OauthConnectData, OauthConnectResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesListWorkspacesData, WorkspacesListWorkspacesResponse, WorkspacesGetWorkspaceData, WorkspacesGetWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
      * Generate Insights
      * 4–6 structured, actionable insights about the workspace's metrics.
      * @param data The data for the request.
-     * @param data.requestBody
+     * @param data.workspaceId
+     * @param data.platform
+     * @param data.dateFrom
+     * @param data.dateTo
      * @returns InsightsResponse Successful Response
      * @throws ApiError
      */
     public static generateInsights(data: AiGenerateInsightsData): CancelablePromise<AiGenerateInsightsResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/ai/insights',
-            body: data.requestBody,
-            mediaType: 'application/json',
+            url: '/api/v1/workspaces/{workspace_id}/ai/insights',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            query: {
+                platform: data.platform,
+                date_from: data.dateFrom,
+                date_to: data.dateTo
+            },
             errors: {
                 422: 'Validation Error'
             }
@@ -30,16 +39,25 @@ export class AiService {
      * Generate Report
      * A markdown report: summary, per-platform analysis, top content, advice.
      * @param data The data for the request.
-     * @param data.requestBody
+     * @param data.workspaceId
+     * @param data.platform
+     * @param data.dateFrom
+     * @param data.dateTo
      * @returns ReportResponse Successful Response
      * @throws ApiError
      */
     public static generateReport(data: AiGenerateReportData): CancelablePromise<AiGenerateReportResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/ai/report',
-            body: data.requestBody,
-            mediaType: 'application/json',
+            url: '/api/v1/workspaces/{workspace_id}/ai/report',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            query: {
+                platform: data.platform,
+                date_from: data.dateFrom,
+                date_to: data.dateTo
+            },
             errors: {
                 422: 'Validation Error'
             }
@@ -50,19 +68,16 @@ export class AiService {
 export class IntegrationsService {
     /**
      * List Integrations
-     * List the integrations of a workspace the user belongs to.
      * @param data The data for the request.
      * @param data.workspaceId
-     * @param data.platform
-     * @returns IntegrationsPublic Successful Response
+     * @returns IntegrationPublic Successful Response
      * @throws ApiError
      */
     public static listIntegrations(data: IntegrationsListIntegrationsData): CancelablePromise<IntegrationsListIntegrationsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/integrations/',
-            query: {
-                platform: data.platform,
+            url: '/api/v1/workspaces/{workspace_id}/integrations/',
+            path: {
                 workspace_id: data.workspaceId
             },
             errors: {
@@ -72,18 +87,22 @@ export class IntegrationsService {
     }
     
     /**
-     * Get Integration
+     * Connect
+     * Start connecting a platform: returns the provider's authorization URL to
+     * send the user to. The provider then calls back GET /oauth/callback/{platform}.
      * @param data The data for the request.
-     * @param data.integrationId
-     * @returns IntegrationPublic Successful Response
+     * @param data.platform
+     * @param data.workspaceId
+     * @returns OAuthConnectResponse Successful Response
      * @throws ApiError
      */
-    public static getIntegration(data: IntegrationsGetIntegrationData): CancelablePromise<IntegrationsGetIntegrationResponse> {
+    public static connect(data: IntegrationsConnectData): CancelablePromise<IntegrationsConnectResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/integrations/{integration_id}',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/connect/{platform}',
             path: {
-                integration_id: data.integrationId
+                platform: data.platform,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -96,36 +115,17 @@ export class IntegrationsService {
      * Disconnect an integration and delete its accounts and synced metrics.
      * @param data The data for the request.
      * @param data.integrationId
-     * @returns Message Successful Response
+     * @param data.workspaceId
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static deleteIntegration(data: IntegrationsDeleteIntegrationData): CancelablePromise<IntegrationsDeleteIntegrationResponse> {
         return __request(OpenAPI, {
             method: 'DELETE',
-            url: '/api/v1/integrations/{integration_id}',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/{integration_id}',
             path: {
-                integration_id: data.integrationId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Accounts
-     * The pages / profiles / properties found by the last sync.
-     * @param data The data for the request.
-     * @param data.integrationId
-     * @returns PlatformAccountsPublic Successful Response
-     * @throws ApiError
-     */
-    public static listAccounts(data: IntegrationsListAccountsData): CancelablePromise<IntegrationsListAccountsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/integrations/{integration_id}/accounts',
-            path: {
-                integration_id: data.integrationId
+                integration_id: data.integrationId,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -138,15 +138,17 @@ export class IntegrationsService {
      * Enqueue a sync now; it runs in the background.
      * @param data The data for the request.
      * @param data.integrationId
-     * @returns Message Successful Response
+     * @param data.workspaceId
+     * @returns unknown Successful Response
      * @throws ApiError
      */
     public static triggerSync(data: IntegrationsTriggerSyncData): CancelablePromise<IntegrationsTriggerSyncResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/integrations/{integration_id}/sync',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/{integration_id}/sync',
             path: {
-                integration_id: data.integrationId
+                integration_id: data.integrationId,
+                workspace_id: data.workspaceId
             },
             errors: {
                 422: 'Validation Error'
@@ -177,24 +179,11 @@ export class LoginService {
     }
     
     /**
-     * Test Token
-     * Test access token
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static testToken(): CancelablePromise<LoginTestTokenResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/login/test-token'
-        });
-    }
-    
-    /**
      * Recover Password
      * Password Recovery
      * @param data The data for the request.
      * @param data.email
-     * @returns Message Successful Response
+     * @returns unknown Successful Response
      * @throws ApiError
      */
     public static recoverPassword(data: LoginRecoverPasswordData): CancelablePromise<LoginRecoverPasswordResponse> {
@@ -215,7 +204,7 @@ export class LoginService {
      * Reset password
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static resetPassword(data: LoginResetPasswordData): CancelablePromise<LoginResetPasswordResponse> {
@@ -224,27 +213,6 @@ export class LoginService {
             url: '/api/v1/reset-password/',
             body: data.requestBody,
             mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Recover Password Html Content
-     * HTML Content for Password Recovery
-     * @param data The data for the request.
-     * @param data.email
-     * @returns string Successful Response
-     * @throws ApiError
-     */
-    public static recoverPasswordHtmlContent(data: LoginRecoverPasswordHtmlContentData): CancelablePromise<LoginRecoverPasswordHtmlContentResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/password-recovery-html-content/{email}',
-            path: {
-                email: data.email
-            },
             errors: {
                 422: 'Validation Error'
             }
@@ -267,12 +235,14 @@ export class MetricsService {
     public static getSummary(data: MetricsGetSummaryData): CancelablePromise<MetricsGetSummaryResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/metrics/summary',
+            url: '/api/v1/workspaces/{workspace_id}/metrics/summary',
+            path: {
+                workspace_id: data.workspaceId
+            },
             query: {
                 platform: data.platform,
                 date_from: data.dateFrom,
-                date_to: data.dateTo,
-                workspace_id: data.workspaceId
+                date_to: data.dateTo
             },
             errors: {
                 422: 'Validation Error'
@@ -288,18 +258,20 @@ export class MetricsService {
      * @param data.platform
      * @param data.dateFrom
      * @param data.dateTo
-     * @returns MetricsTimeSeries Successful Response
+     * @returns TimeSeriesPoint Successful Response
      * @throws ApiError
      */
     public static getTimeseries(data: MetricsGetTimeseriesData): CancelablePromise<MetricsGetTimeseriesResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/metrics/timeseries',
+            url: '/api/v1/workspaces/{workspace_id}/metrics/timeseries',
+            path: {
+                workspace_id: data.workspaceId
+            },
             query: {
                 platform: data.platform,
                 date_from: data.dateFrom,
-                date_to: data.dateTo,
-                workspace_id: data.workspaceId
+                date_to: data.dateTo
             },
             errors: {
                 422: 'Validation Error'
@@ -316,46 +288,21 @@ export class MetricsService {
      * @param data.platform
      * @param data.dateFrom
      * @param data.dateTo
-     * @returns PostsPublic Successful Response
+     * @returns PostPublic Successful Response
      * @throws ApiError
      */
     public static getTopPosts(data: MetricsGetTopPostsData): CancelablePromise<MetricsGetTopPostsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/metrics/posts',
+            url: '/api/v1/workspaces/{workspace_id}/metrics/posts',
+            path: {
+                workspace_id: data.workspaceId
+            },
             query: {
                 limit: data.limit,
                 platform: data.platform,
                 date_from: data.dateFrom,
-                date_to: data.dateTo,
-                workspace_id: data.workspaceId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class OauthService {
-    /**
-     * Connect
-     * Return the provider's authorization URL to redirect the user to.
-     * @param data The data for the request.
-     * @param data.platform
-     * @param data.workspaceId
-     * @returns OAuthConnectResponse Successful Response
-     * @throws ApiError
-     */
-    public static connect(data: OauthConnectData): CancelablePromise<OauthConnectResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/oauth/connect/{platform}',
-            path: {
-                platform: data.platform
-            },
-            query: {
-                workspace_id: data.workspaceId
+                date_to: data.dateTo
             },
             errors: {
                 422: 'Validation Error'
@@ -389,24 +336,14 @@ export class PrivateService {
 export class UsersService {
     /**
      * Read Users
-     * Retrieve users.
-     * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @returns UsersPublic Successful Response
+     * Retrieve all users, newest first.
+     * @returns UserPublic Successful Response
      * @throws ApiError
      */
-    public static readUsers(data: UsersReadUsersData = {}): CancelablePromise<UsersReadUsersResponse> {
+    public static readUsers(): CancelablePromise<UsersReadUsersResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/users/',
-            query: {
-                skip: data.skip,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
+            url: '/api/v1/users/'
         });
     }
     
@@ -446,7 +383,7 @@ export class UsersService {
     /**
      * Delete User Me
      * Delete own user.
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static deleteUserMe(): CancelablePromise<UsersDeleteUserMeResponse> {
@@ -481,7 +418,7 @@ export class UsersService {
      * Update own password.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static updatePasswordMe(data: UsersUpdatePasswordMeData): CancelablePromise<UsersUpdatePasswordMeResponse> {
@@ -517,27 +454,6 @@ export class UsersService {
     }
     
     /**
-     * Read User By Id
-     * Get a specific user by id.
-     * @param data The data for the request.
-     * @param data.userId
-     * @returns UserPublic Successful Response
-     * @throws ApiError
-     */
-    public static readUserById(data: UsersReadUserByIdData): CancelablePromise<UsersReadUserByIdResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/users/{user_id}',
-            path: {
-                user_id: data.userId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
      * Update User
      * Update a user.
      * @param data The data for the request.
@@ -566,7 +482,7 @@ export class UsersService {
      * Delete a user.
      * @param data The data for the request.
      * @param data.userId
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static deleteUser(data: UsersDeleteUserData): CancelablePromise<UsersDeleteUserResponse> {
@@ -585,27 +501,6 @@ export class UsersService {
 
 export class UtilsService {
     /**
-     * Test Email
-     * Test emails.
-     * @param data The data for the request.
-     * @param data.emailTo
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static testEmail(data: UtilsTestEmailData): CancelablePromise<UtilsTestEmailResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/utils/test-email/',
-            query: {
-                email_to: data.emailTo
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
      * Health Check
      * @returns boolean Successful Response
      * @throws ApiError
@@ -620,6 +515,19 @@ export class UtilsService {
 
 export class WorkspacesService {
     /**
+     * List Workspaces
+     * The workspaces the current user belongs to, oldest first.
+     * @returns WorkspacePublic Successful Response
+     * @throws ApiError
+     */
+    public static listWorkspaces(): CancelablePromise<WorkspacesListWorkspacesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/workspaces/'
+        });
+    }
+    
+    /**
      * Create Workspace
      * Create a workspace. The creator becomes its owner.
      * @param data The data for the request.
@@ -633,49 +541,6 @@ export class WorkspacesService {
             url: '/api/v1/workspaces/',
             body: data.requestBody,
             mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * List Workspaces
-     * The workspaces the current user belongs to.
-     * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @returns WorkspacesPublic Successful Response
-     * @throws ApiError
-     */
-    public static listWorkspaces(data: WorkspacesListWorkspacesData = {}): CancelablePromise<WorkspacesListWorkspacesResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/workspaces/',
-            query: {
-                skip: data.skip,
-                limit: data.limit
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-    
-    /**
-     * Get Workspace
-     * @param data The data for the request.
-     * @param data.workspaceId
-     * @returns WorkspacePublic Successful Response
-     * @throws ApiError
-     */
-    public static getWorkspace(data: WorkspacesGetWorkspaceData): CancelablePromise<WorkspacesGetWorkspaceResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/workspaces/{workspace_id}',
-            path: {
-                workspace_id: data.workspaceId
-            },
             errors: {
                 422: 'Validation Error'
             }
@@ -711,7 +576,7 @@ export class WorkspacesService {
      * Delete the workspace with all its integrations and metrics.
      * @param data The data for the request.
      * @param data.workspaceId
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static deleteWorkspace(data: WorkspacesDeleteWorkspaceData): CancelablePromise<WorkspacesDeleteWorkspaceResponse> {
@@ -731,7 +596,7 @@ export class WorkspacesService {
      * List Members
      * @param data The data for the request.
      * @param data.workspaceId
-     * @returns WorkspaceMembersPublic Successful Response
+     * @returns WorkspaceMemberPublic Successful Response
      * @throws ApiError
      */
     public static listMembers(data: WorkspacesListMembersData): CancelablePromise<WorkspacesListMembersResponse> {
@@ -749,7 +614,7 @@ export class WorkspacesService {
     
     /**
      * Add Member
-     * Add an existing user, identified by id or email, to the workspace.
+     * Add an existing user, identified by the email they signed up with.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.requestBody
@@ -803,7 +668,7 @@ export class WorkspacesService {
      * @param data The data for the request.
      * @param data.userId
      * @param data.workspaceId
-     * @returns Message Successful Response
+     * @returns void Successful Response
      * @throws ApiError
      */
     public static removeMember(data: WorkspacesRemoveMemberData): CancelablePromise<WorkspacesRemoveMemberResponse> {
