@@ -20,7 +20,7 @@ import httpx
 from sqlmodel import Session
 
 from app import crud
-from app.integrations.common import log_http_errors, parse_datetime
+from app.integrations.common import engagement_total, log_http_errors, parse_datetime
 from app.integrations.meta import daily_insights, first_value, graph_get
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
@@ -126,6 +126,10 @@ def _sync_media(
 
         media_type: str = item.get("media_type", "IMAGE")
         insights = _media_insights(item["id"], media_type, token)
+        likes = insights.get("likes")
+        comments = insights.get("comments")
+        shares = insights.get("shares")
+        saves = insights.get("saved")
         crud.upsert_post(
             session=session,
             platform_account_id=platform_account_id,
@@ -138,11 +142,14 @@ def _sync_media(
                 permalink=item.get("permalink"),
                 views=insights.get("views"),
                 reach=insights.get("reach"),
-                engagements=insights.get("total_interactions"),
-                likes=insights.get("likes"),
-                comments=insights.get("comments"),
-                shares=insights.get("shares"),
-                saves=insights.get("saved"),
+                # total_interactions is the same sum; it covers posts whose
+                # breakdown Meta doesn't return
+                engagements=engagement_total(likes, comments, shares, saves)
+                or insights.get("total_interactions"),
+                likes=likes,
+                comments=comments,
+                shares=shares,
+                saves=saves,
                 raw_data=insights or None,
             ),
         )

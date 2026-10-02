@@ -37,6 +37,9 @@ _HUMAN = """\
 Workspace: {workspace_name}
 Period: {date_from} to {date_to}{platform_context}
 
+=== Metric definitions (the same on every platform) ===
+{metric_definitions}
+
 === Overall totals ===
 {totals_text}
 

@@ -14,6 +14,7 @@ from app.api.deps import CurrentMember, MetricsQueryDep, SessionDep
 from app.models.integration import Platform
 from app.models.metrics import (
     MetricsSummary,
+    PlatformFollowers,
     PostPerformanceReport,
     PostPublic,
     TimeSeriesPoint,
@@ -33,6 +34,12 @@ def get_summary(session: SessionDep, query: MetricsQueryDep) -> Any:
 def get_timeseries(session: SessionDep, query: MetricsQueryDep) -> Any:
     """One data point per calendar day in the range, for charts."""
     return metrics_service.timeseries(session, query)
+
+
+@router.get("/followers", response_model=list[PlatformFollowers])
+def get_followers(session: SessionDep, query: MetricsQueryDep) -> Any:
+    """Each platform's follower count per day, for growth charts."""
+    return metrics_service.followers_timeseries(session, query)
 
 
 @router.get("/posts", response_model=list[PostPublic])

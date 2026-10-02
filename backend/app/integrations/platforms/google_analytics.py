@@ -7,7 +7,8 @@ For every GA4 property the user can access:
 
 GA4 metrics are mapped onto the closest normalised fields:
 screenPageViews → views, sessions → impressions, totalUsers → reach,
-conversions → clicks. All raw values are kept in raw_data.
+engagedSessions → engagements, conversions → clicks. All raw values are kept
+in raw_data.
 """
 
 import uuid
@@ -27,6 +28,7 @@ GA_DATA_API = "https://analyticsdata.googleapis.com/v1beta"
 
 _REPORT_METRICS = [
     "sessions",
+    "engagedSessions",
     "totalUsers",
     "screenPageViews",
     "bounceRate",
@@ -96,6 +98,8 @@ def _sync_property_report(
                 views=_as_int(values["screenPageViews"]),
                 impressions=_as_int(values["sessions"]),
                 reach=_as_int(values["totalUsers"]),
+                # The website's equivalent of interactions with a post
+                engagements=_as_int(values["engagedSessions"]),
                 clicks=_as_int(values["conversions"]),
                 raw_data=values,
             ),

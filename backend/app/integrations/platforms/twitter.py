@@ -16,6 +16,7 @@ from sqlmodel import Session
 from app import crud
 from app.integrations.common import (
     SYNC_WINDOW_DAYS,
+    engagement_total,
     log_http_errors,
     parse_datetime,
     sum_known,
@@ -85,6 +86,11 @@ def _sync_tweets(
             continue
 
         metrics: dict[str, Any] = tweet.get("public_metrics", {})
+        likes = metrics.get("like_count")
+        replies = metrics.get("reply_count")
+        # Quotes are shares with a comment
+        shares = sum_known(metrics.get("retweet_count"), metrics.get("quote_count"))
+        bookmarks = metrics.get("bookmark_count")
         crud.upsert_post(
             session=session,
             platform_account_id=platform_account_id,
@@ -94,15 +100,11 @@ def _sync_tweets(
                 content_type=ContentType.tweet,
                 text=tweet.get("text"),
                 impressions=metrics.get("impression_count"),
-                engagements=sum_known(
-                    metrics.get("like_count"),
-                    metrics.get("retweet_count"),
-                    metrics.get("reply_count"),
-                    metrics.get("quote_count"),
-                ),
-                likes=metrics.get("like_count"),
-                comments=metrics.get("reply_count"),
-                shares=metrics.get("retweet_count"),
+                engagements=engagement_total(likes, replies, shares, bookmarks),
+                likes=likes,
+                comments=replies,
+                shares=shares,
+                saves=bookmarks,
                 raw_data=metrics or None,
             ),
         )

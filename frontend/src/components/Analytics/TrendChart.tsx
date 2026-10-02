@@ -14,11 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatCompact } from "@/lib/format"
 
 // Theme chart colours (defined in index.css; they adapt to dark mode)
-const SERIES: { key: keyof TimeSeriesPoint; color: string }[] = [
-  { key: "impressions", color: "var(--chart-1)" },
-  { key: "views", color: "var(--chart-4)" },
-  { key: "engagements", color: "var(--chart-2)" },
-  { key: "reach", color: "var(--chart-3)" },
+const SERIES: { key: keyof TimeSeriesPoint; name: string; color: string }[] = [
+  { key: "exposures", name: "Views", color: "var(--chart-1)" },
+  { key: "reach", name: "Reach", color: "var(--chart-3)" },
+  { key: "engagements", name: "Engagements", color: "var(--chart-2)" },
 ]
 
 export function TrendChart({
@@ -53,11 +52,12 @@ export function TrendChart({
           contentStyle={{ fontSize: 12, borderRadius: 6 }}
         />
         <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-        {SERIES.map(({ key, color }) => (
+        {SERIES.map(({ key, name, color }) => (
           <Line
             key={key}
             type="monotone"
             dataKey={key}
+            name={name}
             stroke={color}
             dot={false}
             strokeWidth={2}

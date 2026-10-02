@@ -18,6 +18,7 @@ class TwitterOAuthProvider(OAuthProvider):
     SCOPES = ["tweet.read", "users.read", "offline.access"]
     AUTH_URL = "https://twitter.com/i/oauth2/authorize"
     TOKEN_URL = "https://api.twitter.com/2/oauth2/token"
+    REVOKE_URL = "https://api.x.com/2/oauth2/revoke"
     USES_PKCE = True
 
     def _client_id(self) -> str:
@@ -62,6 +63,20 @@ class TwitterOAuthProvider(OAuthProvider):
         return self._token_request(
             {"grant_type": "refresh_token", "refresh_token": refresh_token}
         )
+
+    def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:
+        tokens = [(access_token, "access_token")]
+        if refresh_token:
+            tokens.append((refresh_token, "refresh_token"))
+        for token, hint in tokens:
+            resp = httpx.post(
+                self.REVOKE_URL,
+                data={"token": token, "token_type_hint": hint},
+                auth=(self._client_id(), self._client_secret()),
+                timeout=10,
+            )
+            resp.raise_for_status()
+        return True
 
     def get_account_info(self, access_token: str) -> AccountInfo:
         resp = httpx.get(

@@ -91,6 +91,7 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
         "dimensionHeaders": [{"name": "date"}],
         "metricHeaders": [
             {"name": "sessions"},
+            {"name": "engagedSessions"},
             {"name": "totalUsers"},
             {"name": "screenPageViews"},
             {"name": "bounceRate"},
@@ -102,6 +103,7 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
                 "dimensionValues": [{"value": "20240301"}],
                 "metricValues": [
                     {"value": "1200"},
+                    {"value": "700"},
                     {"value": "900"},
                     {"value": "3500"},
                     {"value": "0.42"},
@@ -113,6 +115,7 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
                 "dimensionValues": [{"value": "20240302"}],
                 "metricValues": [
                     {"value": "1350"},
+                    {"value": "800"},
                     {"value": "1000"},
                     {"value": "4000"},
                     {"value": "0.38"},
@@ -139,6 +142,7 @@ def test_sync_property_report_upserts_daily_snapshots(mock_post, mock_crud):
     snap_mar1 = next(s for s in snapshots if s.date == date(2024, 3, 1))
     assert snap_mar1.impressions == 1200  # sessions → impressions
     assert snap_mar1.reach == 900  # totalUsers → reach
+    assert snap_mar1.engagements == 700  # engagedSessions → engagements
     assert snap_mar1.views == 3500  # screenPageViews → views
     assert snap_mar1.clicks == 80  # conversions → clicks
     assert snap_mar1.raw_data["bounceRate"] == 0.42

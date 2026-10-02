@@ -23,6 +23,7 @@ class TikTokOAuthProvider(OAuthProvider):
     ]
     AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
     TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+    REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/"
     # TikTok names the client identifier `client_key` and comma-separates scopes
     CLIENT_ID_PARAM = "client_key"
     SCOPE_SEPARATOR = ","
@@ -77,6 +78,19 @@ class TikTokOAuthProvider(OAuthProvider):
             expires_at=expires_at,
             raw=data,
         )
+
+    def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:
+        resp = httpx.post(
+            self.REVOKE_URL,
+            data={
+                "client_key": self._client_id(),
+                "client_secret": self._client_secret(),
+                "token": access_token,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return True
 
     def get_account_info(self, access_token: str) -> AccountInfo:
         resp = httpx.get(

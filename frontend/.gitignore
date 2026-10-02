@@ -28,3 +28,7 @@ openapi.json
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Login sessions used to capture the platforms' screens (contain cookies)
+.tutorial-browser-profile/
+public/assets/images/tutorials/_debug/
