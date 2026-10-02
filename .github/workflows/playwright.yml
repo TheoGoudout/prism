@@ -58,7 +58,7 @@ jobs:
         cp frontend/.env.example frontend/.env
 
     - uses: oven-sh/setup-bun@v2
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@v7
       with:
         python-version-file: .python-version
     - name: Setup tmate session
