@@ -113,6 +113,7 @@ export class IntegrationsService {
     /**
      * Delete Integration
      * Disconnect an integration and delete its accounts and synced metrics.
+     * Prism's access is also revoked on the platform where possible.
      * @param data The data for the request.
      * @param data.integrationId
      * @param data.workspaceId
