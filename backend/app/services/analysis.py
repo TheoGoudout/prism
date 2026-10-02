@@ -8,8 +8,9 @@ An analysis covers a period. It is created `pending`, then run by a worker
 import logging
 import statistics
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -22,6 +23,7 @@ from app.ai.formatting import prompt_variables
 from app.core.config import settings
 from app.models.analysis import (
     AnalysisFrequency,
+    AnalysisKind,
     AnalysisPublic,
     AnalysisResult,
     AnalysisSchedule,
@@ -39,11 +41,24 @@ from app.utils import generate_analysis_email, send_email
 
 logger = logging.getLogger(__name__)
 
-# Posts sent to the model, most engaging first: enough for a thorough review
-# while keeping the prompt and the answer a reasonable size
-MAX_POSTS = 60
-POST_TEXT_CHARS = 280
-DEFAULT_PERIOD_DAYS = 7
+
+@dataclass(frozen=True)
+class PromptLimits:
+    """How many posts are sent to the model (most engaging first), and how
+    much of each post's text: enough for a thorough review while keeping the
+    prompt a reasonable size."""
+
+    max_posts: int
+    text_chars: int
+
+
+PROMPT_LIMITS = {
+    AnalysisKind.standard: PromptLimits(max_posts=60, text_chars=280),
+    # A year has many more posts: send more of them, each more briefly
+    AnalysisKind.yearly: PromptLimits(max_posts=300, text_chars=160),
+}
+DEFAULT_PERIOD_DAYS = {AnalysisKind.standard: 7, AnalysisKind.yearly: 365}
+MAX_PERIOD_DAYS = {AnalysisKind.standard: 92, AnalysisKind.yearly: 366}
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +70,7 @@ def _format_rate(rate: float | None) -> str:
     return f"{rate:.2%}" if rate is not None else "n/a"
 
 
-def _post_line(ref: str, post: Post, platform: str) -> str:
+def _post_line(ref: str, post: Post, platform: str, text_chars: int) -> str:
     metrics = [
         f"{name}={value:,}"
         for name in (
@@ -71,7 +86,7 @@ def _post_line(ref: str, post: Post, platform: str) -> str:
         )
         if (value := getattr(post, name)) is not None
     ]
-    text = " ".join((post.text or "(no text)").split())[:POST_TEXT_CHARS]
+    text = " ".join((post.text or "(no text)").split())[:text_chars]
     published = post.published_at.astimezone(UTC)
     return (
         f"  {ref} [{platform} · {post.content_type.value}] "
@@ -106,10 +121,47 @@ def _benchmarks(posts: Sequence[Post], platforms: dict[uuid.UUID, str]) -> str:
     return "\n".join(lines) or "  (no posts)"
 
 
+def _months(date_from: date, date_to: date) -> list[tuple[date, date]]:
+    """The calendar months overlapping a range, clipped to it."""
+    months = []
+    start = date_from
+    while start <= date_to:
+        year, month = divmod(start.year * 12 + start.month, 12)
+        next_month = date(year, month + 1, 1)
+        months.append((start, min(next_month - timedelta(days=1), date_to)))
+        start = next_month
+    return months
+
+
+def _monthly_breakdown(
+    session: Session, query: MetricsQuery, posts: Sequence[Post]
+) -> str:
+    """One line of totals per month, for yearly analyses."""
+    post_months = Counter(f"{p.published_at.astimezone(UTC):%Y-%m}" for p in posts)
+    lines = []
+    for start, end in _months(query.date_from, query.date_to):
+        month_query = MetricsQuery(query.workspace_id, query.platform, start, end)
+        totals = metrics_service.summarize(session, month_query).totals
+        metrics = ", ".join(
+            f"{name}={value:,}" for name, value in totals.model_dump().items() if value
+        )
+        label = f"{start:%Y-%m}"
+        lines.append(
+            f"  {label}: {metrics or 'no data'}; "
+            f"posts listed above={post_months.get(label, 0)}"
+        )
+    return "\n=== Month by month ===\n" + "\n".join(lines) + "\n"
+
+
 def build_prompt(
-    session: Session, *, workspace_name: str, query: MetricsQuery
+    session: Session,
+    *,
+    workspace_name: str,
+    query: MetricsQuery,
+    kind: AnalysisKind = AnalysisKind.standard,
 ) -> tuple[dict[str, Any], dict[str, uuid.UUID]]:
     """The chain's variables, and the post id behind each post reference."""
+    limits = PROMPT_LIMITS[kind]
     length = query.date_to - query.date_from + timedelta(days=1)
     previous = MetricsQuery(
         query.workspace_id,
@@ -134,7 +186,7 @@ def build_prompt(
         platform_account_ids=list(platforms),
         start_date=query.date_from,
         end_date=query.date_to,
-        limit=MAX_POSTS,
+        limit=limits.max_posts,
     )
     refs = {f"P{i}": post for i, post in enumerate(posts, 1)}
 
@@ -145,14 +197,19 @@ def build_prompt(
         previous_platforms_text=previous_variables["platforms_text"],
         benchmarks_text=_benchmarks(posts, platforms),
         post_count=len(posts),
-        posts_note=f", the {MAX_POSTS} most engaging"
-        if len(posts) == MAX_POSTS
+        posts_note=f", the {limits.max_posts} most engaging"
+        if len(posts) == limits.max_posts
         else "",
         posts_text="\n".join(
-            _post_line(ref, post, platforms[post.platform_account_id])
+            _post_line(
+                ref, post, platforms[post.platform_account_id], limits.text_chars
+            )
             for ref, post in refs.items()
         )
         or "  (no posts)",
+        monthly_text=_monthly_breakdown(session, query, posts)
+        if kind == AnalysisKind.yearly
+        else "",
     )
     return variables, {ref: post.id for ref, post in refs.items()}
 
@@ -162,10 +219,12 @@ def build_prompt(
 # ---------------------------------------------------------------------------
 
 
-def default_period(today: date | None = None) -> tuple[date, date]:
-    """The last 7 days, today included."""
+def default_period(
+    kind: AnalysisKind = AnalysisKind.standard, today: date | None = None
+) -> tuple[date, date]:
+    """The last 7 days (or 365 for a yearly analysis), today included."""
     today = today or date.today()
-    return today - timedelta(days=DEFAULT_PERIOD_DAYS - 1), today
+    return today - timedelta(days=DEFAULT_PERIOD_DAYS[kind] - 1), today
 
 
 def run(session: Session, analysis: PerformanceAnalysis) -> PerformanceAnalysis:
@@ -181,9 +240,9 @@ def run(session: Session, analysis: PerformanceAnalysis) -> PerformanceAnalysis:
     )
     try:
         variables, post_refs = build_prompt(
-            session, workspace_name=workspace.name, query=query
+            session, workspace_name=workspace.name, query=query, kind=analysis.kind
         )
-        raw = build_analysis_chain().invoke(variables)
+        raw = build_analysis_chain(analysis.kind).invoke(variables)
         result = to_result(raw, post_refs)
     except Exception as exc:
         logger.exception("Analysis %s failed", analysis.id)
@@ -233,6 +292,7 @@ def send_by_email(
         date_from=analysis.date_from,
         date_to=analysis.date_to,
         result=AnalysisResult.model_validate(analysis.result),
+        yearly=analysis.kind == AnalysisKind.yearly,
     )
     for recipient in recipients:
         send_email(
@@ -313,6 +373,9 @@ def start_due_analyses(session: Session, now: datetime) -> list[PerformanceAnaly
             date_from=date_from,
             date_to=date_to,
             trigger=AnalysisTrigger.scheduled,
+            email_recipients=list(schedule.email_recipients)
+            if schedule.email_enabled
+            else [],
         )
         schedule.last_run_at = now
         schedule.next_run_at = advance(schedule, now)

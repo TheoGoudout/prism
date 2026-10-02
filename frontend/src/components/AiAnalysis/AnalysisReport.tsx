@@ -42,6 +42,16 @@ const PRIORITY_CLASSES: Record<
   low: "border-transparent bg-secondary text-secondary-foreground",
 }
 
+/** "2026-03" → "Mar 2026"; other labels are shown as they are. */
+function formatMonth(label: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(label)
+  if (!match) return label
+  return new Date(Number(match[1]), Number(match[2]) - 1).toLocaleDateString(
+    undefined,
+    { month: "short", year: "numeric" },
+  )
+}
+
 function MaybePlatformIcon({ platform }: { platform: string }) {
   return platform in PLATFORM_LABELS ? (
     <PlatformIcon platform={platform as Platform} className="size-6" />
@@ -151,9 +161,11 @@ function PostRow({
 export function AnalysisReport({
   result,
   posts,
+  yearly = false,
 }: {
   result: AnalysisResult
   posts: AnalyzedPost[]
+  yearly?: boolean
 }) {
   const [verdict, setVerdict] = useState<Verdict | null>(null)
   const [topic, setTopic] = useState<string | null>(null)
@@ -224,6 +236,32 @@ export function AnalysisReport({
         </Card>
       )}
 
+      {!!result.periods?.length && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Month by month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y">
+              {result.periods.map((period) => (
+                <li
+                  key={period.label}
+                  className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-start sm:gap-4"
+                >
+                  <span className="flex w-40 shrink-0 items-center gap-2 font-medium">
+                    {formatMonth(period.label)}
+                    <VerdictBadge verdict={period.verdict} />
+                  </span>
+                  <span className="text-muted-foreground">
+                    {period.summary}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {!!result.platforms?.length && (
         <Card>
           <CardHeader>
@@ -290,8 +328,14 @@ export function AnalysisReport({
       <Card>
         <CardHeader className="gap-3">
           <CardTitle className="text-base">
-            Posts{selectedTopic && ` · ${selectedTopic.name}`}
+            {yearly ? "Notable posts" : "Posts"}
+            {selectedTopic && ` · ${selectedTopic.name}`}
           </CardTitle>
+          {yearly && (
+            <CardDescription>
+              The year's best and worst performers, analyzed one by one.
+            </CardDescription>
+          )}
           <div className="flex flex-wrap gap-2">
             {([null, "strong", "average", "weak"] as const).map((v) => (
               <Button

@@ -33,6 +33,13 @@ class AnalysisTrigger(StrEnum):
     scheduled = "scheduled"
 
 
+class AnalysisKind(StrEnum):
+    standard = "standard"
+    # A year in review: more posts and a month-by-month breakdown, so a
+    # costlier LLM call. Only run on demand, never scheduled.
+    yearly = "yearly"
+
+
 class AnalysisFrequency(StrEnum):
     weekly = "weekly"
     biweekly = "biweekly"  # every two weeks
@@ -83,6 +90,14 @@ class PostAnalysis(SQLModel):
     topic: str | None = None
 
 
+class PeriodAnalysis(SQLModel):
+    """One month of a yearly analysis."""
+
+    label: str  # e.g. "2026-03"
+    verdict: Verdict
+    summary: str
+
+
 class AnalysisResult(SQLModel):
     summary: str
     what_worked: list[Finding] = []
@@ -91,6 +106,7 @@ class AnalysisResult(SQLModel):
     platforms: list[PlatformAnalysis] = []
     topics: list[TopicAnalysis] = []
     posts: list[PostAnalysis] = []
+    periods: list[PeriodAnalysis] = []  # yearly analyses only
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +124,7 @@ class PerformanceAnalysis(SQLModel, table=True):
     date_from: date_type = Field(sa_column=Column(Date, nullable=False))
     date_to: date_type = Field(sa_column=Column(Date, nullable=False))
     trigger: AnalysisTrigger = Field(default=AnalysisTrigger.manual)
+    kind: AnalysisKind = Field(default=AnalysisKind.standard)
     status: AnalysisStatus = Field(default=AnalysisStatus.pending)
     error: str | None = Field(default=None, max_length=1024)
     # An AnalysisResult once completed
@@ -115,6 +132,8 @@ class PerformanceAnalysis(SQLModel, table=True):
         default=None, sa_column=Column(JSON, nullable=True)
     )
     post_count: int = 0
+    # Who receives the analysis by email once it completes
+    email_recipients: list[str] = Field(default=[], sa_type=JSON)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_column=Column(SADateTime(timezone=True), nullable=True),
@@ -175,10 +194,15 @@ class AnalysisSchedule(ScheduleSettings, table=True):
 
 
 class AnalysisCreate(SQLModel):
-    """The period to analyze; defaults to the last 7 days."""
+    """
+    The period to analyze; defaults to the last 7 days, or the last 12 months
+    for a yearly analysis.
+    """
 
+    kind: AnalysisKind = AnalysisKind.standard
     date_from: date_type | None = None
     date_to: date_type | None = None
+    email_recipients: list[EmailStr] = Field(default=[], max_length=MAX_RECIPIENTS)
 
     @model_validator(mode="after")
     def _ordered(self) -> AnalysisCreate:
@@ -194,6 +218,7 @@ class AnalysisSummaryPublic(SQLModel):
     date_from: date_type
     date_to: date_type
     trigger: AnalysisTrigger
+    kind: AnalysisKind
     status: AnalysisStatus
     error: str | None = None
     post_count: int
@@ -224,6 +249,7 @@ class AnalyzedPost(SQLModel):
 
 
 class AnalysisPublic(AnalysisSummaryPublic):
+    email_recipients: list[str] = []
     result: AnalysisResult | None = None
     posts: list[AnalyzedPost] = []
 

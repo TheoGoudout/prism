@@ -45,7 +45,9 @@
   the previous period, with what worked, what didn't and prioritized
   recommendations. Run it on demand, or schedule it weekly, every two weeks
   or monthly (e.g. every Monday at 8am in your time zone) and have the
-  report emailed to your team.
+  report emailed to your team. Owners and admins can also run a **year in
+  review** on demand: a month-by-month breakdown of up to 300 posts (a
+  costlier AI call).
 
 | Dashboard | Integrations | Members |
 |:-:|:-:|:-:|

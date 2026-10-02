@@ -136,6 +136,69 @@ def test_create_analysis_rejects_inverted_dates(
     task.delay.assert_not_called()
 
 
+def test_create_yearly_analysis(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    with patch(RUN_ANALYSIS):
+        r = client.post(_url(ws), headers=headers, json={"kind": "yearly"})
+
+    assert r.status_code == 202
+    body = r.json()
+    assert body["kind"] == "yearly"
+    assert body["date_from"] == (date.today() - timedelta(days=364)).isoformat()
+    assert body["date_to"] == date.today().isoformat()
+
+
+def test_yearly_analysis_requires_manager(client: TestClient, db: Session) -> None:
+    owner, _ = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+    with patch(RUN_ANALYSIS) as task:
+        r = client.post(
+            _url(ws), headers=_viewer(client, db, ws), json={"kind": "yearly"}
+        )
+    assert r.status_code == 403
+    task.delay.assert_not_called()
+
+
+def test_create_analysis_period_limits(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    with patch(RUN_ANALYSIS) as task:
+        too_long = client.post(
+            _url(ws),
+            headers=headers,
+            json={"date_from": "2026-01-01", "date_to": "2026-06-30"},
+        )
+        too_long_yearly = client.post(
+            _url(ws),
+            headers=headers,
+            json={"kind": "yearly", "date_from": "2024-01-01", "date_to": "2025-06-30"},
+        )
+    assert too_long.status_code == 422
+    assert "at most 92 days" in too_long.json()["detail"]
+    assert too_long_yearly.status_code == 422
+    task.delay.assert_not_called()
+
+
+def test_create_analysis_with_email_recipients(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    request = {"kind": "yearly", "email_recipients": ["boss@example.com"]}
+
+    with patch(RUN_ANALYSIS):
+        disabled = client.post(_url(ws), headers=headers, json=request)
+        with (
+            patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
+            patch("app.core.config.settings.EMAILS_FROM_EMAIL", "admin@example.com"),
+        ):
+            r = client.post(_url(ws), headers=headers, json=request)
+
+    assert disabled.status_code == 503
+    assert r.status_code == 202
+    assert r.json()["email_recipients"] == ["boss@example.com"]
+
+
 def test_non_member_cannot_access_analyses(client: TestClient, db: Session) -> None:
     owner, _ = create_user_with_headers(client, db)
     _, outsider_headers = create_user_with_headers(client, db)

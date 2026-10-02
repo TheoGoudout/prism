@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.models.analysis import (
     AnalysesPublic,
     AnalysisCreate,
+    AnalysisKind,
     AnalysisPublic,
     AnalysisSchedule,
     AnalysisStatus,
@@ -66,22 +67,41 @@ def list_analyses(
 def create_analysis(
     session: SessionDep, member: CurrentMember, analysis_in: AnalysisCreate
 ) -> Any:
-    """Start an analysis of a period (by default the last 7 days)."""
+    """
+    Start an analysis of a period: by default the last 7 days, or the last 12
+    months for a yearly analysis. Yearly analyses cost more, so only owners and
+    admins can start them. The analysis is emailed to `email_recipients` once
+    it completes.
+    """
+    if analysis_in.kind == AnalysisKind.yearly:
+        require_manager(member, "run yearly analyses")
+    if analysis_in.email_recipients and not settings.emails_enabled:
+        raise HTTPException(status_code=503, detail="Emails are not configured")
     if crud.has_unfinished_analysis(session=session, workspace_id=member.workspace_id):
         raise HTTPException(
             status_code=409, detail="An analysis is already running for this workspace"
         )
-    default_from, default_to = analysis_service.default_period()
+    default_from, default_to = analysis_service.default_period(analysis_in.kind)
     date_from = analysis_in.date_from or default_from
     date_to = analysis_in.date_to or default_to
     if date_from > date_to:
         raise HTTPException(
             status_code=422, detail="date_from must be on or before date_to"
         )
+    max_days = analysis_service.MAX_PERIOD_DAYS[analysis_in.kind]
+    if (date_to - date_from).days + 1 > max_days:
+        raise HTTPException(
+            status_code=422,
+            detail=f"A {analysis_in.kind.value} analysis covers at most {max_days} days",
+        )
     analysis = crud.save(
         session,
         PerformanceAnalysis(
-            workspace_id=member.workspace_id, date_from=date_from, date_to=date_to
+            workspace_id=member.workspace_id,
+            kind=analysis_in.kind,
+            date_from=date_from,
+            date_to=date_to,
+            email_recipients=analysis_in.email_recipients,
         ),
     )
     analysis_tasks.run_analysis.delay(str(analysis.id))

@@ -95,7 +95,10 @@ export class AnalysesService {
     
     /**
      * Create Analysis
-     * Start an analysis of a period (by default the last 7 days).
+     * Start an analysis of a period: by default the last 7 days, or the last 12
+     * months for a yearly analysis. Yearly analyses cost more, so only owners and
+     * admins can start them. The analysis is emailed to `email_recipients` once
+     * it completes.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.requestBody

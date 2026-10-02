@@ -5,10 +5,11 @@ import pytest
 from sqlmodel import Session
 
 from app import crud
-from app.models.analysis import AnalysisFrequency, AnalysisSchedule
+from app.models.analysis import AnalysisFrequency, AnalysisKind, AnalysisSchedule
 from app.models.integration import Platform
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 from app.services.analysis import (
+    _months,
     advance,
     build_prompt,
     next_occurrence,
@@ -129,3 +130,50 @@ def test_build_prompt(db: Session) -> None:
     assert "engagement rate=9.00%" in variables["posts_text"]
     assert "'Launch day!'" in variables["posts_text"]
     assert variables["post_count"] == 2
+
+    assert variables["monthly_text"] == ""
+
+
+def test_months() -> None:
+    assert _months(date(2025, 11, 15), date(2026, 1, 10)) == [
+        (date(2025, 11, 15), date(2025, 11, 30)),
+        (date(2025, 12, 1), date(2025, 12, 31)),
+        (date(2026, 1, 1), date(2026, 1, 10)),
+    ]
+
+
+def test_build_yearly_prompt(db: Session) -> None:
+    workspace = create_random_workspace(db, create_random_user(db))
+    account = create_fake_account(
+        db, create_fake_integration(db, workspace, platform=Platform.twitter)
+    )
+    crud.upsert_metric_snapshot(
+        session=db,
+        platform_account_id=account.id,
+        snapshot_in=MetricSnapshotUpsert(date=date(2026, 2, 3), impressions=4200),
+    )
+    crud.upsert_post(
+        session=db,
+        platform_account_id=account.id,
+        post_in=PostUpsert(
+            external_id="t1",
+            content_type=ContentType.tweet,
+            text="x" * 500,
+            published_at=datetime(2026, 2, 3, tzinfo=UTC),
+            engagements=5,
+        ),
+    )
+
+    query = MetricsQuery(workspace.id, None, date(2025, 10, 1), date(2026, 9, 30))
+    variables, refs = build_prompt(
+        db, workspace_name="Acme", query=query, kind=AnalysisKind.yearly
+    )
+
+    assert len(refs) == 1
+    assert "'" + "x" * 160 + "'" in variables["posts_text"]  # shorter texts
+    assert variables["previous_date_from"] == "2024-10-01"
+    monthly = variables["monthly_text"]
+    assert "=== Month by month ===" in monthly
+    assert "2025-10: no data; posts listed above=0" in monthly
+    assert "2026-02: impressions=4,200; posts listed above=1" in monthly
+    assert monthly.count("posts listed above") == 12

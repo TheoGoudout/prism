@@ -1,6 +1,10 @@
 """
 Performance analysis chain — a full review of a workspace's posts and metrics.
 
+A yearly analysis uses the same chain with extra instructions: it also judges
+each month, and only analyzes the most notable posts one by one (a year has
+too many posts for a per-post answer to fit the model's output).
+
 The model sees every post of the period (up to a cap) under a short reference
 ("P1", "P2"…), answers with one JSON object, and the references are mapped
 back to post ids by `to_result`.
@@ -18,8 +22,10 @@ from pydantic import BaseModel, ValidationError
 from app.ai.formatting import parse_json
 from app.ai.llm import get_llm
 from app.models.analysis import (
+    AnalysisKind,
     AnalysisResult,
     Finding,
+    PeriodAnalysis,
     PlatformAnalysis,
     PostAnalysis,
     Recommendation,
@@ -48,8 +54,8 @@ Rules:
 - Be specific and data-driven: cite actual numbers and post references.
 - "verdict" is always one of "strong", "average", "weak".
 - "priority" is always one of "high", "medium", "low".
-- Every post reference must be one of the given ones (e.g. "P3"), and every
-  post should be analyzed exactly once.
+- Every post reference must be one of the given ones (e.g. "P3").
+- {posts_rule}
 - Output ONLY a valid JSON object — no markdown fences, no prose — with exactly
   these keys:
 {{
@@ -59,9 +65,22 @@ Rules:
   "recommendations": [{{"title": "...", "detail": "...", "priority": "high"}}],
   "platforms": [{{"platform": "instagram", "verdict": "strong", "summary": "..."}}],
   "topics": [{{"name": "...", "verdict": "average", "summary": "...", "posts": ["P1", "P4"]}}],
-  "posts": [{{"ref": "P1", "verdict": "weak", "topic": "...", "analysis": "1–2 sentences", "suggestion": "how to improve it, or null"}}]
+  "posts": [{{"ref": "P1", "verdict": "weak", "topic": "...", "analysis": "1–2 sentences", "suggestion": "how to improve it, or null"}}]{periods_key}
 }}
 """
+
+_STANDARD_POSTS_RULE = "Analyze every post exactly once."
+
+_YEARLY_POSTS_RULE = """This is a year in review. In "posts", analyze individually only the most
+  notable posts (the best and worst performers, and any striking outlier),
+  at most {max_post_analyses} of them, but group ALL posts into topics. Look for
+  trends over the year: seasonality, growth or decline, which topics and
+  formats gained or lost traction, and how the cadence evolved."""
+
+_YEARLY_PERIODS_KEY = """,
+  "periods": [{{"label": "2026-03", "verdict": "average", "summary": "1–2 sentences on that month"}}]"""
+
+MAX_YEARLY_POST_ANALYSES = 40
 
 _HUMAN = """\
 Workspace: {workspace_name}
@@ -85,13 +104,31 @@ Previous period: {previous_date_from} to {previous_date_to}
 
 === Posts ({post_count}{posts_note}) ===
 {posts_text}
-"""
+{monthly_text}"""
 
 
-def build_analysis_chain() -> RunnableSerializable[dict[str, Any], Any]:
+def build_analysis_prompt(kind: AnalysisKind) -> ChatPromptTemplate:
+    rules = {
+        AnalysisKind.standard: (_STANDARD_POSTS_RULE, ""),
+        AnalysisKind.yearly: (
+            _YEARLY_POSTS_RULE.replace(
+                "{max_post_analyses}", str(MAX_YEARLY_POST_ANALYSES)
+            ),
+            _YEARLY_PERIODS_KEY,
+        ),
+    }
+    posts_rule, periods_key = rules[kind]
+    system = _SYSTEM.replace("{posts_rule}", posts_rule).replace(
+        "{periods_key}", periods_key
+    )
+    return ChatPromptTemplate.from_messages([("system", system), ("human", _HUMAN)])
+
+
+def build_analysis_chain(
+    kind: AnalysisKind = AnalysisKind.standard,
+) -> RunnableSerializable[dict[str, Any], Any]:
     """Prompt variables in (see app.services.analysis), parsed JSON out."""
-    prompt = ChatPromptTemplate.from_messages([("system", _SYSTEM), ("human", _HUMAN)])
-    return prompt | get_llm() | StrOutputParser() | parse_json
+    return build_analysis_prompt(kind) | get_llm() | StrOutputParser() | parse_json
 
 
 def _valid_items[ModelT: BaseModel](
@@ -135,4 +172,5 @@ def to_result(raw: Any, post_refs: dict[str, uuid.UUID]) -> AnalysisResult:
         platforms=_valid_items(PlatformAnalysis, raw.get("platforms")),
         topics=_valid_items(TopicAnalysis, raw.get("topics"), topic_item),
         posts=unique_posts,
+        periods=_valid_items(PeriodAnalysis, raw.get("periods")),
     )

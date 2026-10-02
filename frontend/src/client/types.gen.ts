@@ -6,26 +6,33 @@ export type AnalysesPublic = {
 };
 
 /**
- * The period to analyze; defaults to the last 7 days.
+ * The period to analyze; defaults to the last 7 days, or the last 12 months
+ * for a yearly analysis.
  */
 export type AnalysisCreate = {
+    kind?: AnalysisKind;
     date_from?: (string | null);
     date_to?: (string | null);
+    email_recipients?: Array<(string)>;
 };
 
 export type AnalysisFrequency = 'weekly' | 'biweekly' | 'monthly';
+
+export type AnalysisKind = 'standard' | 'yearly';
 
 export type AnalysisPublic = {
     id: string;
     date_from: string;
     date_to: string;
     trigger: AnalysisTrigger;
+    kind: AnalysisKind;
     status: AnalysisStatus;
     error?: (string | null);
     post_count: number;
     created_at?: (string | null);
     completed_at?: (string | null);
     emailed_at?: (string | null);
+    email_recipients?: Array<(string)>;
     result?: (AnalysisResult | null);
     posts?: Array<AnalyzedPost>;
 };
@@ -38,6 +45,7 @@ export type AnalysisResult = {
     platforms?: Array<PlatformAnalysis>;
     topics?: Array<TopicAnalysis>;
     posts?: Array<PostAnalysis>;
+    periods?: Array<PeriodAnalysis>;
 };
 
 export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -50,6 +58,7 @@ export type AnalysisSummaryPublic = {
     date_from: string;
     date_to: string;
     trigger: AnalysisTrigger;
+    kind: AnalysisKind;
     status: AnalysisStatus;
     error?: (string | null);
     post_count: number;
@@ -173,6 +182,17 @@ export type OAuthConnectResponse = {
     authorization_url: string;
 };
 
+/**
+ * One month of a yearly analysis.
+ */
+export type PeriodAnalysis = {
+    label: string;
+    verdict: 'strong' | 'average' | 'weak';
+    summary: string;
+};
+
+export type verdict = 'strong' | 'average' | 'weak';
+
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
 
 export type PlatformAnalysis = {
@@ -180,8 +200,6 @@ export type PlatformAnalysis = {
     verdict: 'strong' | 'average' | 'weak';
     summary: string;
 };
-
-export type verdict = 'strong' | 'average' | 'weak';
 
 export type PostAnalysis = {
     post_id: string;

@@ -37,9 +37,8 @@ import {
 import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
+import { recipientsError, splitEmails } from "./emails"
 import { FREQUENCY_LABELS, formatHour, WEEKDAYS } from "./labels"
-
-const MAX_RECIPIENTS = 20
 
 const browserTimeZone = () => {
   try {
@@ -61,12 +60,6 @@ const TIME_ZONES: string[] = (() => {
   }
 })()
 
-const splitEmails = (value: string) =>
-  value
-    .split(/[\s,;]+/)
-    .map((email) => email.trim())
-    .filter(Boolean)
-
 const formSchema = z
   .object({
     enabled: z.boolean(),
@@ -79,27 +72,9 @@ const formSchema = z
     recipients: z.string(),
   })
   .superRefine((data, ctx) => {
-    const emails = splitEmails(data.recipients)
-    const invalid = emails.find((e) => !z.email().safeParse(e).success)
-    if (invalid) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["recipients"],
-        message: `${invalid} is not a valid email address`,
-      })
-    } else if (emails.length > MAX_RECIPIENTS) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["recipients"],
-        message: `At most ${MAX_RECIPIENTS} recipients`,
-      })
-    } else if (data.email_enabled && emails.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["recipients"],
-        message: "Add at least one recipient",
-      })
-    }
+    const error = recipientsError(data.recipients, data.email_enabled)
+    if (error)
+      ctx.addIssue({ code: "custom", path: ["recipients"], message: error })
   })
 
 type FormData = z.infer<typeof formSchema>

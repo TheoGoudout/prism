@@ -103,9 +103,11 @@ def generate_analysis_email(
     date_from: date,
     date_to: date,
     result: AnalysisResult,
+    yearly: bool = False,
 ) -> EmailData:
+    title = "AI year in review" if yearly else "AI performance analysis"
     subject = (
-        f"{settings.PROJECT_NAME} - {workspace_name} performance analysis "
+        f"{settings.PROJECT_NAME} - {workspace_name} {title.removeprefix('AI ')} "
         f"({date_from} to {date_to})"
     )
     html_content = render_email_template(
@@ -120,6 +122,8 @@ def generate_analysis_email(
             "what_didnt_work": result.what_didnt_work,
             "recommendations": result.recommendations,
             "topics": result.topics,
+            "periods": result.periods,
+            "title": title,
             "link": f"{settings.FRONTEND_HOST}/ai-analysis?analysis={analysis_id}",
         },
     )

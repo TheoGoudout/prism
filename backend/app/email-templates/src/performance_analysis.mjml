@@ -7,7 +7,7 @@
   <mj-body background-color="#fafbfc">
     <mj-section background-color="#fff" padding="30px 20px">
       <mj-column width="100%">
-        <mj-text font-size="20px" font-weight="bold" padding-top="10px">{{ project_name }} · AI performance analysis</mj-text>
+        <mj-text font-size="20px" font-weight="bold" padding-top="10px">{{ project_name }} · {{ title }}</mj-text>
         <mj-text color="#777" padding-top="0">{{ workspace_name }} · {{ date_from }} to {{ date_to }}</mj-text>
         <mj-text>{{ summary }}</mj-text>
         <mj-divider border-color="#eee" border-width="1px"></mj-divider>
@@ -23,6 +23,12 @@
           <h3 style="margin:0 0 8px">Recommendations</h3>
           {% if recommendations %}<ol style="padding-left:20px;margin:0">{% for item in recommendations %}<li style="margin-bottom:6px"><strong>{{ item.title }}</strong> <span style="color:#777">({{ item.priority }} priority)</span> — {{ item.detail }}</li>{% endfor %}</ol>{% else %}<p style="margin:0;color:#777">No recommendations this time.</p>{% endif %}
         </mj-text>
+        <mj-raw>{% if periods %}</mj-raw>
+        <mj-text>
+          <h3 style="margin:0 0 8px">Month by month</h3>
+          <ul style="padding-left:20px;margin:0">{% for period in periods %}<li style="margin-bottom:6px"><strong>{{ period.label }}</strong> <span style="color:#777">({{ period.verdict }})</span> — {{ period.summary }}</li>{% endfor %}</ul>
+        </mj-text>
+        <mj-raw>{% endif %}</mj-raw>
         <mj-raw>{% if topics %}</mj-raw>
         <mj-text>
           <h3 style="margin:0 0 8px">Topics</h3>
@@ -30,7 +36,7 @@
         </mj-text>
         <mj-raw>{% endif %}</mj-raw>
         <mj-button align="center" font-size="16px" background-color="#009688" border-radius="8px" color="#fff" href="{{ link }}" padding="25px 30px 15px">See the full analysis</mj-button>
-        <mj-text align="center" font-size="12px" color="#999">You receive this report because you are a recipient of {{ workspace_name }}'s scheduled analysis in {{ project_name }}.</mj-text>
+        <mj-text align="center" font-size="12px" color="#999">You receive this report because you were added as a recipient of this {{ workspace_name }} analysis in {{ project_name }}.</mj-text>
       </mj-column>
     </mj-section>
   </mj-body>

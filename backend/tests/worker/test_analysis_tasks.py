@@ -11,6 +11,7 @@ from sqlmodel import Session
 from app import crud
 from app.models.analysis import (
     AnalysisFrequency,
+    AnalysisKind,
     AnalysisSchedule,
     AnalysisStatus,
     AnalysisTrigger,
@@ -36,7 +37,8 @@ def workspace(db: Session) -> Workspace:
 def _analysis(
     db: Session,
     workspace: Workspace,
-    trigger: AnalysisTrigger = AnalysisTrigger.manual,
+    email_recipients: list[str] | None = None,
+    kind: AnalysisKind = AnalysisKind.standard,
 ) -> PerformanceAnalysis:
     return crud.save(
         db,
@@ -44,18 +46,24 @@ def _analysis(
             workspace_id=workspace.id,
             date_from=date(2026, 9, 1),
             date_to=date(2026, 9, 7),
-            trigger=trigger,
+            kind=kind,
+            email_recipients=email_recipients or [],
         ),
     )
 
 
-def _run(db: Session, analysis_id: uuid.UUID, answer: Any) -> dict[str, Any]:
-    """Run the task synchronously with a mocked LLM chain."""
+def _chain(answer: Any) -> MagicMock:
     chain = MagicMock()
     if isinstance(answer, Exception):
         chain.invoke.side_effect = answer
     else:
         chain.invoke.return_value = answer
+    return chain
+
+
+def _run(db: Session, analysis_id: uuid.UUID, answer: Any) -> dict[str, Any]:
+    """Run the task synchronously with a mocked LLM chain."""
+    chain = _chain(answer)
     with (
         patch(f"{TASKS}.Session") as session_cls,
         patch("app.services.analysis.build_analysis_chain", return_value=chain),
@@ -94,7 +102,7 @@ def test_run_analysis(db: Session, workspace: Workspace) -> None:
     assert analysis.completed_at is not None
     assert analysis.result is not None
     assert analysis.result["posts"][0]["post_id"] == str(post.id)
-    assert analysis.emailed_at is None  # manual analyses aren't emailed
+    assert analysis.emailed_at is None  # no recipients
 
 
 def test_run_analysis_records_failures(db: Session, workspace: Workspace) -> None:
@@ -118,17 +126,10 @@ def test_run_analysis_skips_finished_and_unknown(
     assert _run(db, uuid.uuid4(), {})["status"] == "not_found"
 
 
-def test_scheduled_analysis_is_emailed(db: Session, workspace: Workspace) -> None:
-    crud.save(
-        db,
-        AnalysisSchedule(
-            workspace_id=workspace.id,
-            enabled=True,
-            email_enabled=True,
-            email_recipients=["a@example.com", "b@example.com"],
-        ),
-    )
-    analysis = _analysis(db, workspace, AnalysisTrigger.scheduled)
+def test_analysis_is_emailed_to_its_recipients(
+    db: Session, workspace: Workspace
+) -> None:
+    analysis = _analysis(db, workspace, ["a@example.com", "b@example.com"])
 
     with (
         patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
@@ -143,24 +144,41 @@ def test_scheduled_analysis_is_emailed(db: Session, workspace: Workspace) -> Non
     ]
     html = send_email.call_args.kwargs["html_content"]
     assert "Quiet &lt;b&gt;week&lt;/b&gt;." in html  # AI output is escaped
+    assert "performance analysis" in send_email.call_args.kwargs["subject"]
+    assert "Month by month" not in html
     assert f"/ai-analysis?analysis={analysis.id}" in html
     db.refresh(analysis)
     assert analysis.emailed_at is not None
 
 
-def test_scheduled_analysis_email_failure_keeps_result(
-    db: Session, workspace: Workspace
-) -> None:
-    crud.save(
-        db,
-        AnalysisSchedule(
-            workspace_id=workspace.id,
-            enabled=True,
-            email_enabled=True,
-            email_recipients=["a@example.com"],
-        ),
-    )
-    analysis = _analysis(db, workspace, AnalysisTrigger.scheduled)
+def test_yearly_analysis_email(db: Session, workspace: Workspace) -> None:
+    analysis = _analysis(db, workspace, ["a@example.com"], AnalysisKind.yearly)
+    answer = {
+        "summary": "A year of growth.",
+        "periods": [{"label": "2026-01", "verdict": "weak", "summary": "Slow start."}],
+    }
+    with (
+        patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
+        patch("app.core.config.settings.EMAILS_FROM_EMAIL", "admin@example.com"),
+        patch("app.services.analysis.send_email") as send_email,
+        patch(
+            "app.services.analysis.build_analysis_chain",
+            wraps=lambda kind: _chain(answer),
+        ) as build_chain,
+        patch(f"{TASKS}.Session") as session_cls,
+    ):
+        session_cls.return_value.__enter__.return_value = db
+        run_analysis.run(str(analysis.id))
+
+    build_chain.assert_called_once_with(AnalysisKind.yearly)
+    kwargs = send_email.call_args.kwargs
+    assert "year in review" in kwargs["subject"]
+    assert "Month by month" in kwargs["html_content"]
+    assert "Slow start." in kwargs["html_content"]
+
+
+def test_email_failure_keeps_result(db: Session, workspace: Workspace) -> None:
+    analysis = _analysis(db, workspace, ["a@example.com"])
 
     with (
         patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
@@ -185,6 +203,8 @@ def test_start_scheduled_analyses(db: Session, workspace: Workspace) -> None:
             weekday=due_at.weekday(),
             hour=due_at.hour,
             next_run_at=due_at,
+            email_enabled=True,
+            email_recipients=["team@example.com"],
         ),
     )
     idle = create_random_workspace(db, create_random_user(db))
@@ -208,6 +228,7 @@ def test_start_scheduled_analyses(db: Session, workspace: Workspace) -> None:
     assert len(analyses) == 1
     analysis = analyses[0]
     assert analysis.trigger == AnalysisTrigger.scheduled
+    assert analysis.email_recipients == ["team@example.com"]
     assert analysis.date_to == due_at.date() - timedelta(days=1)
     assert analysis.date_from == due_at.date() - timedelta(days=7)
     task.delay.assert_any_call(str(analysis.id))

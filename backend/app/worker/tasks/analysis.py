@@ -1,8 +1,8 @@
 """
 Analysis tasks — run AI performance analyses.
 
-`run_analysis` runs one pending analysis and, for scheduled ones, emails it to
-the schedule's recipients. `start_scheduled_analyses` runs every few minutes
+`run_analysis` runs one pending analysis and emails it to its recipients (for
+a scheduled analysis, the schedule's recipients when it started). `start_scheduled_analyses` runs every few minutes
 and starts the analyses whose schedule is due.
 """
 
@@ -15,7 +15,7 @@ from sqlmodel import Session
 from app import crud
 from app.core.db import engine
 from app.crud.analysis import UNFINISHED_STATUSES
-from app.models.analysis import AnalysisStatus, AnalysisTrigger, PerformanceAnalysis
+from app.models.analysis import AnalysisStatus, PerformanceAnalysis
 from app.models.common import get_datetime_utc
 from app.services import analysis as analysis_service
 from app.worker.celery_app import celery_app
@@ -23,16 +23,14 @@ from app.worker.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _email_scheduled(session: Session, analysis: PerformanceAnalysis) -> None:
-    schedule = crud.get_schedule(session=session, workspace_id=analysis.workspace_id)
+def _email(session: Session, analysis: PerformanceAnalysis) -> None:
     workspace = crud.get_workspace(session=session, workspace_id=analysis.workspace_id)
-    if schedule is None or workspace is None or not schedule.email_enabled:
-        return
+    assert workspace is not None  # guaranteed by the foreign key
     try:
         sent = analysis_service.send_by_email(
             analysis,
             workspace_name=workspace.name,
-            recipients=schedule.email_recipients,
+            recipients=analysis.email_recipients,
         )
     except Exception:
         # The analysis itself succeeded: keep it, just without the email
@@ -56,11 +54,8 @@ def run_analysis(analysis_id: str) -> dict[str, Any]:
             return {"status": "skipped", "reason": analysis.status.value}
 
         analysis_service.run(session, analysis)
-        if (
-            analysis.status == AnalysisStatus.completed
-            and analysis.trigger == AnalysisTrigger.scheduled
-        ):
-            _email_scheduled(session, analysis)
+        if analysis.status == AnalysisStatus.completed and analysis.email_recipients:
+            _email(session, analysis)
         return {"status": analysis.status.value, "analysis_id": analysis_id}
 
 

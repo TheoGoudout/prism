@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import {
   CalendarClock,
+  CalendarRange,
   Loader2,
   Mail,
   Sparkles,
@@ -14,6 +15,7 @@ import type { AnalysisPublic, AnalysisSummaryPublic } from "@/client"
 import { AnalysesService } from "@/client"
 import { AnalysisReport } from "@/components/AiAnalysis/AnalysisReport"
 import { describeSchedule } from "@/components/AiAnalysis/labels"
+import { RunAnalysisDialog } from "@/components/AiAnalysis/RunAnalysisDialog"
 import { ScheduleDialog } from "@/components/AiAnalysis/ScheduleDialog"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
@@ -26,13 +28,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
@@ -42,7 +37,7 @@ import {
   useAnalysisSchedule,
 } from "@/hooks/useAnalyses"
 import useCustomToast from "@/hooks/useCustomToast"
-import { formatRelative, lastDays } from "@/lib/format"
+import { formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 export const Route = createFileRoute("/_layout/ai-analysis")({
@@ -55,16 +50,19 @@ export const Route = createFileRoute("/_layout/ai-analysis")({
   }),
 })
 
-const PERIODS = [7, 14, 30, 90]
-
-const formatDay = (day: string) =>
+const formatDay = (day: string, withYear = false) =>
   new Date(`${day}T00:00:00`).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    year: withYear ? "numeric" : undefined,
   })
 
+const spansYears = (a: AnalysisSummaryPublic) =>
+  a.date_from.slice(0, 4) !== a.date_to.slice(0, 4)
+
+/** "Sep 26 – Oct 2", or with years when the period spans two of them. */
 const formatPeriod = (a: AnalysisSummaryPublic) =>
-  `${formatDay(a.date_from)} – ${formatDay(a.date_to)}`
+  `${formatDay(a.date_from, spansYears(a))} – ${formatDay(a.date_to, spansYears(a))}`
 
 function StatusBadge({ analysis }: { analysis: AnalysisSummaryPublic }) {
   if (isUnfinished(analysis.status)) {
@@ -79,6 +77,15 @@ function StatusBadge({ analysis }: { analysis: AnalysisSummaryPublic }) {
     return <Badge variant="destructive">Failed</Badge>
   }
   return null
+}
+
+function YearlyBadge() {
+  return (
+    <Badge variant="outline">
+      <CalendarRange />
+      Year in review
+    </Badge>
+  )
 }
 
 function History({
@@ -106,8 +113,9 @@ function History({
               analysis.id === selectedId && "bg-accent",
             )}
           >
-            <span className="flex items-center gap-2 font-medium">
+            <span className="flex flex-wrap items-center gap-2 font-medium">
               {formatPeriod(analysis)}
+              {analysis.kind === "yearly" && <YearlyBadge />}
               <StatusBadge analysis={analysis} />
             </span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -158,15 +166,22 @@ function AnalysisView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">
-            {formatPeriod(analysis)}, {analysis.date_to.slice(0, 4)}
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            {formatPeriod(analysis)}
+            {!spansYears(analysis) && `, ${analysis.date_to.slice(0, 4)}`}
+            {analysis.kind === "yearly" && <YearlyBadge />}
           </h2>
           <p className="text-sm text-muted-foreground">
             {analysis.trigger === "scheduled" ? "Scheduled" : "Manual"} analysis
             · {formatRelative(analysis.created_at)}
             {analysis.status === "completed" &&
               ` · ${analysis.post_count} posts analyzed`}
-            {analysis.emailed_at && " · emailed"}
+            {analysis.emailed_at
+              ? " · emailed"
+              : analysis.email_recipients?.length &&
+                  isUnfinished(analysis.status)
+                ? ` · will be emailed to ${analysis.email_recipients.length} recipient(s)`
+                : ""}
           </p>
         </div>
         <div className="flex gap-2">
@@ -205,8 +220,11 @@ function AnalysisView({
             <p className="font-medium">Analyzing your posts…</p>
             <p className="max-w-md text-sm text-muted-foreground">
               The AI is reviewing every post and platform of the period. This
-              usually takes under a minute; the report appears here when it's
-              ready.
+              usually takes{" "}
+              {analysis.kind === "yearly"
+                ? "a few minutes for a whole year"
+                : "under a minute"}
+              ; the report appears here when it's ready.
             </p>
           </CardContent>
         </Card>
@@ -225,7 +243,11 @@ function AnalysisView({
         </Card>
       )}
       {analysis.result && (
-        <AnalysisReport result={analysis.result} posts={analysis.posts ?? []} />
+        <AnalysisReport
+          result={analysis.result}
+          posts={analysis.posts ?? []}
+          yearly={analysis.kind === "yearly"}
+        />
       )}
 
       <ConfirmDialog
@@ -243,11 +265,9 @@ function AnalysisView({
 
 function AiAnalysisPage() {
   const workspace = useCurrentWorkspace()
-  const queryClient = useQueryClient()
   const navigate = useNavigate({ from: Route.fullPath })
-  const { showApiError } = useCustomToast()
   const { analysis: analysisParam } = Route.useSearch()
-  const [days, setDays] = useState(7)
+  const [runOpen, setRunOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const analyses = useAnalyses()
@@ -259,21 +279,6 @@ function AiAnalysisPage() {
 
   const select = (id: string | undefined) =>
     navigate({ search: { analysis: id }, replace: true })
-
-  const runMut = useMutation({
-    mutationFn: () => {
-      const range = lastDays(days)
-      return AnalysesService.createAnalysis({
-        workspaceId: workspace.id,
-        requestBody: { date_from: range.dateFrom, date_to: range.dateTo },
-      })
-    },
-    onSuccess: (analysis) => {
-      queryClient.invalidateQueries({ queryKey: ["analyses", workspace.id] })
-      select(analysis.id)
-    },
-    onError: showApiError,
-  })
 
   return (
     <div className="space-y-6">
@@ -293,27 +298,8 @@ function AiAnalysisPage() {
             <CalendarClock />
             {schedule.data?.enabled ? "Scheduled" : "Schedule"}
           </Button>
-          <Select value={String(days)} onValueChange={(v) => setDays(+v)}>
-            <SelectTrigger className="w-36" aria-label="Period">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODS.map((d) => (
-                <SelectItem key={d} value={String(d)}>
-                  Last {d} days
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={() => runMut.mutate()}
-            disabled={running || runMut.isPending}
-          >
-            {running || runMut.isPending ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Sparkles />
-            )}
+          <Button onClick={() => setRunOpen(true)} disabled={running}>
+            {running ? <Loader2 className="animate-spin" /> : <Sparkles />}
             Run analysis
           </Button>
         </div>
@@ -365,6 +351,13 @@ function AiAnalysisPage() {
         </div>
       )}
 
+      {runOpen && (
+        <RunAnalysisDialog
+          open={runOpen}
+          onOpenChange={setRunOpen}
+          onStarted={(analysis) => select(analysis.id)}
+        />
+      )}
       <ScheduleDialog
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}

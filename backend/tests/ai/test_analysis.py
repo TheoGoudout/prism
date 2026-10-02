@@ -2,7 +2,12 @@ import uuid
 
 import pytest
 
-from app.ai.analysis import to_result
+from app.ai.analysis import (
+    MAX_YEARLY_POST_ANALYSES,
+    build_analysis_prompt,
+    to_result,
+)
+from app.models.analysis import AnalysisKind
 
 P1, P2 = uuid.uuid4(), uuid.uuid4()
 REFS = {"P1": P1, "P2": P2}
@@ -75,3 +80,27 @@ def test_to_result_drops_malformed_items() -> None:
 def test_to_result_requires_a_summary(raw: object) -> None:
     with pytest.raises(ValueError):
         to_result(raw, REFS)
+
+
+def test_to_result_parses_periods() -> None:
+    raw = {
+        "summary": "Year in review.",
+        "periods": [
+            {"label": "2026-01", "verdict": "weak", "summary": "Slow start."},
+            {"label": "2026-02", "verdict": "excellent", "summary": "Bad verdict."},
+        ],
+    }
+    assert [p.label for p in to_result(raw, REFS).periods] == ["2026-01"]
+
+
+def test_yearly_prompt_asks_for_months_and_notable_posts() -> None:
+    standard = build_analysis_prompt(AnalysisKind.standard).messages[0]
+    yearly = build_analysis_prompt(AnalysisKind.yearly).messages[0]
+    standard_text = standard.prompt.template  # type: ignore[union-attr]
+    yearly_text = yearly.prompt.template  # type: ignore[union-attr]
+
+    assert "Analyze every post exactly once." in standard_text
+    assert '"periods"' not in standard_text
+    assert '"periods"' in yearly_text
+    assert f"at most {MAX_YEARLY_POST_ANALYSES}" in yearly_text
+    assert "{posts_rule}" not in yearly_text

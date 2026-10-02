@@ -96,7 +96,7 @@
                   <tbody>
                     <tr>
                       <td align="left" style="font-size:0px;padding:10px 25px;padding-top:10px;padding-right:25px;padding-left:25px;word-break:break-word;">
-                        <div style="font-family:Arial, Helvetica, sans-serif;font-size:20px;font-weight:bold;line-height:1.5;text-align:left;color:#333333;">{{ project_name }} · AI performance analysis</div>
+                        <div style="font-family:Arial, Helvetica, sans-serif;font-size:20px;font-weight:bold;line-height:1.5;text-align:left;color:#333333;">{{ project_name }} · {{ title }}</div>
                       </td>
                     </tr>
                     <tr>
@@ -137,7 +137,14 @@
                           <h3 style="margin:0 0 8px">Recommendations</h3> {% if recommendations %}<ol style="padding-left:20px;margin:0">{% for item in recommendations %}<li style="margin-bottom:6px"><strong>{{ item.title }}</strong> <span style="color:#777">({{ item.priority }} priority)</span> — {{ item.detail }}</li>{% endfor %}</ol>{% else %}<p style="margin:0;color:#777">No recommendations this time.</p>{% endif %}
                         </div>
                       </td>
-                    </tr> {% if topics %} <tr>
+                    </tr> {% if periods %} <tr>
+                      <td align="left" style="font-size:0px;padding:10px 25px;padding-right:25px;padding-left:25px;word-break:break-word;">
+                        <div style="font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.5;text-align:left;color:#333333;">
+                          <h3 style="margin:0 0 8px">Month by month</h3>
+                          <ul style="padding-left:20px;margin:0">{% for period in periods %}<li style="margin-bottom:6px"><strong>{{ period.label }}</strong> <span style="color:#777">({{ period.verdict }})</span> — {{ period.summary }}</li>{% endfor %}</ul>
+                        </div>
+                      </td>
+                    </tr> {% endif %}{% if topics %} <tr>
                       <td align="left" style="font-size:0px;padding:10px 25px;padding-right:25px;padding-left:25px;word-break:break-word;">
                         <div style="font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.5;text-align:left;color:#333333;">
                           <h3 style="margin:0 0 8px">Topics</h3>
@@ -159,7 +166,7 @@
                     </tr>
                     <tr>
                       <td align="center" style="font-size:0px;padding:10px 25px;padding-right:25px;padding-left:25px;word-break:break-word;">
-                        <div style="font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.5;text-align:center;color:#999999;">You receive this report because you are a recipient of {{ workspace_name }}'s scheduled analysis in {{ project_name }}.</div>
+                        <div style="font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.5;text-align:center;color:#999999;">You receive this report because you were added as a recipient of this {{ workspace_name }} analysis in {{ project_name }}.</div>
                       </td>
                     </tr>
                   </tbody>
