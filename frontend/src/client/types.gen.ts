@@ -11,6 +11,11 @@ export type Body_login_login_access_token = {
 
 export type ContentType = 'post' | 'reel' | 'story' | 'video' | 'tweet' | 'article' | 'short';
 
+export type FollowersPoint = {
+    date: string;
+    followers: number;
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -76,6 +81,8 @@ export type MetricTotals = {
     saves?: (number | null);
     followers_count?: (number | null);
     followers_gained?: (number | null);
+    followers_growth?: (number | null);
+    followers_growth_rate?: (number | null);
     engagement_rate?: (number | null);
 };
 
@@ -92,6 +99,15 @@ export type OAuthConnectResponse = {
 };
 
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
+
+/**
+ * A platform's follower count per day: the sum over its accounts of their
+ * latest count up to that day. Days before any count are left out.
+ */
+export type PlatformFollowers = {
+    platform: Platform;
+    points: Array<FollowersPoint>;
+};
 
 export type PostPublic = {
     impressions?: (number | null);
@@ -313,6 +329,15 @@ export type MetricsGetTimeseriesData = {
 };
 
 export type MetricsGetTimeseriesResponse = (Array<TimeSeriesPoint>);
+
+export type MetricsGetFollowersData = {
+    dateFrom?: (string | null);
+    dateTo?: (string | null);
+    platform?: (Platform | null);
+    workspaceId: string;
+};
+
+export type MetricsGetFollowersResponse = (Array<PlatformFollowers>);
 
 export type MetricsGetTopPostsData = {
     dateFrom?: (string | null);

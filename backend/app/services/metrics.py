@@ -16,9 +16,11 @@ from sqlmodel import Session
 from app import crud
 from app.models.integration import Platform
 from app.models.metrics import (
+    FollowersPoint,
     MetricSnapshot,
     MetricsSummary,
     MetricTotals,
+    PlatformFollowers,
     Post,
     PostPublic,
     TimeSeriesPoint,
@@ -150,8 +152,42 @@ def _load_daily_metrics(
     return snapshots, _daily_metrics(snapshots, posts)
 
 
+@dataclass
+class _Followers:
+    """An account's follower counts over the range."""
+
+    first: int
+    latest: int
+    counts: int = 1
+
+    @property
+    def growth(self) -> int | None:
+        return self.latest - self.first if self.counts > 1 else None
+
+
+def _followers(snapshots: Sequence[MetricSnapshot]) -> dict[uuid.UUID, _Followers]:
+    """First and latest follower count of each account (snapshots are by date)."""
+    followers: dict[uuid.UUID, _Followers] = {}
+    for snap in snapshots:
+        if snap.followers_count is None:
+            continue
+        account = followers.get(snap.platform_account_id)
+        if account is None:
+            followers[snap.platform_account_id] = _Followers(
+                snap.followers_count, snap.followers_count
+            )
+        else:
+            account.latest = snap.followers_count
+            account.counts += 1
+    return followers
+
+
+def _ratio(numerator: int, denominator: int | None) -> float | None:
+    return round(numerator / denominator, 6) if denominator else None
+
+
 def _totals(
-    account_sums: Sequence[dict[str, int]], followers: Sequence[int]
+    account_sums: Sequence[dict[str, int]], followers: Sequence[_Followers]
 ) -> MetricTotals:
     """
     Totals of several accounts. The engagement rate only counts the
@@ -166,11 +202,14 @@ def _totals(
         if account.get("exposures"):
             rated_engagements += account.get("engagements", 0)
 
-    exposures = sums.get("exposures")
+    growing = [f for f in followers if f.growth is not None]
+    growth = sum(f.latest - f.first for f in growing)
     return MetricTotals(
         **sums,
-        followers_count=sum(followers) if followers else None,
-        engagement_rate=round(rated_engagements / exposures, 6) if exposures else None,
+        followers_count=sum(f.latest for f in followers) if followers else None,
+        followers_growth=growth if growing else None,
+        followers_growth_rate=_ratio(growth, sum(f.first for f in growing)),
+        engagement_rate=_ratio(rated_engagements, sums.get("exposures")),
     )
 
 
@@ -187,11 +226,7 @@ def summarize(session: Session, query: MetricsQuery) -> MetricsSummary:
                 sums[field] += value
         account_sums[account_id] = sums
 
-    # Snapshots are ordered by date, so the last one seen per account wins
-    latest_followers: dict[uuid.UUID, int] = {}
-    for snap in snapshots:
-        if snap.followers_count is not None:
-            latest_followers[snap.platform_account_id] = snap.followers_count
+    followers = _followers(snapshots)
 
     platform_accounts: dict[str, list[uuid.UUID]] = defaultdict(list)
     for account_id in account_sums:
@@ -200,7 +235,7 @@ def summarize(session: Session, query: MetricsQuery) -> MetricsSummary:
     def totals_of(account_ids: Sequence[uuid.UUID]) -> MetricTotals:
         return _totals(
             [account_sums[a] for a in account_ids],
-            [latest_followers[a] for a in account_ids if a in latest_followers],
+            [followers[a] for a in account_ids if a in followers],
         )
 
     return MetricsSummary(
@@ -228,6 +263,40 @@ def timeseries(session: Session, query: MetricsQuery) -> list[TimeSeriesPoint]:
     return [
         TimeSeriesPoint(date=day, **by_date.get(day, {}))
         for day in (query.date_from + timedelta(days=i) for i in range(days))
+    ]
+
+
+def followers_timeseries(
+    session: Session, query: MetricsQuery
+) -> list[PlatformFollowers]:
+    """Each platform's daily follower count over the range."""
+    account_platform = _account_platforms(session, query)
+    snapshots = _snapshots(session, query, list(account_platform))
+
+    counts: dict[uuid.UUID, dict[date, int]] = defaultdict(dict)
+    for snap in snapshots:
+        if snap.followers_count is not None:
+            counts[snap.platform_account_id][snap.date] = snap.followers_count
+
+    by_platform: dict[str, dict[date, int]] = defaultdict(lambda: defaultdict(int))
+    days = (query.date_to - query.date_from).days + 1
+    for account_id, account_counts in counts.items():
+        latest: int | None = None
+        for day in (query.date_from + timedelta(days=i) for i in range(days)):
+            # Carry the latest count over days without a sync
+            latest = account_counts.get(day, latest)
+            if latest is not None:
+                by_platform[account_platform[account_id]][day] += latest
+
+    return [
+        PlatformFollowers(
+            platform=Platform(platform),
+            points=[
+                FollowersPoint(date=day, followers=value)
+                for day, value in sorted(points.items())
+            ],
+        )
+        for platform, points in by_platform.items()
     ]
 
 
