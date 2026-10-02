@@ -18,6 +18,7 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
     SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
     AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
     TOKEN_URL = "https://oauth2.googleapis.com/token"
+    REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
     def _client_id(self) -> str:
         return settings.GOOGLE_CLIENT_ID
@@ -67,6 +68,13 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
             expires_at=expires_at,
             raw=data,
         )
+
+    def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:
+        resp = httpx.post(
+            self.REVOKE_URL, data={"token": refresh_token or access_token}, timeout=10
+        )
+        resp.raise_for_status()
+        return True
 
     def get_account_info(self, access_token: str) -> AccountInfo:
         resp = httpx.get(

@@ -4,6 +4,7 @@ import { Link2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
+import { ConnectionGuides } from "@/components/Integrations/ConnectionGuides"
 import { ConnectPlatformMenu } from "@/components/Integrations/ConnectPlatformMenu"
 import { IntegrationRow } from "@/components/Integrations/IntegrationRow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,7 +29,8 @@ interface OAuthResult {
 export const Route = createFileRoute("/_layout/integrations")({
   component: IntegrationsPage,
   validateSearch: (search: Record<string, unknown>): OAuthResult => ({
-    connected: search.connected === "1" ? "1" : undefined,
+    // The router JSON-parses search values, so "?connected=1" arrives as 1
+    connected: String(search.connected) === "1" ? "1" : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
   }),
   head: () => ({
@@ -143,6 +145,8 @@ function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConnectionGuides editable={editable} />
     </div>
   )
 }

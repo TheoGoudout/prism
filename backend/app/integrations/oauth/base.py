@@ -9,6 +9,7 @@ Each platform implements a concrete subclass and overrides:
   - USES_PKCE         – whether the provider requires PKCE (S256)
   - get_account_info  – fetch the connected account's name / id / avatar
   - refresh           – exchange refresh_token for a new access_token
+  - revoke            – cancel the app's access on the provider (optional)
 
 The connect / callback HTTP handlers live in api/routes/oauth.py and
 delegate to the appropriate provider via the registry below.
@@ -177,6 +178,27 @@ class OAuthProvider(ABC):
         current long-lived access token instead.
         """
         return refresh_token
+
+    # -----------------------------------------------------------------------
+    # Revocation
+    # -----------------------------------------------------------------------
+
+    def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:
+        """
+        Cancel the access the user granted, so the app disappears from their
+        connected apps on the provider. Returns False if the provider has no
+        revocation endpoint. Raises on HTTP errors.
+
+        Providers revoke the whole grant (user + app), not just this token.
+        """
+        return False
+
+    def grant_owner_id(self, *, access_token: str, external_account_id: str) -> str:
+        """
+        The provider user who granted access. Integrations with the same
+        owner share one grant, so revoking one cuts off the others.
+        """
+        return external_account_id
 
     # -----------------------------------------------------------------------
     # Account info
