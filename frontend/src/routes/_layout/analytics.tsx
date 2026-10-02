@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import type { Platform, PostPublic } from "@/client"
+import type { Platform } from "@/client"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
 import { TrendChart } from "@/components/Analytics/TrendChart"
 import { KpiCards } from "@/components/Common/KpiCards"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
-import { Badge } from "@/components/ui/badge"
+import { PostLabel } from "@/components/Posts/PostLabel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
@@ -24,31 +24,6 @@ export const Route = createFileRoute("/_layout/analytics")({
     meta: [{ title: "Analytics - Prism" }],
   }),
 })
-
-function PostLabel({ post }: { post: PostPublic }) {
-  const text = post.text?.slice(0, 80) ?? post.external_id
-  return (
-    <div className="flex items-center gap-2">
-      <Badge variant="secondary" className="shrink-0 text-xs capitalize">
-        {post.content_type}
-      </Badge>
-      {post.permalink ? (
-        <a
-          href={post.permalink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block truncate text-sm hover:underline"
-        >
-          {text}
-        </a>
-      ) : (
-        <span className="block truncate text-sm text-muted-foreground">
-          {text}
-        </span>
-      )}
-    </div>
-  )
-}
 
 function AnalyticsPage() {
   const workspace = useCurrentWorkspace()

@@ -10,7 +10,7 @@ from sqlalchemy.types import JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.common import get_datetime_utc
-from app.models.integration import PlatformAccount
+from app.models.integration import Platform, PlatformAccount
 
 
 class ContentType(StrEnum):
@@ -205,3 +205,41 @@ class TimeSeriesPoint(SQLModel):
     views: int = 0
     clicks: int = 0
     engagements: int = 0
+
+
+class MetricBenchmark(SQLModel):
+    """How a metric is distributed across a platform's post history."""
+
+    sample_size: int
+    p5: float  # the worst-performing 5% of posts fall below this
+    p50: float
+    p95: float  # the best-performing 5% of posts rise above this
+
+
+class PostPerformance(PostPublic):
+    """A recent post, situated within the platform's post history."""
+
+    # Metric name → percentile rank (0–100) among the platform's posts; only
+    # metrics that have a benchmark are ranked.
+    percentile_ranks: dict[str, float]
+
+
+class PostHistoryPoint(ContentMetrics):
+    """A post's metrics only, for plotting the history over time."""
+
+    id: uuid.UUID
+    published_at: datetime
+    engagement_rate: float | None = None
+
+
+class PostPerformanceReport(SQLModel):
+    """One platform's latest posts, compared with its own post history."""
+
+    platform: Platform
+    history_from: date_type
+    history_to: date_type
+    history_size: int
+    # Metric name → benchmark, for metrics reported on enough posts
+    benchmarks: dict[str, MetricBenchmark]
+    posts: list[PostPerformance]  # newest first
+    history: list[PostHistoryPoint]  # oldest first

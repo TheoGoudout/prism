@@ -5,7 +5,9 @@ Every function aggregates the daily snapshots / posts of a workspace's active
 platform accounts, optionally restricted to one platform.
 """
 
+import math
 import uuid
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -16,10 +18,15 @@ from sqlmodel import Session
 from app import crud
 from app.models.integration import Platform
 from app.models.metrics import (
+    MetricBenchmark,
     MetricSnapshot,
     MetricsSummary,
     MetricTotals,
     Post,
+    PostHistoryPoint,
+    PostPerformance,
+    PostPerformanceReport,
+    PostPublic,
     TimeSeriesPoint,
 )
 
@@ -40,6 +47,23 @@ SUMMED_FIELDS = (
     "followers_gained",
 )
 CHART_FIELDS = ("impressions", "reach", "views", "clicks", "engagements")
+
+# Post metrics that posts are ranked on (engagement_rate = engagements / reach)
+POST_PERFORMANCE_FIELDS = (
+    "impressions",
+    "reach",
+    "views",
+    "engagements",
+    "engagement_rate",
+    "likes",
+    "comments",
+    "shares",
+    "clicks",
+    "saves",
+)
+DEFAULT_POST_HISTORY_DAYS = 365
+# Below this many posts, percentiles say little, so a metric gets no benchmark
+MIN_BENCHMARK_SAMPLE = 5
 
 
 @dataclass(frozen=True)
@@ -151,3 +175,113 @@ def top_posts(session: Session, query: MetricsQuery, limit: int = 10) -> Sequenc
         end_date=query.date_to,
         limit=limit,
     )
+
+
+# ---------------------------------------------------------------------------
+# Post performance
+# ---------------------------------------------------------------------------
+
+
+def _percentile(sorted_values: Sequence[float], q: float) -> float:
+    """The q-th percentile (0–100), interpolating linearly between values."""
+    position = (len(sorted_values) - 1) * q / 100
+    lower = math.floor(position)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    weight = position - lower
+    return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
+
+
+def _percentile_rank(sorted_values: Sequence[float], value: float) -> float:
+    """Share of the values below ``value`` (ties count half), from 0 to 100."""
+    below = bisect_left(sorted_values, value)
+    ties = bisect_right(sorted_values, value) - below
+    return round(100 * (below + ties / 2) / len(sorted_values), 1)
+
+
+def _performance_report(
+    platform: Platform,
+    history: Sequence[Post],
+    *,
+    history_from: date,
+    history_to: date,
+    limit: int,
+) -> PostPerformanceReport:
+    """Rank the newest ``limit`` posts against the whole history, per metric."""
+    distributions: dict[str, list[float]] = {}
+    benchmarks: dict[str, MetricBenchmark] = {}
+    for field in POST_PERFORMANCE_FIELDS:
+        values = sorted(
+            v for v in (getattr(post, field) for post in history) if v is not None
+        )
+        if len(values) < MIN_BENCHMARK_SAMPLE:
+            continue
+        distributions[field] = values
+        benchmarks[field] = MetricBenchmark(
+            sample_size=len(values),
+            p5=_percentile(values, 5),
+            p50=_percentile(values, 50),
+            p95=_percentile(values, 95),
+        )
+
+    posts = [
+        PostPerformance(
+            **PostPublic.model_validate(post).model_dump(),
+            percentile_ranks={
+                field: _percentile_rank(values, value)
+                for field, values in distributions.items()
+                if (value := getattr(post, field)) is not None
+            },
+        )
+        for post in history[:limit]
+    ]
+    return PostPerformanceReport(
+        platform=platform,
+        history_from=history_from,
+        history_to=history_to,
+        history_size=len(history),
+        benchmarks=benchmarks,
+        posts=posts,
+        history=[PostHistoryPoint.model_validate(post) for post in reversed(history)],
+    )
+
+
+def post_performance(
+    session: Session,
+    workspace_id: uuid.UUID,
+    platform: Platform | None = None,
+    limit: int = 20,
+    history_days: int = DEFAULT_POST_HISTORY_DAYS,
+) -> list[PostPerformanceReport]:
+    """
+    Per platform that has posts: the latest posts, with each metric situated
+    between the worst (P5) and best (P95) posts of the last ``history_days``.
+    Platforms are benchmarked separately since their audiences and metrics
+    aren't comparable.
+    """
+    accounts = crud.get_accounts_for_workspace(
+        session=session, workspace_id=workspace_id, platform=platform
+    )
+    history_to = date.today()
+    history_from = history_to - timedelta(days=history_days - 1)
+    account_platform = {a.id: a.platform for a in accounts}
+    posts = crud.get_posts_for_accounts(
+        session=session,
+        platform_account_ids=list(account_platform),
+        start_date=history_from,
+    )
+
+    by_platform: dict[Platform, list[Post]] = defaultdict(list)
+    for post in posts:  # newest first, which each platform's list keeps
+        by_platform[account_platform[post.platform_account_id]].append(post)
+
+    return [
+        _performance_report(
+            plat,
+            by_platform[plat],
+            history_from=history_from,
+            history_to=history_to,
+            limit=limit,
+        )
+        for plat in Platform
+        if plat in by_platform
+    ]

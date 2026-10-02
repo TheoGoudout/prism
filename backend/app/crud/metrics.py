@@ -123,3 +123,21 @@ def get_top_posts(
         .limit(limit)
     )
     return session.exec(statement).all()
+
+
+def get_posts_for_accounts(
+    *,
+    session: Session,
+    platform_account_ids: Sequence[uuid.UUID],
+    start_date: date,
+) -> Sequence[Post]:
+    """Posts published by the accounts since a date, newest first."""
+    if not platform_account_ids:
+        return []
+    statement = (
+        select(Post)
+        .where(col(Post.platform_account_id).in_(platform_account_ids))
+        .where(func.date(Post.published_at) >= start_date)
+        .order_by(col(Post.published_at).desc())
+    )
+    return session.exec(statement).all()

@@ -369,3 +369,148 @@ def test_posts_limit(client: TestClient, db: Session) -> None:
     )
     assert r.status_code == 200
     assert len(r.json()) == 3
+
+
+# ---------------------------------------------------------------------------
+# /posts/performance
+# ---------------------------------------------------------------------------
+
+
+def _add_dated_post(
+    db: Session,
+    account_id: uuid.UUID,
+    *,
+    external_id: str,
+    days_ago: int,
+    engagements: int,
+    likes: int | None = None,
+) -> None:
+    crud.upsert_post(
+        session=db,
+        platform_account_id=account_id,
+        post_in=PostUpsert(
+            external_id=external_id,
+            published_at=f"{TODAY - timedelta(days=days_ago)}T12:00:00+00:00",
+            content_type=ContentType.post,
+            engagements=engagements,
+            likes=likes,
+        ),
+    )
+
+
+def test_post_performance_non_member_returns_404(
+    client: TestClient, db: Session
+) -> None:
+    owner, _ = create_user_with_headers(client, db)
+    _, outsider_headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+
+    r = client.get(_url(ws, "posts/performance"), headers=outsider_headers)
+    assert r.status_code == 404
+
+
+def test_post_performance_empty(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.google_analytics)
+    create_fake_account(db, integration)
+
+    r = client.get(_url(ws, "posts/performance"), headers=headers)
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_post_performance_benchmarks_and_ranks(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.twitter)
+    account = create_fake_account(db, integration)
+
+    # 21 posts, one per day: engagements 0, 10, …, 200 (newest has the most).
+    # Only 3 report likes, too few to benchmark.
+    for i in range(21):
+        _add_dated_post(
+            db,
+            account.id,
+            external_id=f"tw-{i}",
+            days_ago=20 - i,
+            engagements=i * 10,
+            likes=i if i < 3 else None,
+        )
+
+    r = client.get(_url(ws, "posts/performance"), headers=headers, params={"limit": 3})
+    assert r.status_code == 200
+    [report] = r.json()
+    assert report["platform"] == "twitter"
+    assert report["history_size"] == 21
+    assert len(report["history"]) == 21
+    # History is oldest first, for plotting
+    assert report["history"][0]["engagements"] == 0
+
+    benchmark = report["benchmarks"]["engagements"]
+    assert benchmark["sample_size"] == 21
+    assert benchmark["p5"] == 10
+    assert benchmark["p50"] == 100
+    assert benchmark["p95"] == 190
+    assert "likes" not in report["benchmarks"]
+
+    # Latest posts come newest first, ranked against the whole history
+    posts = report["posts"]
+    assert [p["external_id"] for p in posts] == ["tw-20", "tw-19", "tw-18"]
+    assert posts[0]["percentile_ranks"] == {"engagements": 97.6}
+    assert posts[2]["percentile_ranks"]["engagements"] == 88.1
+
+
+def test_post_performance_benchmarks_each_platform_separately(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    fb_int = create_fake_integration(db, ws, platform=Platform.facebook)
+    ig_int = create_fake_integration(
+        db, ws, platform=Platform.instagram, external_account_id="ig-1"
+    )
+    fb_acc = create_fake_account(db, fb_int, external_id="fb-acc")
+    ig_acc = create_fake_account(db, ig_int, external_id="ig-acc")
+
+    for i in range(5):
+        _add_dated_post(db, fb_acc.id, external_id=f"fb-{i}", days_ago=i, engagements=1)
+        _add_dated_post(
+            db, ig_acc.id, external_id=f"ig-{i}", days_ago=i, engagements=1000
+        )
+
+    r = client.get(_url(ws, "posts/performance"), headers=headers)
+    assert r.status_code == 200
+    reports = {report["platform"]: report for report in r.json()}
+    assert reports["facebook"]["benchmarks"]["engagements"]["p95"] == 1
+    assert reports["instagram"]["benchmarks"]["engagements"]["p5"] == 1000
+
+    r = client.get(
+        _url(ws, "posts/performance"),
+        headers=headers,
+        params={"platform": "instagram"},
+    )
+    assert [report["platform"] for report in r.json()] == ["instagram"]
+
+
+def test_post_performance_history_window(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.linkedin)
+    account = create_fake_account(db, integration)
+
+    _add_dated_post(db, account.id, external_id="old", days_ago=60, engagements=5)
+    _add_dated_post(db, account.id, external_id="new", days_ago=1, engagements=5)
+
+    r = client.get(
+        _url(ws, "posts/performance"),
+        headers=headers,
+        params={"history_days": 30},
+    )
+    assert r.status_code == 200
+    [report] = r.json()
+    assert report["history_size"] == 1
+    assert report["history_from"] == str(TODAY - timedelta(days=29))
+    # Too few posts to benchmark
+    assert report["benchmarks"] == {}
+    assert report["posts"][0]["percentile_ranks"] == {}
