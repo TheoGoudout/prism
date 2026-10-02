@@ -158,7 +158,7 @@ nothing to set. Coolify generates them on the first deploy and keeps them stable
 
 | Variable | Description |
 |---|---|
-| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Facebook Pages and Instagram (one Meta app) |
+| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Facebook Pages and Instagram (one Meta app). Each platform is only available once both its variables are set; the startup logs list which are activated. |
 | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | Twitter / X |
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn |
 | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | TikTok |

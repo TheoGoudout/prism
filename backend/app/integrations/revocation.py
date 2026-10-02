@@ -60,6 +60,13 @@ def revoke_access(session: Session, integration: Integration) -> bool:
     access_token = crud.get_access_token(integration)
     if not access_token:
         return False
+    if not registry.is_available(integration.platform):
+        logger.info(
+            "Not revoking %s integration %s: the integration is not set up",
+            integration.platform.value,
+            integration.id,
+        )
+        return False
     provider = registry.get_provider(integration.platform)
     try:
         if _grant_is_shared(session, integration, _grant_owner(integration)):

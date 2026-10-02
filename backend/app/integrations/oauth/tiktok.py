@@ -4,7 +4,6 @@ from datetime import timedelta
 
 import httpx
 
-from app.core.config import settings
 from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
@@ -28,11 +27,8 @@ class TikTokOAuthProvider(OAuthProvider):
     CLIENT_ID_PARAM = "client_key"
     SCOPE_SEPARATOR = ","
 
-    def _client_id(self) -> str:
-        return settings.TIKTOK_CLIENT_KEY
-
-    def _client_secret(self) -> str:
-        return settings.TIKTOK_CLIENT_SECRET
+    CLIENT_ID_SETTING = "TIKTOK_CLIENT_KEY"
+    CLIENT_SECRET_SETTING = "TIKTOK_CLIENT_SECRET"
 
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None

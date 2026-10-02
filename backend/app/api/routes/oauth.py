@@ -68,6 +68,8 @@ def callback(
     except ValueError:
         return _back_to_frontend(error="invalid_state")
 
+    if not registry.is_available(platform):  # app removed mid-flow
+        return _back_to_frontend(error="platform_unavailable")
     if error:  # e.g. the user clicked "Deny" on the consent screen
         return _back_to_frontend(error=error)
     if not code:

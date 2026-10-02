@@ -4,7 +4,6 @@ from datetime import timedelta
 
 import httpx
 
-from app.core.config import settings
 from app.integrations.meta import FACEBOOK_DIALOG_URL, GRAPH_API, graph_get
 from app.integrations.oauth.base import (
     AccountInfo,
@@ -24,11 +23,8 @@ class FacebookOAuthProvider(OAuthProvider):
     AUTH_URL = FACEBOOK_DIALOG_URL
     TOKEN_URL = f"{GRAPH_API}/oauth/access_token"
 
-    def _client_id(self) -> str:
-        return settings.FACEBOOK_APP_ID
-
-    def _client_secret(self) -> str:
-        return settings.FACEBOOK_APP_SECRET
+    CLIENT_ID_SETTING = "FACEBOOK_APP_ID"
+    CLIENT_SECRET_SETTING = "FACEBOOK_APP_SECRET"
 
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None
