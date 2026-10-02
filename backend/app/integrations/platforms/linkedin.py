@@ -16,7 +16,7 @@ import httpx
 from sqlmodel import Session
 
 from app import crud
-from app.integrations.common import SYNC_WINDOW_DAYS, log_http_errors, sum_known
+from app.integrations.common import SYNC_WINDOW_DAYS, engagement_total, log_http_errors
 from app.integrations.http import get_json
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
@@ -155,8 +155,9 @@ def _sync_org_posts(
                 text=_share_text(share),
                 impressions=stats.get("impressionCount"),
                 reach=stats.get("uniqueImpressionsCount"),
-                # LinkedIn's own `engagement` is a rate; keep it in raw_data
-                engagements=sum_known(likes, comments, shares, clicks),
+                # LinkedIn's own `engagement` is a rate that also counts
+                # clicks; keep it in raw_data
+                engagements=engagement_total(likes, comments, shares),
                 likes=likes,
                 comments=comments,
                 shares=shares,

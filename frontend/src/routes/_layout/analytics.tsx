@@ -15,7 +15,7 @@ import {
   useMetricsTimeseries,
   useTopPosts,
 } from "@/hooks/useMetrics"
-import { lastDays } from "@/lib/format"
+import { formatPercent, lastDays } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
 
 export const Route = createFileRoute("/_layout/analytics")({
@@ -29,6 +29,7 @@ function PostLabel({ post }: { post: PostPublic }) {
   const text = post.text?.slice(0, 80) ?? post.external_id
   return (
     <div className="flex items-center gap-2">
+      <PlatformIcon platform={post.platform} className="size-5 shrink-0" />
       <Badge variant="secondary" className="shrink-0 text-xs capitalize">
         {post.content_type}
       </Badge>
@@ -70,10 +71,10 @@ function AnalyticsPage() {
       <KpiCards
         className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6"
         metrics={[
-          "impressions",
+          "exposures",
           "reach",
-          "views",
           "engagements",
+          "engagement_rate",
           "clicks",
           "followers_count",
         ]}
@@ -104,10 +105,11 @@ function AnalyticsPage() {
             <MetricsTable
               labelHeader="Platform"
               valueHeaders={[
-                "Impressions",
                 "Views",
                 "Reach",
                 "Engagements",
+                "Engagement rate",
+                "Clicks",
                 "Followers",
               ]}
               rows={byPlatform.map(([platform, totals]) => ({
@@ -122,14 +124,21 @@ function AnalyticsPage() {
                   </span>
                 ),
                 values: [
-                  totals.impressions,
-                  totals.views,
+                  totals.exposures,
                   totals.reach,
                   totals.engagements,
+                  formatPercent(totals.engagement_rate),
+                  totals.clicks,
                   totals.followers_count,
                 ],
               }))}
             />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Every platform uses the same definitions. Views are impressions
+              where a platform has no views; engagements are likes, comments,
+              shares and saves (engaged sessions for websites). Platforms
+              without daily figures count each post on the day it was published.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -149,21 +158,23 @@ function AnalyticsPage() {
             <MetricsTable
               labelHeader="Content"
               valueHeaders={[
-                "Impressions",
                 "Views",
                 "Engagements",
+                "Engagement rate",
                 "Likes",
                 "Comments",
+                "Shares",
               ]}
               rows={posts.data.map((post) => ({
                 key: post.id,
                 label: <PostLabel post={post} />,
                 values: [
-                  post.impressions,
-                  post.views,
+                  post.views ?? post.impressions,
                   post.engagements,
+                  formatPercent(post.engagement_rate),
                   post.likes,
                   post.comments,
+                  post.shares,
                 ],
               }))}
             />

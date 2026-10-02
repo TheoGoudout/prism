@@ -109,6 +109,7 @@ def test_sync_tweets_upserts_owned_tweets(mock_get, mock_crud):
                     "retweet_count": 50,
                     "reply_count": 30,
                     "quote_count": 10,
+                    "bookmark_count": 5,
                 },
             }
         ]
@@ -124,10 +125,12 @@ def test_sync_tweets_upserts_owned_tweets(mock_get, mock_crud):
     assert post.content_type == ContentType.tweet
     assert post.impressions == 5000
     assert post.likes == 200
-    assert post.shares == 50
+    # Quotes are shares with a comment; bookmarks are saves
+    assert post.shares == 50 + 10
+    assert post.saves == 5
     assert post.comments == 30
-    # engagements = likes + retweets + replies + quotes
-    assert post.engagements == 200 + 50 + 30 + 10
+    # engagements = likes + replies + shares + saves
+    assert post.engagements == 200 + 30 + 60 + 5
 
 
 @patch("app.integrations.platforms.twitter.crud")

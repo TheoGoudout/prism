@@ -21,7 +21,7 @@ import httpx
 from sqlmodel import Session
 
 from app import crud
-from app.integrations.common import log_http_errors, parse_datetime, sum_known
+from app.integrations.common import engagement_total, log_http_errors, parse_datetime
 from app.integrations.meta import daily_insights, first_value, graph_get
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
@@ -32,11 +32,14 @@ logger = logging.getLogger(__name__)
 _PAGE_METRIC_FIELDS = {
     "page_media_view": "views",
     "page_total_media_view_unique": "reach",
-    "page_post_engagements": "engagements",
     "page_follows": "followers_count",
     "page_daily_follows_unique": "followers_gained",
     "page_daily_unfollows_unique": "followers_lost",
 }
+# Fetched for raw_data only. Meta's page_post_engagements also counts clicks
+# and other reactions, so the Page's engagements come from its posts instead,
+# with the same definition as every other platform.
+_PAGE_RAW_METRICS = ["page_post_engagements"]
 
 _POST_METRICS = ",".join(
     [
@@ -66,7 +69,7 @@ def _sync_page_insights(
     session: Session, platform_account_id: uuid.UUID, page_id: str, page_token: str
 ) -> None:
     for day, values in daily_insights(
-        page_id, page_token, list(_PAGE_METRIC_FIELDS)
+        page_id, page_token, [*_PAGE_METRIC_FIELDS, *_PAGE_RAW_METRICS]
     ).items():
         fields = {
             field: values.get(metric) for metric, field in _PAGE_METRIC_FIELDS.items()
@@ -119,7 +122,7 @@ def _sync_page_posts(
                 permalink=post.get("permalink_url"),
                 views=insights.get("post_media_view"),
                 reach=insights.get("post_total_media_view_unique"),
-                engagements=sum_known(likes, comments, shares),
+                engagements=engagement_total(likes, comments, shares),
                 likes=likes,
                 comments=comments,
                 shares=shares,

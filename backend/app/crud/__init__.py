@@ -18,6 +18,7 @@ from app.crud.integration import (
     upsert_platform_account,
 )
 from app.crud.metrics import (
+    get_posts_for_accounts,
     get_snapshots_for_accounts,
     get_top_posts,
     upsert_metric_snapshot,
@@ -57,6 +58,7 @@ __all__ = [
     "get_members",
     "get_memberships_for_user",
     "get_refresh_token",
+    "get_posts_for_accounts",
     "get_snapshots_for_accounts",
     "get_top_posts",
     "get_user_by_email",

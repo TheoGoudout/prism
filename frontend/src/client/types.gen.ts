@@ -60,20 +60,23 @@ export type MetricsSummary = {
 };
 
 /**
- * Aggregated metric totals over a date range.
+ * Aggregated metric totals over a date range. A metric none of the accounts
+ * reports is None, as opposed to 0 when it was reported as zero.
  */
 export type MetricTotals = {
-    impressions?: number;
-    reach?: number;
-    views?: number;
-    clicks?: number;
-    engagements?: number;
-    likes?: number;
-    comments?: number;
-    shares?: number;
-    saves?: number;
+    exposures?: (number | null);
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    clicks?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    saves?: (number | null);
     followers_count?: (number | null);
-    followers_gained?: number;
+    followers_gained?: (number | null);
+    engagement_rate?: (number | null);
 };
 
 export type NewPassword = {
@@ -107,6 +110,7 @@ export type PostPublic = {
     permalink?: (string | null);
     id: string;
     platform_account_id: string;
+    platform: Platform;
     published_at: string;
     engagement_rate?: (number | null);
 };
@@ -125,6 +129,7 @@ export type ReportResponse = {
 
 export type TimeSeriesPoint = {
     date: string;
+    exposures?: number;
     impressions?: number;
     reach?: number;
     views?: number;

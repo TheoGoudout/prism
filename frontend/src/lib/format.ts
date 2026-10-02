@@ -8,6 +8,12 @@ export function formatCompact(n: number | null | undefined): string {
   return n.toString()
 }
 
+/** Ratio as a percentage: 0.0345 → "3.45%"; missing → "—". */
+export function formatPercent(ratio: number | null | undefined): string {
+  if (ratio == null) return "—"
+  return `${(ratio * 100).toFixed(2)}%`
+}
+
 /** "3 hours ago", or "Never" for a missing timestamp. */
 export function formatRelative(timestamp: string | null | undefined): string {
   if (!timestamp) return "Never"

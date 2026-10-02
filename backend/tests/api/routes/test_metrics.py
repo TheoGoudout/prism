@@ -56,16 +56,19 @@ def _add_post(
     account_id: uuid.UUID,
     *,
     external_id: str = "post-1",
+    published_on: date = TODAY,
     engagements: int = 50,
+    **metrics: int,
 ) -> None:
     crud.upsert_post(
         session=db,
         platform_account_id=account_id,
         post_in=PostUpsert(
             external_id=external_id,
-            published_at=f"{TODAY}T12:00:00+00:00",
+            published_at=f"{published_on}T12:00:00+00:00",
             content_type=ContentType.post,
             engagements=engagements,
+            **metrics,
         ),
     )
 
@@ -97,7 +100,8 @@ def test_summary_empty_workspace(client: TestClient, db: Session) -> None:
     )
     assert r.status_code == 200
     body = r.json()
-    assert body["totals"]["impressions"] == 0
+    # Nothing reported: unknown, not zero
+    assert body["totals"]["impressions"] is None
     assert body["by_platform"] == {}
 
 
@@ -202,6 +206,92 @@ def test_summary_followers_count_uses_latest_snapshot(
     assert r.json()["totals"]["followers_count"] == 1200
 
 
+def test_summary_counts_posts_of_platforms_without_daily_metrics(
+    client: TestClient, db: Session
+) -> None:
+    """Twitter only reports followers daily: its engagement comes from posts."""
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.twitter)
+    account = create_fake_account(db, integration)
+
+    crud.upsert_metric_snapshot(
+        session=db,
+        platform_account_id=account.id,
+        snapshot_in=MetricSnapshotUpsert(date=TODAY, followers_count=300),
+    )
+    _add_post(db, account.id, external_id="t1", engagements=40, impressions=1000)
+    _add_post(db, account.id, external_id="t2", engagements=10, impressions=500)
+
+    r = client.get(_url(ws, "summary"), headers=headers)
+    assert r.status_code == 200
+    twitter = r.json()["by_platform"]["twitter"]
+    assert twitter["engagements"] == 50
+    assert twitter["impressions"] == 1500
+    # No views on Twitter: impressions are its exposures
+    assert twitter["exposures"] == 1500
+    assert twitter["engagement_rate"] == round(50 / 1500, 6)
+    assert twitter["followers_count"] == 300
+
+
+def test_summary_prefers_daily_metrics_over_posts(
+    client: TestClient, db: Session
+) -> None:
+    """A field the daily snapshots report isn't counted again from posts."""
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.facebook)
+    account = create_fake_account(db, integration)
+
+    crud.upsert_metric_snapshot(
+        session=db,
+        platform_account_id=account.id,
+        snapshot_in=MetricSnapshotUpsert(date=TODAY, views=2000, reach=800),
+    )
+    _add_post(db, account.id, engagements=30, views=900, reach=600, likes=25)
+
+    r = client.get(_url(ws, "summary"), headers=headers)
+    totals = r.json()["totals"]
+    assert totals["views"] == 2000
+    assert totals["reach"] == 800
+    # Not reported daily, so taken from the posts
+    assert totals["engagements"] == 30
+    assert totals["likes"] == 25
+    assert totals["exposures"] == 2000
+
+
+def test_summary_engagement_rate_across_platforms(
+    client: TestClient, db: Session
+) -> None:
+    """
+    Exposures add views and impressions-only platforms together; engagements
+    of accounts without exposures stay out of the rate.
+    """
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    accounts = {}
+    for platform in (Platform.instagram, Platform.twitter, Platform.linkedin):
+        integration = create_fake_integration(
+            db, ws, platform=platform, external_account_id=platform.value
+        )
+        accounts[platform] = create_fake_account(
+            db, integration, external_id=platform.value
+        )
+
+    _add_post(db, accounts[Platform.instagram].id, engagements=60, views=1000)
+    _add_post(db, accounts[Platform.twitter].id, engagements=20, impressions=1000)
+    _add_post(db, accounts[Platform.linkedin].id, engagements=100)
+
+    r = client.get(_url(ws, "summary"), headers=headers)
+    totals = r.json()["totals"]
+    assert totals["exposures"] == 2000
+    assert totals["engagements"] == 180
+    assert totals["engagement_rate"] == round(80 / 2000, 6)
+    assert r.json()["by_platform"]["linkedin"]["engagement_rate"] is None
+    # Platforms that don't report a metric show it as unknown, not zero
+    assert r.json()["by_platform"]["twitter"]["reach"] is None
+
+
 # ---------------------------------------------------------------------------
 # /timeseries
 # ---------------------------------------------------------------------------
@@ -302,6 +392,36 @@ def test_timeseries_aggregates_multiple_accounts(
     assert data[0]["impressions"] == 150
 
 
+def test_timeseries_counts_posts_on_their_publication_day(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws, platform=Platform.tiktok)
+    account = create_fake_account(db, integration)
+
+    _add_post(db, account.id, external_id="v1", engagements=7, views=100)
+    _add_post(
+        db,
+        account.id,
+        external_id="v2",
+        published_on=YESTERDAY,
+        engagements=3,
+        views=50,
+    )
+
+    r = client.get(
+        _url(ws, "timeseries"),
+        headers=headers,
+        params={"date_from": str(YESTERDAY), "date_to": str(TODAY)},
+    )
+    assert r.status_code == 200
+    assert [(p["exposures"], p["engagements"]) for p in r.json()] == [
+        (50, 3),
+        (100, 7),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # /posts
 # ---------------------------------------------------------------------------
@@ -351,6 +471,7 @@ def test_posts_returns_top_by_engagements(client: TestClient, db: Session) -> No
     assert len(body) == 3
     # Should be sorted by engagements desc
     assert body[0]["engagements"] == 999
+    assert body[0]["platform"] == "instagram"
 
 
 def test_posts_limit(client: TestClient, db: Session) -> None:

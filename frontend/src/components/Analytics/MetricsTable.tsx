@@ -13,10 +13,11 @@ import { formatCompact } from "@/lib/format"
 export interface MetricsTableRow {
   key: string
   label: ReactNode
-  values: (number | null | undefined)[]
+  // Numbers are compact-formatted; strings (e.g. percentages) shown as is
+  values: (number | string | null | undefined)[]
 }
 
-/** A label column followed by right-aligned, compact-formatted numbers. */
+/** A label column followed by right-aligned values. */
 export function MetricsTable({
   labelHeader,
   valueHeaders,
@@ -44,7 +45,7 @@ export function MetricsTable({
             <TableCell className="max-w-xs">{row.label}</TableCell>
             {row.values.map((value, i) => (
               <TableCell key={valueHeaders[i]} className="text-right">
-                {formatCompact(value)}
+                {typeof value === "string" ? value : formatCompact(value)}
               </TableCell>
             ))}
           </TableRow>

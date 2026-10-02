@@ -40,10 +40,10 @@ function Dashboard() {
       <KpiCards
         className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5"
         metrics={[
-          "impressions",
-          "views",
+          "exposures",
           "reach",
           "engagements",
+          "engagement_rate",
           "followers_count",
         ]}
         totals={summary.data?.totals}

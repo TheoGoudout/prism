@@ -157,7 +157,9 @@ def test_sync_org_posts_upserts_posts(mock_get, mock_crud):
     assert post.impressions == 5000
     assert post.reach == 3000
     assert post.likes == 120
-    assert post.engagements == 120 + 30 + 15 + 200
+    assert post.clicks == 200
+    # Clicks are not engagements
+    assert post.engagements == 120 + 30 + 15
     assert post.raw_data["engagement"] == 0.073
     assert post.text == "Great update!"
 
