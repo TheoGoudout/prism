@@ -112,7 +112,7 @@ export function PostHistoryChart({
         />
         <Tooltip
           content={(props) => <PointTooltip {...props} metric={metric} />}
-          cursor={{ strokeDasharray: "3 3" }}
+          cursor={false}
         />
         <Legend
           iconSize={10}
