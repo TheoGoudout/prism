@@ -28,6 +28,9 @@ _HUMAN = """\
 Workspace: {workspace_name}
 Report period: {date_from} to {date_to}{platform_context}
 
+=== Metric definitions (the same on every platform) ===
+{metric_definitions}
+
 === Aggregate totals ===
 {totals_text}
 

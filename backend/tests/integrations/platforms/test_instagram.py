@@ -212,7 +212,8 @@ def test_sync_media_upserts_posts(mock_get, mock_crud):
     assert post_in.content_type == ContentType.post
     assert post_in.views == 3000
     assert post_in.reach == 2500
-    assert post_in.engagements == 150
+    # likes + comments + saves, the same definition as on every platform
+    assert post_in.engagements == 120 + 30 + 40
     assert post_in.likes == 120
     assert post_in.saves == 40
     assert post_in.text == "Nice photo"

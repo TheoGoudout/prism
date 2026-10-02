@@ -38,7 +38,8 @@ def test_upsert_snapshot_creates(db: Session) -> None:
     assert snap.id is not None
     assert snap.followers_count == 1000
     assert snap.impressions == 5000
-    assert snap.engagement_rate == round(150 / 3000, 6)
+    # engagements / views, or impressions when there are no views
+    assert snap.engagement_rate == round(150 / 5000, 6)
 
 
 def test_upsert_snapshot_updates_existing(db: Session) -> None:
@@ -146,7 +147,7 @@ def test_upsert_post_creates(db: Session) -> None:
     )
     assert post.id is not None
     assert post.content_type == ContentType.reel
-    assert post.engagement_rate == round(320 / 4000, 6)
+    assert post.engagement_rate == round(320 / 8000, 6)
 
 
 def test_upsert_post_updates_existing(db: Session) -> None:
