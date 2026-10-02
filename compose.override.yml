@@ -123,8 +123,12 @@ services:
         - NODE_ENV=production
     ipc: host
     depends_on:
-      - backend
-      - mailcatcher
+      # Healthy, not merely started: the first test's API call otherwise races
+      # uvicorn's startup and fails with "socket hang up".
+      backend:
+        condition: service_healthy
+      mailcatcher:
+        condition: service_started
     env_file:
       - .env
     environment:
