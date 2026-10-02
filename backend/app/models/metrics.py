@@ -204,6 +204,11 @@ class MetricTotals(SQLModel):
     saves: int | None = None
     followers_count: int | None = None  # latest snapshot value
     followers_gained: int | None = None
+    # Net change of followers_count over the range: the latest count minus
+    # the first one, for accounts with at least two counts in the range
+    followers_growth: int | None = None
+    # followers_growth / those accounts' first counts
+    followers_growth_rate: float | None = None
     # engagements / exposures, over the accounts that report exposures
     engagement_rate: float | None = None
 
@@ -215,6 +220,21 @@ class MetricsSummary(SQLModel):
     by_platform: dict[str, MetricTotals]
     date_from: date_type
     date_to: date_type
+
+
+class FollowersPoint(SQLModel):
+    date: date_type
+    followers: int
+
+
+class PlatformFollowers(SQLModel):
+    """
+    A platform's follower count per day: the sum over its accounts of their
+    latest count up to that day. Days before any count are left out.
+    """
+
+    platform: Platform
+    points: list[FollowersPoint]
 
 
 class TimeSeriesPoint(SQLModel):

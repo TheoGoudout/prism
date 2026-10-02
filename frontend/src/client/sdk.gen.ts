@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -266,6 +266,35 @@ export class MetricsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/workspaces/{workspace_id}/metrics/timeseries',
+            path: {
+                workspace_id: data.workspaceId
+            },
+            query: {
+                platform: data.platform,
+                date_from: data.dateFrom,
+                date_to: data.dateTo
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Followers
+     * Each platform's follower count per day, for growth charts.
+     * @param data The data for the request.
+     * @param data.workspaceId
+     * @param data.platform
+     * @param data.dateFrom
+     * @param data.dateTo
+     * @returns PlatformFollowers Successful Response
+     * @throws ApiError
+     */
+    public static getFollowers(data: MetricsGetFollowersData): CancelablePromise<MetricsGetFollowersResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/workspaces/{workspace_id}/metrics/followers',
             path: {
                 workspace_id: data.workspaceId
             },

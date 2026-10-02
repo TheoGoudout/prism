@@ -8,6 +8,19 @@ export function formatCompact(n: number | null | undefined): string {
   return n.toString()
 }
 
+/** Compact number with its sign: 1234 → "+1.2K", -50 → "-50"; missing → "—". */
+export function formatSigned(n: number | null | undefined): string {
+  if (n == null) return "—"
+  const sign = n > 0 ? "+" : n < 0 ? "-" : ""
+  return sign + formatCompact(Math.abs(n))
+}
+
+/** Signed ratio as a percentage: 0.0123 → "+1.23%"; missing → "—". */
+export function formatSignedPercent(ratio: number | null | undefined): string {
+  if (ratio == null) return "—"
+  return (ratio > 0 ? "+" : "") + formatPercent(ratio)
+}
+
 /** Ratio as a percentage: 0.0345 → "3.45%"; missing → "—". */
 export function formatPercent(ratio: number | null | undefined): string {
   if (ratio == null) return "—"

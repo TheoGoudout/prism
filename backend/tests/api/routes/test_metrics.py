@@ -37,7 +37,7 @@ def _add_snapshot(
     snap_date: date = TODAY,
     impressions: int = 100,
     engagements: int = 10,
-    followers_count: int = 500,
+    followers_count: int | None = 500,
 ) -> None:
     crud.upsert_metric_snapshot(
         session=db,
@@ -290,6 +290,82 @@ def test_summary_engagement_rate_across_platforms(
     assert r.json()["by_platform"]["linkedin"]["engagement_rate"] is None
     # Platforms that don't report a metric show it as unknown, not zero
     assert r.json()["by_platform"]["twitter"]["reach"] is None
+
+
+def _add_followers(db: Session, account_id: uuid.UUID, counts: dict[date, int]) -> None:
+    for day, count in counts.items():
+        crud.upsert_metric_snapshot(
+            session=db,
+            platform_account_id=account_id,
+            snapshot_in=MetricSnapshotUpsert(date=day, followers_count=count),
+        )
+
+
+def test_summary_follower_growth(client: TestClient, db: Session) -> None:
+    """Growth is the latest count minus the first, for every social platform."""
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    accounts = {}
+    for platform in (Platform.tiktok, Platform.linkedin, Platform.twitter):
+        integration = create_fake_integration(
+            db, ws, platform=platform, external_account_id=platform.value
+        )
+        accounts[platform] = create_fake_account(
+            db, integration, external_id=platform.value
+        )
+    two_days_ago = TODAY - timedelta(days=2)
+    _add_followers(db, accounts[Platform.tiktok].id, {two_days_ago: 1000, TODAY: 1100})
+    _add_followers(db, accounts[Platform.linkedin].id, {YESTERDAY: 500, TODAY: 450})
+    # A single count: the total is known, the growth isn't
+    _add_followers(db, accounts[Platform.twitter].id, {TODAY: 300})
+
+    r = client.get(
+        _url(ws, "summary"),
+        headers=headers,
+        params={"date_from": str(two_days_ago), "date_to": str(TODAY)},
+    )
+    body = r.json()
+    assert body["totals"]["followers_count"] == 1100 + 450 + 300
+    assert body["totals"]["followers_growth"] == 100 - 50
+    assert body["totals"]["followers_growth_rate"] == round(50 / 1500, 6)
+    assert body["by_platform"]["tiktok"]["followers_growth"] == 100
+    assert body["by_platform"]["tiktok"]["followers_growth_rate"] == 0.1
+    assert body["by_platform"]["linkedin"]["followers_growth"] == -50
+    assert body["by_platform"]["twitter"]["followers_count"] == 300
+    assert body["by_platform"]["twitter"]["followers_growth"] is None
+
+
+# ---------------------------------------------------------------------------
+# /followers
+# ---------------------------------------------------------------------------
+
+
+def test_followers_per_platform_and_day(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    ig_int = create_fake_integration(db, ws, platform=Platform.instagram)
+    ga_int = create_fake_integration(
+        db, ws, platform=Platform.google_analytics, external_account_id="ga"
+    )
+    ig = create_fake_account(db, ig_int, external_id="ig")
+    ga = create_fake_account(db, ga_int, external_id="ga")
+    three_days_ago = TODAY - timedelta(days=3)
+    # No count two days ago (no sync): yesterday's carries the day before over
+    _add_followers(db, ig.id, {three_days_ago: 800, YESTERDAY: 820, TODAY: 830})
+    _add_snapshot(db, ga.id, followers_count=None)
+
+    r = client.get(
+        _url(ws, "followers"),
+        headers=headers,
+        params={
+            "date_from": str(three_days_ago - timedelta(days=1)),
+            "date_to": str(TODAY),
+        },
+    )
+    assert r.status_code == 200
+    # Google Analytics has no followers
+    assert [series["platform"] for series in r.json()] == ["instagram"]
+    assert [p["followers"] for p in r.json()[0]["points"]] == [800, 800, 820, 830]
 
 
 # ---------------------------------------------------------------------------

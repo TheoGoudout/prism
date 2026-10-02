@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import type { Platform, PostPublic } from "@/client"
+import { FollowersTable } from "@/components/Analytics/FollowersTable"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
 import { TrendChart } from "@/components/Analytics/TrendChart"
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
+  useFollowers,
   useMetricsSummary,
   useMetricsTimeseries,
   useTopPosts,
@@ -57,6 +59,7 @@ function AnalyticsPage() {
   const summary = useMetricsSummary(range)
   const timeseries = useMetricsTimeseries(range)
   const posts = useTopPosts(range)
+  const followers = useFollowers(range)
   const byPlatform = Object.entries(summary.data?.by_platform ?? {})
 
   return (
@@ -75,8 +78,8 @@ function AnalyticsPage() {
           "reach",
           "engagements",
           "engagement_rate",
-          "clicks",
           "followers_count",
+          "followers_growth",
         ]}
         totals={summary.data?.totals}
         loading={summary.isLoading}
@@ -110,7 +113,6 @@ function AnalyticsPage() {
                 "Engagements",
                 "Engagement rate",
                 "Clicks",
-                "Followers",
               ]}
               rows={byPlatform.map(([platform, totals]) => ({
                 key: platform,
@@ -129,7 +131,6 @@ function AnalyticsPage() {
                   totals.engagements,
                   formatPercent(totals.engagement_rate),
                   totals.clicks,
-                  totals.followers_count,
                 ],
               }))}
             />
@@ -138,6 +139,25 @@ function AnalyticsPage() {
               where a platform has no views; engagements are likes, comments,
               shares and saves (engaged sessions for websites). Platforms
               without daily figures count each post on the day it was published.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {byPlatform.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Followers</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <FollowersTable
+              byPlatform={summary.data?.by_platform ?? {}}
+              series={followers.data ?? []}
+            />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Growth is the latest follower count minus the first one in the
+              period. Most platforms only report today's total, so their history
+              builds up from the first sync.
             </p>
           </CardContent>
         </Card>

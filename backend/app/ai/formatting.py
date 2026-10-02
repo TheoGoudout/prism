@@ -11,11 +11,15 @@ METRIC_DEFINITIONS = """\
 - exposures: views, or impressions where a platform only reports impressions
 - engagements: likes + comments + shares + saves (engaged sessions for websites)
 - engagement_rate: engagements / exposures
-- reach: unique people per day, summed over the days (not deduplicated)"""
+- reach: unique people per day, summed over the days (not deduplicated)
+- followers_growth: net change in followers over the period
+- followers_growth_rate: followers_growth / followers at the start"""
 
 
 def _format_value(name: str, value: float) -> str:
-    return f"{value:.2%}" if name == "engagement_rate" else f"{value:,}"
+    if name in ("engagement_rate", "followers_growth_rate"):
+        return f"{value:.2%}"
+    return f"{value:,}"
 
 
 def _metric_lines(totals: MetricTotals, indent: str) -> list[str]:

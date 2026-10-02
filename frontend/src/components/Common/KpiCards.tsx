@@ -5,13 +5,14 @@ import {
   MousePointerClick,
   Percent,
   TrendingUp,
+  UserPlus,
   Users,
 } from "lucide-react"
 
 import type { MetricTotals } from "@/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCompact, formatPercent } from "@/lib/format"
+import { formatCompact, formatPercent, formatSigned } from "@/lib/format"
 
 type KpiMetric = keyof Pick<
   MetricTotals,
@@ -21,6 +22,7 @@ type KpiMetric = keyof Pick<
   | "engagement_rate"
   | "clicks"
   | "followers_count"
+  | "followers_growth"
 >
 
 // The same definitions on every platform (see app.services.metrics)
@@ -60,6 +62,12 @@ const KPIS: Record<
     icon: MousePointerClick,
   },
   followers_count: { title: "Followers", hint: "Latest total", icon: Users },
+  followers_growth: {
+    title: "Follower growth",
+    hint: "Net change over the period",
+    icon: UserPlus,
+    format: formatSigned,
+  },
 }
 
 interface KpiCardsProps {
