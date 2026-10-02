@@ -1,9 +1,21 @@
 name: Smokeshow
 
+# Publishes the coverage report of a successful Test Backend run.
+#
+# workflow_run runs with the default branch's code and a token that can set
+# commit statuses, so it never checks out or executes anything from the run it
+# follows: it only downloads that run's HTML report and uploads it as-is.
 on:
+  # zizmor: ignore[dangerous-triggers] -- only downloads static HTML; see above
   workflow_run:
     workflows: [Test Backend]
     types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
 
 env:
   # Publishing needs an auth key (generate one with `smokeshow generate-key`
@@ -12,31 +24,31 @@ env:
 
 jobs:
   smokeshow:
+    name: Publish coverage
     # Only publish coverage when the tests produced it
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      actions: read
-      statuses: write
-
+      actions: read # To download the other run's artifact.
+      statuses: write # To post the coverage status on the commit.
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: .python-version
-      - run: pip install smokeshow
-      - uses: actions/download-artifact@v8
+          python-version: "3.14"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-html
           path: backend/htmlcov
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
-      - run: smokeshow upload backend/htmlcov
+      - name: Upload the report
         if: env.HAS_AUTH_KEY == 'true'
+        run: pipx run smokeshow upload backend/htmlcov
         env:
           SMOKESHOW_GITHUB_STATUS_DESCRIPTION: Coverage {coverage-percentage}
           SMOKESHOW_GITHUB_COVERAGE_THRESHOLD: 90
           SMOKESHOW_GITHUB_CONTEXT: coverage
           SMOKESHOW_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SMOKESHOW_GITHUB_PR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          SMOKESHOW_AUTH_KEY: ${{ secrets.SMOKESHOW_AUTH_KEY }}
+          SMOKESHOW_AUTH_KEY: ${{ secrets.SMOKESHOW_AUTH_KEY }} # zizmor: ignore[secrets-outside-env]

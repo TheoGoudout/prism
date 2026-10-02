@@ -1,5 +1,23 @@
 # Git hooks, run with prek (https://prek.j178.dev), a drop-in replacement for
-# pre-commit. Install them with `uv run prek install`; CI runs them on PRs.
+# pre-commit. Install them with `uv run prek install`; CI runs them on PRs
+# (.github/workflows/pre-commit.yml) against the files a PR changes.
+#
+# One check per kind of file the repository holds:
+#
+#   every file    whitespace, line endings, merge markers, large files, case
+#                 conflicts, symlinks, executable bits, private keys, secrets
+#   Python        ruff (lint + format), mypy, uv.lock in sync
+#   TS/JS/JSON/   biome, tsc
+#   CSS
+#   shell         shellcheck
+#   Dockerfiles   hadolint
+#   Compose       the Compose specification's JSON schema
+#   YAML/TOML/    syntax
+#   JSON/XML
+#   workflows     actionlint, zizmor, the GitHub workflow schema, and the
+#                 no-embedded-scripts rule (.github/scripts/README.md)
+#   Dependabot    its schema
+#   API           the generated frontend client is up to date
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -7,11 +25,20 @@ repos:
       - id: check-added-large-files
       - id: check-case-conflict
       - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-json
+        # JSONC (they carry comments); biome checks the frontend's
+        exclude: ^(frontend/tsconfig.*\.json|\.vscode/.*)$
       - id: check-toml
+      - id: check-xml
       - id: check-yaml
         args:
           - --unsafe
       - id: detect-private-key
+      - id: forbid-submodules
       - id: end-of-file-fixer
         exclude: |
             (?x)^(
@@ -23,11 +50,48 @@ repos:
       - id: trailing-whitespace
         exclude: ^frontend/src/client/.*
 
+  # Secrets in the diff: API keys, tokens, OAuth client secrets. Stronger than
+  # detect-private-key above, which only knows PEM headers. Runs on what is
+  # staged, so a key caught here never reaches history.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Shell, including every step body under .github/scripts/
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        # Follow `source .github/scripts/lib/coolify.sh` into the library
+        args: [--external-sources]
+
+  # Dockerfiles
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
+        args: [--failure-threshold, warning]
+
   # Lint GitHub Actions workflows
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
     rev: v1.7.12.25
     hooks:
       - id: actionlint
+
+  # Schemas: GitHub workflows, Dependabot, and the Compose files Coolify
+  # deploys (pinned to a compose-spec commit so the check is reproducible).
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.2
+    hooks:
+      - id: check-github-workflows
+      - id: check-dependabot
+      - id: check-jsonschema
+        name: Validate the Compose files
+        files: ^compose(\.[a-z]+)?\.ya?ml$
+        args:
+          - --schemafile
+          - https://raw.githubusercontent.com/compose-spec/compose-spec/914ec15d1fa498969c0df5c1d672306db3256089/schema/compose-spec.json
 
   - repo: local
     hooks:
@@ -37,6 +101,13 @@ repos:
         language: system
         types: [text]
         files: ^frontend/
+        pass_filenames: false
+
+      - id: local-tsc
+        name: TypeScript type-check
+        entry: bash -c 'cd frontend && bunx tsc -p tsconfig.build.json --noEmit'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$|^frontend/tsconfig.*\.json$
         pass_filenames: false
 
       - id: local-ruff-check
@@ -68,6 +139,28 @@ repos:
         language: unsupported
         pass_filenames: false
         files: (^|/)(pyproject\.toml|uv\.lock)$
+
+      # GitHub Actions security audit. Offline only: the online audits need a
+      # token and network round-trips per action, which belongs in CI
+      # (.github/workflows/zizmor.yml). Both read .github/zizmor.yml.
+      - id: zizmor
+        name: Audit GitHub Actions workflows with zizmor
+        entry: uvx zizmor@1.30.1 --no-online-audits --min-confidence=medium --min-severity=low
+        language: system
+        files: ^(\.github/(workflows/.*\.ya?ml|zizmor\.yml|dependabot\.yml)|\.pre-commit-config\.yaml)$
+        pass_filenames: false
+        args: ["."]
+
+      # Shell inside a YAML string is invisible to shellcheck, so every
+      # multi-line step body lives in .github/scripts/. This keeps that true:
+      # an inline block, an orphaned script, or a step naming a missing script
+      # all fail here.
+      - id: workflow-scripts
+        name: Workflows carry no embedded scripts
+        entry: uv run --no-project --with pyyaml python scripts/validate_workflow_scripts.py
+        language: system
+        files: ^(\.github/(workflows/.*\.ya?ml|scripts/.*)|scripts/validate_workflow_scripts\.py)$
+        pass_filenames: false
 
       - id: generate-frontend-sdk
         name: Generate Frontend SDK

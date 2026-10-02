@@ -21,7 +21,6 @@ docker compose watch
 | <http://localhost:8000/docs> | API and interactive docs |
 | <http://localhost:8080> | Adminer (database admin) |
 | <http://localhost:1080> | MailCatcher: every email the backend sends |
-| <http://localhost:8090> | Traefik dashboard |
 
 `docker compose watch` syncs code changes into the containers and reloads
 the API. The first start takes a minute while the database is migrated and

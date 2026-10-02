@@ -42,14 +42,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-# ---------------------------------------------------------------------------
-# Default target — FastAPI application
-# ---------------------------------------------------------------------------
-FROM base AS default
+# One image for every backend service. The API is the default; the Celery
+# worker and beat set their own `command` in compose.yml. (This used to be two
+# build targets sharing one image tag, and the last stage — the worker — was
+# what an untargeted build produced, so the tag's CMD depended on build order.)
 CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
-
-# ---------------------------------------------------------------------------
-# Celery target — worker + optional beat scheduler
-# ---------------------------------------------------------------------------
-FROM base AS celery
-CMD ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=4"]

@@ -1,111 +1,270 @@
 # Deploying Prism
 
-Prism runs as a Docker Compose stack (API, Celery worker and beat, frontend,
-Postgres, Redis, Adminer) behind a shared [Traefik](https://traefik.io) proxy
-that routes subdomains and handles HTTPS certificates. With `DOMAIN=example.com`:
+Prism is deployed in two halves, to a single **production** environment:
 
-| URL | Service |
-|-----|---------|
-| `https://dashboard.example.com` | Frontend |
-| `https://api.example.com` | API (docs at `/docs`) |
-| `https://adminer.example.com` | Database admin |
-| `https://traefik.example.com` | Traefik dashboard |
+- **`frontend/`** is a static site on
+  [Cloudflare Workers](https://developers.cloudflare.com/workers/static-assets/),
+  deployed by GitHub Actions.
+- **`backend/`**, the Celery worker and beat scheduler, Postgres and Redis run on
+  [Coolify](https://coolify.io), a self-hosted PaaS that deploys the root
+  [`compose.yml`](compose.yml).
 
-## 1. Prepare the server
+Publishing a GitHub release deploys both, backend first.
 
-- A server with [Docker Engine](https://docs.docker.com/engine/install/).
-- DNS records for your domain **and a wildcard** (`*.example.com`) pointing to
-  it. For a staging stack on the same server, use e.g. `staging.example.com`
-  and `*.staging.example.com`.
+## Domains
 
-## 2. Start Traefik (once per server)
+| | URL | Hosted by |
+|---|---|---|
+| Frontend | `https://app.prism.ai` | Cloudflare Workers |
+| API | `https://api.prism.ai` (docs at `/docs`) | Coolify |
 
-Traefik lives in its own stack, shared by every Prism deployment on the
-server, and reaches them over a Docker network called `traefik-public`:
+To use another domain, change it in the four places that carry it:
+
+1. `frontend/.env.production`: `VITE_API_URL`;
+2. Coolify's environment variables: `FRONTEND_HOST` and `API_BASE_URL` (the
+   `compose.yml` defaults are the `prism.ai` values);
+3. the `production` GitHub Environment's **variables**: `APP_URL` and `API_URL`,
+   which the deploy workflows use to verify the sites (they default to the
+   `prism.ai` values);
+4. the custom domains in Cloudflare and in Coolify (below).
+
+---
+
+## How a release reaches production
+
+[`release.yml`](.github/workflows/release.yml) runs when a release is published:
+
+1. **Backend**: [`deploy-coolify.yml`](.github/workflows/deploy-coolify.yml)
+   resolves the tag, `PATCH`es the Coolify application's git ref to it,
+   triggers a deployment, waits for the build, then waits for
+   `https://api.prism.ai/api/v1/utils/health-check/` to answer.
+2. **Frontend**: once the backend succeeded,
+   [`deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) builds the
+   same tag, deploys it with wrangler and checks `https://app.prism.ai/` answers
+   200.
+
+The API is upgraded before the clients that call it, and a backend that failed to
+deploy stops the frontend. Pre-releases are not deployed. In the run, **Re-run
+failed jobs** retries only the target that broke.
+
+To release: draft a release on GitHub with a new tag (`v1.2.0`), and publish it.
+GitHub creates the tag on publish.
+
+Pushes to `master` deploy nothing: they run CI only.
+
+### Re-deploying and rolling back
+
+| To | Run |
+|---|---|
+| Re-deploy a release (all, or `backend` / `frontend` only) | **Release** workflow, `tag` = the release |
+| Roll the backend back | **Deploy backend to Coolify**, `ref` = the previous tag |
+| Roll the frontend back | **Deploy frontend to Cloudflare**, `ref` = the previous tag |
+
+Use `force: true` to redeploy the ref the backend is already pinned to; otherwise
+Coolify may decide there is nothing to rebuild. A backend rollback does not roll
+back database migrations: check the migrations between the two tags first.
+
+### GitHub setup
+
+Create a `production`
+[environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
+in the repository settings. Give it required reviewers if a release should wait
+for an approval before deploying.
+
+Secrets on the `production` environment:
+
+| Secret | Description |
+|---|---|
+| `COOLIFY_URL` | Base URL of the Coolify panel, no trailing slash |
+| `COOLIFY_API_TOKEN` | Coolify API token with write access to the application (**Keys & Tokens → API tokens**) |
+| `COOLIFY_APP_UUID` | The application's UUID: the last path segment of its URL in the Coolify dashboard |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token, see [below](#api-token) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+
+Variables on the `production` environment (optional, only to change the domain):
+`APP_URL`, `API_URL`.
+
+The deploy fails, rather than skipping, when a Coolify secret is missing: a
+backend that silently did not deploy is a frontend talking to the wrong API.
+
+---
+
+## Coolify (backend)
+
+### 1. Create the application
+
+1. In Coolify, **+ New → Public/Private Repository** (with the Coolify GitHub
+   App for a private repository), pick this repository, and choose the
+   **Docker Compose** build pack with `/compose.yml` as the compose file.
+2. Set the git branch to the tag you are about to release (e.g. `v1.0.0`): after
+   that, `deploy-coolify.yml` moves it on each release.
+3. **Turn auto-deploy off** (*Advanced → Auto Deploy*), so pushes to `master`
+   never reach production. Releases deploy it instead.
+4. Give the `backend` service the domain `https://api.prism.ai:8000`: Coolify
+   proxies `api.prism.ai` to the container's port 8000 and handles HTTPS. Point
+   the `api.prism.ai` DNS record at the Coolify server. No other service needs a
+   domain.
+
+Coolify 4.2 or newer is required: it made the deploy endpoint `POST`-only, which
+is what the workflow sends.
+
+The Coolify host must be reachable from GitHub-hosted runners. Behind an IP
+allowlist or Cloudflare Access, the API calls fail and you need either an Access
+service token or a self-hosted runner.
+
+### 2. Configure
+
+Coolify lists every variable `compose.yml` references in the **Environment
+Variables** tab.
+
+**Generated by Coolify** ([magic variables](https://coolify.io/docs/knowledge-base/docker/compose#coolify-magic-environment-variables)),
+nothing to set. Coolify generates them on the first deploy and keeps them stable:
+
+| Coolify variable | Becomes |
+|---|---|
+| `SERVICE_USER_POSTGRES` | `POSTGRES_USER` |
+| `SERVICE_PASSWORD_POSTGRES` | `POSTGRES_PASSWORD` |
+| `SERVICE_PASSWORD_64_SECRETKEY` | `SECRET_KEY` |
+| `SERVICE_PASSWORD_FIRSTSUPERUSER` | `FIRST_SUPERUSER_PASSWORD`: read it from the tab to log in the first time |
+
+> **Never change `SECRET_KEY`.** Besides signing sessions, it derives the key
+> that encrypts the OAuth tokens stored in the database
+> (`backend/app/core/encryption.py`): a new one makes every connected account
+> unreadable, and they all have to be reconnected. Outside local development
+> the backend refuses to start without one.
+
+**Required**:
+
+| Variable | Description |
+|---|---|
+| `FIRST_SUPERUSER` | Email of the first admin user |
+| `AI_PROVIDER` | `openai`, `anthropic` or `google` (default `openai`) |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | The key of the chosen provider |
+
+**With defaults** (set only to change them):
+
+| Variable | Default |
+|---|---|
+| `FRONTEND_HOST` | `https://app.prism.ai`: links in emails, and always an allowed CORS origin |
+| `API_BASE_URL` | `https://api.prism.ai`: builds the OAuth redirect URIs |
+| `ENVIRONMENT` | `production` |
+| `PROJECT_NAME` | `Prism` |
+| `POSTGRES_DB` | `app` |
+| `AI_MODEL` | `gpt-4o-mini` |
+| `CELERY_CONCURRENCY` | `4` worker processes |
+| `LANGCHAIN_PROJECT` | `prism` |
+
+**Optional**:
+
+| Variable | Description |
+|---|---|
+| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Facebook Pages and Instagram (one Meta app) |
+| `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | Twitter / X |
+| `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn |
+| `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | TikTok |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Analytics 4 |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_SSL`, `EMAILS_FROM_EMAIL` | Email (password resets, scheduled reports). Disabled while `SMTP_HOST` is empty. |
+| `BACKEND_CORS_ORIGINS` | Extra comma-separated CORS origins |
+| `SENTRY_DSN` | Sentry error tracking |
+| `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_ENDPOINT` | LangSmith tracing |
+
+Register `https://api.prism.ai/api/v1/oauth/callback/{platform}` as the redirect
+URI in each platform's developer console.
+
+### 3. The stack
+
+`compose.yml` runs:
+
+| Service | Role |
+|---|---|
+| `db` | PostgreSQL 18 |
+| `redis` | Celery broker and result backend |
+| `prestart` | Waits for the database, runs `alembic upgrade head`, creates the first superuser, exits. Everything else waits for it. |
+| `backend` | FastAPI, four workers |
+| `celery-worker` | Syncs, token refreshes, AI analyses |
+| `celery-beat` | The scheduler. Exactly one must run: never scale it. |
+
+There is no reverse proxy (Coolify's handles routing and TLS), no frontend
+(Cloudflare) and no Adminer: use Coolify's terminal on the `db` container, or
+its database backups, instead. Every service has a memory cap so the OOM killer,
+if it ever fires, takes the misbehaving container rather than Postgres.
+
+`.github/workflows/test-docker-compose.yml` boots exactly this file on every pull
+request, with stand-ins for the magic variables, and checks the API, worker,
+beat and migrations.
+
+---
+
+## Cloudflare Workers (frontend)
+
+### API token
+
+Create it at
+[dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+with a single account-scoped permission:
+
+| Scope | Permission | Needed for |
+|---|---|---|
+| Account | Workers Scripts: Edit | Uploading the Worker and its static assets |
+
+No zone permission is needed, and the token should not carry one. That holds
+only because `frontend/wrangler.jsonc` declares no `routes`, see below.
+
+### Custom domain
+
+The domain is bound by hand, once, in the Cloudflare dashboard: **Workers &
+Pages → prism-frontend → Settings → Domains & Routes → Add → Custom domain →
+`app.prism.ai`**. Cloudflare creates the DNS record and certificate. The Worker
+must exist first, so bind it after the first release has deployed.
+
+Declaring it in `wrangler.jsonc` instead would make wrangler reconcile the zone's
+routes on every deploy, which needs a CI token with `Workers Routes: Edit` and
+`DNS: Edit` on the zone: enough to repoint `api.prism.ai` at anything if the
+token leaked. The cost is that renaming the Worker (`name` in `wrangler.jsonc`)
+silently orphans the binding: the deploy succeeds, and the site keeps serving the
+old Worker.
+
+`workers_dev` is `false`, so the Worker is not also reachable at a
+`*.workers.dev` URL.
+
+### How the site is served
+
+| Nginx (Docker image, local) | Workers |
+|---|---|
+| SPA fallback (`try_files $uri /index.html`) | `assets.not_found_handling: "single-page-application"` |
+| `/api`, `/docs`, `/redoc` return 404 | `frontend/worker/index.ts` |
+
+The API URL is baked in at build time from `frontend/.env.production` (Vite
+loads it for `vite build`). It holds public values only: anything in a `VITE_*`
+variable ends up in the bundle.
+
+### Deploying by hand
 
 ```bash
-# On your machine
-rsync -a compose.traefik.yml root@your-server:/root/code/traefik-public/
-
-# On the server
-docker network create traefik-public
-cd /root/code/traefik-public/
-export USERNAME=admin                         # Traefik dashboard login
-export PASSWORD=<a strong password>
-export HASHED_PASSWORD=$(openssl passwd -apr1 "$PASSWORD")
-export DOMAIN=example.com
-export EMAIL=you@example.com                  # for Let's Encrypt; not @example.com
-docker compose -f compose.traefik.yml up -d
+bun install
+bun run --filter frontend build
+cd frontend && bun run deploy:dry-run   # validate, upload nothing
+cd frontend && bun run deploy           # needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
 ```
 
-## 3. Configure Prism
+`.github/workflows/test-frontend.yml` runs the build and the dry run on every
+pull request that touches the frontend.
 
-Create a `.env` from [`.env.example`](.env.example). The variables are
-described in the [README](README.md#configuration); for a deployment, also:
+### Troubleshooting
 
-- set `ENVIRONMENT` to `staging` or `production`, and `DOMAIN` to your domain;
-- set `FRONTEND_HOST=https://dashboard.<DOMAIN>`,
-  `API_BASE_URL=https://api.<DOMAIN>` and
-  `BACKEND_CORS_ORIGINS=https://dashboard.<DOMAIN>`;
-- give each deployment on the server its own `STACK_NAME` and
-  `COMPOSE_PROJECT_NAME` (e.g. `prism-staging`, `prism-production`);
-- replace every `changethis`. Generate secrets with
-  `python -c "import secrets; print(secrets.token_urlsafe(32))"`;
-- register `{API_BASE_URL}/api/v1/oauth/callback/{platform}` as the redirect
-  URI in each platform's developer console.
+- **`Authentication error [code: 10000]` on `/zones/<id>/workers/routes`**:
+  something added a `routes` key to `frontend/wrangler.jsonc`. Remove it and
+  bind the domain in the dashboard.
+- **The deploy succeeded but the site is unchanged**: the domain is bound to
+  another Worker, or not bound at all. Check it in the dashboard.
 
-## 4. Deploy
-
-### Manually
-
-```bash
-rsync -av --filter=":- .gitignore" ./ root@your-server:/root/code/prism/
-scp .env root@your-server:/root/code/prism/.env
-
-# On the server
-cd /root/code/prism/
-docker compose -f compose.yml build
-docker compose -f compose.yml up -d
-```
-
-`-f compose.yml` leaves out `compose.override.yml`, which only holds
-local-development settings. Database migrations run automatically (the
-`prestart` service) before the API starts.
-
-### With GitHub Actions
-
-Two workflows deploy on a [self-hosted
-runner](https://docs.github.com/en/actions/hosting-your-own-runners) on your
-server:
-
-| Workflow | Trigger | Runner label | GitHub environment |
-|----------|---------|--------------|--------------------|
-| `deploy-staging.yml` | push to `master` | `staging` | `staging` |
-| `deploy-production.yml` | release published | `production` | `production` |
-
-To set them up:
-
-1. On the server, create a user for the runner and let it use Docker:
-
-   ```bash
-   sudo adduser github
-   sudo usermod -aG docker github
-   ```
-
-2. As that user, [add a self-hosted
-   runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners)
-   to the repository with the label `staging` or `production`, then, as root,
-   [install it as a
-   service](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/configuring-the-self-hosted-runner-application-as-a-service)
-   (`./svc.sh install github && ./svc.sh start` in `actions-runner/`).
-
-3. In the repository settings, create the `staging` and `production`
-   [environments](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
-   and give each a `DOTENV` secret holding the whole `.env` file for that
-   deployment. The workflow writes it to `.env` before running Compose.
+---
 
 ## CI secrets
 
+- `PRE_COMMIT` (optional): a token that lets `pre-commit.yml` push its autofix
+  commit to pull requests and have CI run on it. Without it, fixes go through
+  pre-commit.ci lite.
 - `SMOKESHOW_AUTH_KEY` (optional): publishes the backend coverage report with
   [Smokeshow](https://github.com/samuelcolvin/smokeshow). Without it, the
-  coverage step is skipped.
+  upload is skipped.

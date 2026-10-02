@@ -1,5 +1,13 @@
 name: Test Docker Compose
 
+# Two different stacks come out of the Compose files, and both are tested:
+#
+#   coolify  `compose.yml` alone — exactly what Coolify deploys to production,
+#            fed the SERVICE_* variables Coolify would generate. Nothing else
+#            exercises this file before a release reaches it.
+#   dev      `compose.yml` + `compose.override.yml` — the local stack, with the
+#            frontend and Adminer.
+
 on:
   push:
     branches:
@@ -8,27 +16,74 @@ on:
     types:
       - opened
       - synchronize
+      - reopened
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test-docker-compose:
+  coolify:
+    name: Production stack (Coolify)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Stand-ins for the magic variables Coolify generates. Throwaway values
+      # for throwaway containers.
+      SERVICE_USER_POSTGRES: prism
+      SERVICE_PASSWORD_POSTGRES: ci-only-postgres-password
+      SERVICE_PASSWORD_64_SECRETKEY: ci-only-secret-key
+      SERVICE_PASSWORD_FIRSTSUPERUSER: ci-only-superuser-password
+      FIRST_SUPERUSER: admin@example.com
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      # No .env and no override file: Coolify has neither.
+      - name: Build
+        run: docker compose -f compose.yml build
+      - name: Start the stack
+        run: docker compose -f compose.yml up -d --wait --wait-timeout 300
+      - name: Check the API, worker and beat
+        run: .github/scripts/test-docker-compose/check-the-production-stack.sh
+      - name: Show the logs
+        if: failure()
+        run: docker compose -f compose.yml logs
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f compose.yml down -v --remove-orphans
 
-      # CI only talks to throwaway containers, so the example settings
-      # (and their dummy credentials) are fine, and need no repository secrets.
-      # That also lets Dependabot and fork PRs, which can't read secrets, run CI.
+  dev:
+    name: Local development stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - name: Create .env files from the examples
-        run: |
-          cp .env.example .env
-          cp frontend/.env.example frontend/.env
-
-      - run: docker compose build
-      - run: docker compose down -v --remove-orphans
-      - run: docker compose up -d --wait backend frontend adminer
+        run: .github/scripts/shared/create-env-files.sh
+      - name: Build
+        run: docker compose build
+      - name: Start the stack
+        run: docker compose up -d --wait --wait-timeout 300 backend frontend adminer
       - name: Test backend is up
-        run: curl http://localhost:8000/api/v1/utils/health-check
+        run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 http://localhost:8000/api/v1/utils/health-check/
       - name: Test frontend is up
-        run: curl http://localhost:5173
-      - run: docker compose down -v --remove-orphans
+        run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 -o /dev/null http://localhost:5173
+      - name: Test Adminer is up
+        run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 -o /dev/null http://localhost:8080
+      - name: Show the logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v --remove-orphans

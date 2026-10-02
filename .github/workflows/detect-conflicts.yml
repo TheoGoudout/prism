@@ -1,18 +1,33 @@
 name: "Conflict detector"
+
+# Labels (and comments on) pull requests that a push to their base branch has
+# put in conflict. pull_request_target, so fork pull requests can be labelled
+# too; safe because nothing here checks out, builds or runs their code.
 on:
   push:
+    branches:
+      - master
+  # zizmor: ignore[dangerous-triggers] -- no checkout of the head ref; see above
   pull_request_target:
     types: [synchronize]
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   main:
-    permissions:
-      contents: read
-      pull-requests: write
+    name: Label conflicting pull requests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # To compare the pull requests with their base.
+      pull-requests: write # To label and comment on conflicting ones.
     steps:
       - name: Check if PRs have merge conflicts
-        uses: eps1lon/actions-label-merge-conflict@v3
+        uses: eps1lon/actions-label-merge-conflict@0273be72a0bbd58fcd71d0d6c02c209b50d1e5e1 # v3.1.0
         with:
           dirtyLabel: "conflicts"
           repoToken: "${{ secrets.GITHUB_TOKEN }}"

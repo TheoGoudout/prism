@@ -134,6 +134,15 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
+        # The random default differs per process (the API runs four workers)
+        # and per restart, and the OAuth tokens stored in the database are
+        # encrypted with a key derived from it — so outside local development
+        # a missing SECRET_KEY must stop the app rather than fall back to it.
+        if self.ENVIRONMENT != "local" and "SECRET_KEY" not in self.model_fields_set:
+            raise ValueError(
+                "SECRET_KEY must be set outside local development: it signs "
+                "sessions and encrypts the stored OAuth tokens."
+            )
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(
