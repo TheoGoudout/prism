@@ -4,6 +4,7 @@ import { BarChart2, Link2 } from "lucide-react"
 import { KpiCards } from "@/components/Common/KpiCards"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { IntegrationStatusBadge } from "@/components/Integrations/IntegrationStatusBadge"
+import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { SyncButton } from "@/components/Integrations/SyncButton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,9 +78,7 @@ function Dashboard() {
                   className="flex items-center justify-between py-2"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex size-8 items-center justify-center rounded-md border bg-muted">
-                      <Link2 className="size-4 text-muted-foreground" />
-                    </div>
+                    <PlatformIcon platform={integration.platform} />
                     <div>
                       <p className="text-sm font-medium">
                         {platformLabel(integration.platform)}

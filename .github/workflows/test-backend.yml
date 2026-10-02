@@ -35,6 +35,9 @@ jobs:
       - name: Migrate DB
         run: uv run bash scripts/prestart.sh
         working-directory: backend
+      - name: Check the migrations match the models
+        run: uv run alembic check
+        working-directory: backend
       - name: Run tests
         run: uv run bash scripts/tests-start.sh "Coverage for ${{ github.sha }}"
         working-directory: backend

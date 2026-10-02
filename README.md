@@ -1,8 +1,19 @@
-# Prism
+<p align="center">
+  <img src="docs/images/logo.svg" alt="Prism" height="64">
+</p>
 
-Prism is a multi-tenant social media analytics app. Connect your brand's
-accounts once and get a single dashboard, AI-generated insights and
-performance reports across every platform.
+<p align="center">
+  Social media analytics for teams: connect your brand's accounts once and
+  get one dashboard, AI insights and performance reports across every platform.
+</p>
+
+<p align="center">
+  <a href="https://github.com/TheoGoudout/prism/actions/workflows/test-backend.yml"><img src="https://github.com/TheoGoudout/prism/actions/workflows/test-backend.yml/badge.svg" alt="Backend tests"></a>
+  <a href="https://github.com/TheoGoudout/prism/actions/workflows/playwright.yml"><img src="https://github.com/TheoGoudout/prism/actions/workflows/playwright.yml/badge.svg" alt="End-to-end tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
+
+![Analytics: KPIs, trend chart, per-platform breakdown and top posts](docs/images/analytics.png)
 
 ## Features
 
@@ -30,18 +41,22 @@ performance reports across every platform.
   markdown performance report generated from your metrics. Works with
   OpenAI, Anthropic or Google models.
 
+| Dashboard | Integrations | Members |
+|:-:|:-:|:-:|
+| ![Dashboard](docs/images/dashboard.png) | ![Integrations](docs/images/integrations.png) | ![Members](docs/images/members.png) |
+
 ## Stack
 
 | Layer    | Technology |
 |----------|------------|
-| Backend  | FastAPI, SQLModel, PostgreSQL, Alembic, Celery, Redis, LangChain |
+| Backend  | Python 3.14, FastAPI, SQLModel, PostgreSQL, Alembic, Celery, Redis, LangChain |
 | Frontend | React 19, TypeScript, Vite, TanStack Router & Query, Tailwind CSS, shadcn/ui, Recharts |
 | Tooling  | uv, Ruff, mypy (strict), pytest, Bun, Biome, Playwright |
 | Infra    | Docker Compose, Traefik, GitHub Actions |
 
 ```
 backend/app/
-├── api/routes/          # REST endpoints (auth, workspaces, integrations, oauth, metrics, ai)
+├── api/routes/          # REST endpoints; workspace data lives under /workspaces/{id}/…
 ├── integrations/
 │   ├── oauth/           # one OAuth provider per platform + registry
 │   ├── platforms/       # one sync module per platform
@@ -89,8 +104,9 @@ frontend/src/
 3. Log in with `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` and create
    your first workspace.
 
-See [development.md](./development.md) for running services outside Docker,
-pre-commit hooks and regenerating the frontend client. See
+See [development.md](./development.md) for running services outside Docker
+and the git hooks, the [backend](backend/README.md) and
+[frontend](frontend/README.md) guides for their layout, API and tests, and
 [deployment.md](./deployment.md) for production.
 
 ### Configuration

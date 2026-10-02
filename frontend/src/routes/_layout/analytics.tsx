@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import type { PostPublic } from "@/client"
+import type { Platform, PostPublic } from "@/client"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
 import { TrendChart } from "@/components/Analytics/TrendChart"
 import { KpiCards } from "@/components/Common/KpiCards"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
+import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
@@ -112,7 +113,13 @@ function AnalyticsPage() {
               rows={byPlatform.map(([platform, totals]) => ({
                 key: platform,
                 label: (
-                  <Badge variant="outline">{platformLabel(platform)}</Badge>
+                  <span className="flex items-center gap-2">
+                    <PlatformIcon
+                      platform={platform as Platform}
+                      className="size-6"
+                    />
+                    {platformLabel(platform)}
+                  </span>
                 ),
                 values: [
                   totals.impressions,

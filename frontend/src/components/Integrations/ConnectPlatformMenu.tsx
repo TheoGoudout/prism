@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useConnectPlatform } from "@/hooks/useIntegrations"
 import { PLATFORM_LABELS, PLATFORMS } from "@/lib/platforms"
+import { PlatformIcon } from "./PlatformIcon"
 
 /** "Connect platform" dropdown; already-connected platforms are labelled. */
 export function ConnectPlatformMenu({
@@ -33,6 +34,7 @@ export function ConnectPlatformMenu({
       <DropdownMenuContent align="end">
         {PLATFORMS.map((platform) => (
           <DropdownMenuItem key={platform} onClick={() => connect(platform)}>
+            <PlatformIcon platform={platform} className="size-5 text-[10px]" />
             {PLATFORM_LABELS[platform]}
             {connected.has(platform) && (
               <span className="ml-auto text-xs text-muted-foreground">
