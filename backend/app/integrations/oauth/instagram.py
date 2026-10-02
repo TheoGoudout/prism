@@ -21,6 +21,11 @@ class InstagramOAuthProvider(FacebookOAuthProvider):
         "pages_read_engagement",
     ]
 
+    def grant_owner_id(self, *, access_token: str, external_account_id: str) -> str:
+        # The account id is the Instagram account's; the grant is the
+        # Facebook user's, shared with that user's Facebook integrations
+        return str(graph_get("me", access_token, {"fields": "id"})["id"])
+
     def get_account_info(self, access_token: str) -> AccountInfo:
         # Find the Instagram Business account linked to one of the user's Pages
         data = graph_get(

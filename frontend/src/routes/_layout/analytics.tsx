@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import type { Platform, PostPublic } from "@/client"
+import { FollowersTable } from "@/components/Analytics/FollowersTable"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
 import { TrendChart } from "@/components/Analytics/TrendChart"
@@ -11,11 +12,12 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
+  useFollowers,
   useMetricsSummary,
   useMetricsTimeseries,
   useTopPosts,
 } from "@/hooks/useMetrics"
-import { lastDays } from "@/lib/format"
+import { formatPercent, lastDays } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
 
 export const Route = createFileRoute("/_layout/analytics")({
@@ -29,6 +31,7 @@ function PostLabel({ post }: { post: PostPublic }) {
   const text = post.text?.slice(0, 80) ?? post.external_id
   return (
     <div className="flex items-center gap-2">
+      <PlatformIcon platform={post.platform} className="size-5 shrink-0" />
       <Badge variant="secondary" className="shrink-0 text-xs capitalize">
         {post.content_type}
       </Badge>
@@ -56,6 +59,7 @@ function AnalyticsPage() {
   const summary = useMetricsSummary(range)
   const timeseries = useMetricsTimeseries(range)
   const posts = useTopPosts(range)
+  const followers = useFollowers(range)
   const byPlatform = Object.entries(summary.data?.by_platform ?? {})
 
   return (
@@ -70,12 +74,12 @@ function AnalyticsPage() {
       <KpiCards
         className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6"
         metrics={[
-          "impressions",
+          "exposures",
           "reach",
-          "views",
           "engagements",
-          "clicks",
+          "engagement_rate",
           "followers_count",
+          "followers_growth",
         ]}
         totals={summary.data?.totals}
         loading={summary.isLoading}
@@ -104,11 +108,11 @@ function AnalyticsPage() {
             <MetricsTable
               labelHeader="Platform"
               valueHeaders={[
-                "Impressions",
                 "Views",
                 "Reach",
                 "Engagements",
-                "Followers",
+                "Engagement rate",
+                "Clicks",
               ]}
               rows={byPlatform.map(([platform, totals]) => ({
                 key: platform,
@@ -122,14 +126,39 @@ function AnalyticsPage() {
                   </span>
                 ),
                 values: [
-                  totals.impressions,
-                  totals.views,
+                  totals.exposures,
                   totals.reach,
                   totals.engagements,
-                  totals.followers_count,
+                  formatPercent(totals.engagement_rate),
+                  totals.clicks,
                 ],
               }))}
             />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Every platform uses the same definitions. Views are impressions
+              where a platform has no views; engagements are likes, comments,
+              shares and saves (engaged sessions for websites). Platforms
+              without daily figures count each post on the day it was published.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {byPlatform.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Followers</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <FollowersTable
+              byPlatform={summary.data?.by_platform ?? {}}
+              series={followers.data ?? []}
+            />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Growth is the latest follower count minus the first one in the
+              period. Most platforms only report today's total, so their history
+              builds up from the first sync.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -149,21 +178,23 @@ function AnalyticsPage() {
             <MetricsTable
               labelHeader="Content"
               valueHeaders={[
-                "Impressions",
                 "Views",
                 "Engagements",
+                "Engagement rate",
                 "Likes",
                 "Comments",
+                "Shares",
               ]}
               rows={posts.data.map((post) => ({
                 key: post.id,
                 label: <PostLabel post={post} />,
                 values: [
-                  post.impressions,
-                  post.views,
+                  post.views ?? post.impressions,
                   post.engagements,
+                  formatPercent(post.engagement_rate),
                   post.likes,
                   post.comments,
+                  post.shares,
                 ],
               }))}
             />

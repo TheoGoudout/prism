@@ -19,7 +19,7 @@ from sqlmodel import Session
 
 from app import crud
 from app.ai.analysis import build_analysis_chain, to_result
-from app.ai.formatting import prompt_variables
+from app.ai.formatting import format_value, prompt_variables
 from app.core.config import settings
 from app.models.analysis import (
     AnalysisFrequency,
@@ -143,7 +143,9 @@ def _monthly_breakdown(
         month_query = MetricsQuery(query.workspace_id, query.platform, start, end)
         totals = metrics_service.summarize(session, month_query).totals
         metrics = ", ".join(
-            f"{name}={value:,}" for name, value in totals.model_dump().items() if value
+            f"{name}={format_value(name, value)}"
+            for name, value in totals.model_dump().items()
+            if value
         )
         label = f"{start:%Y-%m}"
         lines.append(

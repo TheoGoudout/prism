@@ -1,6 +1,8 @@
 import uuid
-from unittest.mock import patch
+from collections.abc import Iterator
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -15,6 +17,13 @@ from tests.utils.workspace import add_member, create_random_workspace
 
 def _url(workspace: Workspace, path: str = "") -> str:
     return f"{settings.API_V1_STR}/workspaces/{workspace.id}/integrations/{path}"
+
+
+@pytest.fixture(autouse=True)
+def revoke_access() -> Iterator[MagicMock]:
+    """Never contact a real platform when disconnecting."""
+    with patch("app.api.routes.integrations.revoke_access", return_value=True) as mock:
+        yield mock
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +109,22 @@ def test_delete_integration_cascades_accounts(client: TestClient, db: Session) -
     assert db.get(PlatformAccount, account.id) is None
 
 
-def test_delete_integration_viewer_forbidden(client: TestClient, db: Session) -> None:
+def test_delete_integration_revokes_access(
+    client: TestClient, db: Session, revoke_access: MagicMock
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+
+    r = client.delete(_url(ws, str(integration.id)), headers=headers)
+    assert r.status_code == 204
+    revoke_access.assert_called_once()
+    assert revoke_access.call_args.args[1].id == integration.id
+
+
+def test_delete_integration_viewer_forbidden(
+    client: TestClient, db: Session, revoke_access: MagicMock
+) -> None:
     owner, _ = create_user_with_headers(client, db)
     viewer, viewer_headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, owner)
@@ -109,6 +133,7 @@ def test_delete_integration_viewer_forbidden(client: TestClient, db: Session) ->
 
     r = client.delete(_url(ws, str(integration.id)), headers=viewer_headers)
     assert r.status_code == 403
+    revoke_access.assert_not_called()
 
 
 def test_delete_integration_not_found(client: TestClient, db: Session) -> None:

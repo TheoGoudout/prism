@@ -27,6 +27,7 @@ from app.crud.integration import (
 from app.crud.metrics import (
     get_posts,
     get_posts_by_ids,
+    get_posts_for_accounts,
     get_snapshots_for_accounts,
     get_top_posts,
     upsert_metric_snapshot,
@@ -71,6 +72,7 @@ __all__ = [
     "get_posts",
     "get_posts_by_ids",
     "get_refresh_token",
+    "get_posts_for_accounts",
     "get_schedule",
     "get_snapshots_for_accounts",
     "get_top_posts",

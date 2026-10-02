@@ -40,3 +40,14 @@ def sum_known(*values: Any) -> int | None:
     """Sum of the values the platform reported, or None if it reported none."""
     known = [v for v in values if isinstance(v, int)]
     return sum(known) if known else None
+
+
+def engagement_total(
+    likes: Any = None, comments: Any = None, shares: Any = None, saves: Any = None
+) -> int | None:
+    """
+    The normalised `engagements` of a post: likes + comments + shares + saves,
+    the same sum on every platform so engagements compare across platforms.
+    Clicks are not engagements; they are stored apart.
+    """
+    return sum_known(likes, comments, shares, saves)

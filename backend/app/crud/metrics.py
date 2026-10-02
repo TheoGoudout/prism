@@ -20,9 +20,12 @@ from app.models.metrics import (
 
 
 def _engagement_rate(metrics: ContentMetrics) -> float | None:
-    """engagements / reach, or None if either is unknown."""
-    if metrics.engagements is not None and metrics.reach:
-        return round(metrics.engagements / metrics.reach, 6)
+    """
+    engagements / exposures (views, or impressions), or None if either is
+    unknown. Unlike reach, every platform reports exposures for its posts.
+    """
+    if metrics.engagements is not None and metrics.exposures:
+        return round(metrics.engagements / metrics.exposures, 6)
     return None
 
 
@@ -99,6 +102,26 @@ def get_snapshots_for_accounts(
         .where(MetricSnapshot.date >= start_date)
         .where(MetricSnapshot.date <= end_date)
         .order_by(col(MetricSnapshot.date))
+    )
+    return session.exec(statement).all()
+
+
+def get_posts_for_accounts(
+    *,
+    session: Session,
+    platform_account_ids: Sequence[uuid.UUID],
+    start_date: date,
+    end_date: date,
+) -> Sequence[Post]:
+    """Posts several accounts published over a date range, oldest first."""
+    if not platform_account_ids:
+        return []
+    statement = (
+        select(Post)
+        .where(col(Post.platform_account_id).in_(platform_account_ids))
+        .where(func.date(Post.published_at) >= start_date)
+        .where(func.date(Post.published_at) <= end_date)
+        .order_by(col(Post.published_at))
     )
     return session.exec(statement).all()
 

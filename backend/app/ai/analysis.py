@@ -87,6 +87,9 @@ Workspace: {workspace_name}
 Period: {date_from} to {date_to}
 Previous period: {previous_date_from} to {previous_date_to}
 
+=== Metric definitions ===
+{metric_definitions}
+
 === Totals this period ===
 {totals_text}
 

@@ -1,7 +1,7 @@
 """Add performance analysis and analysis schedule tables
 
 Revision ID: 5ce89f0c2b24
-Revises: 7b3cfafd351e
+Revises: c4e2a9d7f1b3
 Create Date: 2026-10-02 07:53:51.849324
 
 """
@@ -12,7 +12,7 @@ import sqlmodel.sql.sqltypes
 
 # revision identifiers, used by Alembic.
 revision = '5ce89f0c2b24'
-down_revision = '7b3cfafd351e'
+down_revision = 'c4e2a9d7f1b3'
 branch_labels = None
 depends_on = None
 

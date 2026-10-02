@@ -26,6 +26,14 @@ export function useMetricsTimeseries(range: DateRange) {
   })
 }
 
+export function useFollowers(range: DateRange) {
+  const params = useMetricsParams(range)
+  return useQuery({
+    queryKey: ["metrics", "followers", params],
+    queryFn: () => MetricsService.getFollowers(params),
+  })
+}
+
 export function useTopPosts(range: DateRange, limit = 10) {
   const params = { ...useMetricsParams(range), limit }
   return useQuery({

@@ -105,6 +105,11 @@ export type Finding = {
     detail: string;
 };
 
+export type FollowersPoint = {
+    date: string;
+    followers: number;
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -154,20 +159,25 @@ export type MetricsSummary = {
 };
 
 /**
- * Aggregated metric totals over a date range.
+ * Aggregated metric totals over a date range. A metric none of the accounts
+ * reports is None, as opposed to 0 when it was reported as zero.
  */
 export type MetricTotals = {
-    impressions?: number;
-    reach?: number;
-    views?: number;
-    clicks?: number;
-    engagements?: number;
-    likes?: number;
-    comments?: number;
-    shares?: number;
-    saves?: number;
+    exposures?: (number | null);
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    clicks?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    saves?: (number | null);
     followers_count?: (number | null);
-    followers_gained?: number;
+    followers_gained?: (number | null);
+    followers_growth?: (number | null);
+    followers_growth_rate?: (number | null);
+    engagement_rate?: (number | null);
 };
 
 export type NewPassword = {
@@ -201,6 +211,15 @@ export type PlatformAnalysis = {
     summary: string;
 };
 
+/**
+ * A platform's follower count per day: the sum over its accounts of their
+ * latest count up to that day. Days before any count are left out.
+ */
+export type PlatformFollowers = {
+    platform: Platform;
+    points: Array<FollowersPoint>;
+};
+
 export type PostAnalysis = {
     post_id: string;
     verdict: 'strong' | 'average' | 'weak';
@@ -226,6 +245,7 @@ export type PostPublic = {
     permalink?: (string | null);
     id: string;
     platform_account_id: string;
+    platform: Platform;
     published_at: string;
     engagement_rate?: (number | null);
 };
@@ -279,6 +299,7 @@ export type ScheduleSettings = {
 
 export type TimeSeriesPoint = {
     date: string;
+    exposures?: number;
     impressions?: number;
     reach?: number;
     views?: number;
@@ -521,6 +542,15 @@ export type MetricsGetTimeseriesData = {
 };
 
 export type MetricsGetTimeseriesResponse = (Array<TimeSeriesPoint>);
+
+export type MetricsGetFollowersData = {
+    dateFrom?: (string | null);
+    dateTo?: (string | null);
+    platform?: (Platform | null);
+    workspaceId: string;
+};
+
+export type MetricsGetFollowersResponse = (Array<PlatformFollowers>);
 
 export type MetricsGetTopPostsData = {
     dateFrom?: (string | null);

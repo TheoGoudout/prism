@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+import httpx
+
 from app.core.config import settings
 from app.integrations.meta import FACEBOOK_DIALOG_URL, GRAPH_API, graph_get
 from app.integrations.oauth.base import (
@@ -68,6 +70,16 @@ class FacebookOAuthProvider(OAuthProvider):
         self, *, access_token: str, refresh_token: str | None
     ) -> str | None:
         return access_token
+
+    def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:
+        # Removes every permission, i.e. the app from the user's integrations
+        resp = httpx.delete(
+            f"{GRAPH_API}/me/permissions",
+            params={"access_token": access_token},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return True
 
     def get_account_info(self, access_token: str) -> AccountInfo:
         data = graph_get("me", access_token, {"fields": "id,name,picture"})

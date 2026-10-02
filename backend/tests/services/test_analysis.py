@@ -105,6 +105,7 @@ def test_build_prompt(db: Session) -> None:
                 published_at=datetime(2026, 9, 10, 18, tzinfo=UTC),
                 engagements=engagements,
                 reach=1000,
+                impressions=1000,
             ),
         )
         for external_id, text, engagements in (
@@ -120,8 +121,10 @@ def test_build_prompt(db: Session) -> None:
     assert refs == {"P1": posts[1].id, "P2": posts[0].id}
     assert variables["previous_date_from"] == "2026-09-01"
     assert variables["previous_date_to"] == "2026-09-07"
-    assert variables["totals_text"] == "  impressions: 900"
-    assert variables["previous_totals_text"] == "  impressions: 300"
+    assert "  impressions: 900" in variables["totals_text"]
+    assert "  impressions: 300" in variables["previous_totals_text"]
+    assert "engagements" not in variables["previous_totals_text"]
+    assert "exposures:" in variables["metric_definitions"]
     assert "[instagram] posts=2; median engagements=50" in variables["benchmarks_text"]
     assert (
         "P1 [instagram · reel] published Thu 2026-09-10 18:00 UTC"
@@ -175,5 +178,8 @@ def test_build_yearly_prompt(db: Session) -> None:
     monthly = variables["monthly_text"]
     assert "=== Month by month ===" in monthly
     assert "2025-10: no data; posts listed above=0" in monthly
-    assert "2026-02: impressions=4,200; posts listed above=1" in monthly
+    assert (
+        "2026-02: exposures=4,200, impressions=4,200, engagements=5, "
+        "engagement_rate=0.12%; posts listed above=1"
+    ) in monthly
     assert monthly.count("posts listed above") == 12

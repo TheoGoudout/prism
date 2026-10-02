@@ -172,7 +172,9 @@ def test_sync_page_insights_falls_back_per_metric_on_invalid_metric(
 
     snap = mock_crud.upsert_metric_snapshot.call_args.kwargs["snapshot_in"]
     assert snap.views == 7
-    assert snap.engagements == 7
+    # page_post_engagements is kept for reference; engagements come from posts
+    assert snap.engagements is None
+    assert snap.raw_data["page_post_engagements"] == 7
     assert snap.followers_gained == 7
     assert snap.followers_count is None
 

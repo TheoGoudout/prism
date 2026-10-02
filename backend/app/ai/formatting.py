@@ -4,14 +4,29 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from app.models.metrics import MetricsSummary, MetricTotals, Post
+from app.models.metrics import MetricsSummary, MetricTotals, PostPublic
 from app.services.metrics import MetricsQuery
+
+# How the cross-platform metrics are defined, for the model's benefit
+METRIC_DEFINITIONS = """\
+- exposures: views, or impressions where a platform only reports impressions
+- engagements: likes + comments + shares + saves (engaged sessions for websites)
+- engagement_rate: engagements / exposures
+- reach: unique people per day, summed over the days (not deduplicated)
+- followers_growth: net change in followers over the period
+- followers_growth_rate: followers_growth / followers at the start"""
+
+
+def format_value(name: str, value: float) -> str:
+    if name in ("engagement_rate", "followers_growth_rate"):
+        return f"{value:.2%}"
+    return f"{value:,}"
 
 
 def _metric_lines(totals: MetricTotals, indent: str) -> list[str]:
     """One line per non-zero metric, e.g. "  impressions: 1,234"."""
     return [
-        f"{indent}{name}: {value:,}"
+        f"{indent}{name}: {format_value(name, value)}"
         for name, value in totals.model_dump().items()
         if value  # skip zeros and unknowns: they only add noise
     ]
@@ -27,6 +42,7 @@ def prompt_variables(
     ]
     return {
         "workspace_name": workspace_name,
+        "metric_definitions": METRIC_DEFINITIONS,
         "date_from": query.date_from.isoformat(),
         "date_to": query.date_to.isoformat(),
         "platform_context": (
@@ -37,14 +53,14 @@ def prompt_variables(
     }
 
 
-def format_posts(posts: Sequence[Post]) -> str:
+def format_posts(posts: Sequence[PostPublic]) -> str:
     if not posts:
         return "  (no posts)"
     lines = []
     for rank, post in enumerate(posts, 1):
         snippet = (post.text or "")[:80].replace("\n", " ")
         lines.append(
-            f"  {rank}. [{post.content_type.value}] "
+            f"  {rank}. [{post.platform.value} {post.content_type.value}] "
             f"engagements={post.engagements or 0:,}  — {snippet!r}"
         )
     return "\n".join(lines)

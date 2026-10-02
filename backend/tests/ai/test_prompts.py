@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from app.ai.formatting import format_posts, parse_json, prompt_variables
 from app.ai.insights import to_insights
 from app.models.integration import Platform
-from app.models.metrics import ContentType, MetricsSummary, MetricTotals, Post
+from app.models.metrics import ContentType, MetricsSummary, MetricTotals, PostPublic
 from app.services.metrics import MetricsQuery
 
 QUERY = MetricsQuery(
@@ -28,6 +28,20 @@ def test_prompt_variables_skip_zero_metrics() -> None:
     assert variables["platforms_text"] == "  [twitter]\n    impressions: 1,500"
 
 
+def test_prompt_variables_format_engagement_rate_as_percentage() -> None:
+    summary = MetricsSummary(
+        totals=MetricTotals(exposures=2000, engagements=50, engagement_rate=0.025),
+        by_platform={},
+        date_from=QUERY.date_from,
+        date_to=QUERY.date_to,
+    )
+    variables = prompt_variables(workspace_name="Acme", query=QUERY, summary=summary)
+    assert variables["totals_text"] == (
+        "  exposures: 2,000\n  engagements: 50\n  engagement_rate: 2.50%"
+    )
+    assert "engagement_rate: engagements / exposures" in variables["metric_definitions"]
+
+
 def test_prompt_variables_without_data() -> None:
     summary = MetricsSummary(
         totals=MetricTotals(),
@@ -41,15 +55,20 @@ def test_prompt_variables_without_data() -> None:
 
 
 def test_format_posts() -> None:
-    post = Post(
+    post = PostPublic(
+        id=uuid.uuid4(),
         platform_account_id=uuid.uuid4(),
+        platform=Platform.twitter,
         external_id="1",
         content_type=ContentType.tweet,
         published_at=datetime(2024, 1, 2, tzinfo=UTC),
         text="Hello\nworld",
         engagements=1234,
     )
-    assert format_posts([post]) == "  1. [tweet] engagements=1,234  — 'Hello world'"
+    assert (
+        format_posts([post])
+        == "  1. [twitter tweet] engagements=1,234  — 'Hello world'"
+    )
     assert format_posts([]) == "  (no posts)"
 
 

@@ -1,35 +1,73 @@
 import type { LucideIcon } from "lucide-react"
 import {
-  BarChart2,
   Eye,
   Heart,
   MousePointerClick,
+  Percent,
   TrendingUp,
+  UserPlus,
   Users,
 } from "lucide-react"
 
 import type { MetricTotals } from "@/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCompact } from "@/lib/format"
+import { formatCompact, formatPercent, formatSigned } from "@/lib/format"
 
 type KpiMetric = keyof Pick<
   MetricTotals,
-  | "impressions"
-  | "views"
+  | "exposures"
   | "reach"
   | "engagements"
+  | "engagement_rate"
   | "clicks"
   | "followers_count"
+  | "followers_growth"
 >
 
-const KPIS: Record<KpiMetric, { title: string; icon: LucideIcon }> = {
-  impressions: { title: "Impressions", icon: BarChart2 },
-  views: { title: "Views", icon: Eye },
-  reach: { title: "Reach", icon: TrendingUp },
-  engagements: { title: "Engagements", icon: Heart },
-  clicks: { title: "Clicks", icon: MousePointerClick },
-  followers_count: { title: "Followers", icon: Users },
+// The same definitions on every platform (see app.services.metrics)
+const KPIS: Record<
+  KpiMetric,
+  {
+    title: string
+    hint: string
+    icon: LucideIcon
+    format?: (value: number | null | undefined) => string
+  }
+> = {
+  exposures: {
+    title: "Views",
+    hint: "Or impressions, where a platform has no views",
+    icon: Eye,
+  },
+  reach: {
+    title: "Reach",
+    hint: "Unique people per day, summed",
+    icon: TrendingUp,
+  },
+  engagements: {
+    title: "Engagements",
+    hint: "Likes, comments, shares and saves",
+    icon: Heart,
+  },
+  engagement_rate: {
+    title: "Engagement rate",
+    hint: "Engagements per view",
+    icon: Percent,
+    format: formatPercent,
+  },
+  clicks: {
+    title: "Clicks",
+    hint: "Link clicks and conversions",
+    icon: MousePointerClick,
+  },
+  followers_count: { title: "Followers", hint: "Latest total", icon: Users },
+  followers_growth: {
+    title: "Follower growth",
+    hint: "Net change over the period",
+    icon: UserPlus,
+    format: formatSigned,
+  },
 }
 
 interface KpiCardsProps {
@@ -39,7 +77,7 @@ interface KpiCardsProps {
   className?: string
 }
 
-/** One card per metric, e.g. "Impressions 12.3K". */
+/** One card per metric, e.g. "Views 12.3K". */
 export function KpiCards({
   metrics,
   totals,
@@ -49,7 +87,7 @@ export function KpiCards({
   return (
     <div className={className}>
       {metrics.map((metric) => {
-        const { title, icon: Icon } = KPIS[metric]
+        const { title, hint, icon: Icon, format = formatCompact } = KPIS[metric]
         return (
           <Card key={metric}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -62,10 +100,9 @@ export function KpiCards({
               {loading ? (
                 <Skeleton className="h-7 w-20" />
               ) : (
-                <p className="text-2xl font-bold">
-                  {formatCompact(totals?.[metric])}
-                </p>
+                <p className="text-2xl font-bold">{format(totals?.[metric])}</p>
               )}
+              <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
             </CardContent>
           </Card>
         )
