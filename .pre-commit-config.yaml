@@ -59,7 +59,8 @@ repos:
         require_serial: true
         language: unsupported
         pass_filenames: false
-        types: [python]
+        # Also on dependency changes: a new version can change the types
+        files: (^backend/.*\.py|(^|/)(pyproject\.toml|uv\.lock))$
 
       - id: local-uv-lock
         name: uv.lock is up to date
