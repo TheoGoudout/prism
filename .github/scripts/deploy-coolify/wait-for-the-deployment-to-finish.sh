@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Block until Coolify reports the build finished, failed, or ran out of time.
+# Block until Coolify reports the deployment finished, failed, or ran out of time.
 #
 # COOLIFY_URL, COOLIFY_API_TOKEN and DEPLOYMENT_UUID come from the calling step's
 # env.
@@ -7,13 +7,13 @@ set -euo pipefail
 # shellcheck source=.github/scripts/lib/coolify.sh
 source .github/scripts/lib/coolify.sh
 
-# 30 minutes at 10s intervals, comfortably inside the job timeout so a stuck
-# build reports as a timed-out deploy rather than a killed job.
-for _ in $(seq 1 180); do
+# 15 minutes at 10s intervals, comfortably inside the job timeout so a stuck
+# deployment reports as a timed-out deploy rather than a killed job.
+for _ in $(seq 1 90); do
   coolify_call GET "/api/v1/deployments/${DEPLOYMENT_UUID}"
 
   # A 4xx here means the endpoint or the uuid is wrong — no amount of waiting
-  # fixes that, and spinning for the full 30 minutes would bury the real cause.
+  # fixes that, and spinning for the full 15 minutes would bury the real cause.
   # Transport errors and 5xx are worth retrying.
   if [ "$COOLIFY_CODE" -ge 400 ] && [ "$COOLIFY_CODE" -lt 500 ]; then
     echo "::error::Polling /api/v1/deployments/${DEPLOYMENT_UUID} returned HTTP ${COOLIFY_CODE}." \
@@ -26,7 +26,7 @@ for _ in $(seq 1 180); do
 
   case "$STATUS" in
     finished | success)
-      echo "Build finished."
+      echo "Deployment finished."
       exit 0
       ;;
     failed | error | cancelled-by-user)
@@ -40,5 +40,5 @@ for _ in $(seq 1 180); do
   sleep 10
 done
 
-echo "::error::Coolify deployment ${DEPLOYMENT_UUID} did not finish within 30 minutes."
+echo "::error::Coolify deployment ${DEPLOYMENT_UUID} did not finish within 15 minutes."
 exit 1

@@ -2,8 +2,9 @@ name: Release
 
 # Publishing a GitHub release deploys it to production, as one run:
 #
-#   1. the backend to Coolify, pinned to the release's tag;
-#   2. then the frontend to Cloudflare, built from the same tag.
+#   1. the backend image, built from the release's tag and pushed to GHCR;
+#   2. the backend to Coolify, pinned to the tag and pulling that image;
+#   3. then the frontend to Cloudflare, built from the same tag.
 #
 # The order is deliberate: the API is upgraded before the clients that call it,
 # and a backend that failed to deploy stops the frontend. "Re-run failed jobs"
@@ -60,9 +61,25 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: .github/scripts/release/resolve-the-release.sh
 
+  images:
+    name: Backend image
+    needs: resolve
+    # Built only when it is about to be deployed: same condition as backend.
+    if: >-
+      needs.resolve.outputs.prerelease != 'true' &&
+      (inputs.targets || 'all') != 'frontend'
+    permissions:
+      contents: read
+      packages: write # images.yml pushes the backend image to GHCR.
+    uses: ./.github/workflows/images.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+
   backend:
     name: Backend
-    needs: resolve
+    # The Coolify host pulls the image rather than building it, so it has to
+    # exist first.
+    needs: [resolve, images]
     if: >-
       needs.resolve.outputs.prerelease != 'true' &&
       (inputs.targets || 'all') != 'frontend'
@@ -78,13 +95,16 @@ jobs:
 
   frontend:
     name: Frontend
-    needs: [resolve, backend]
+    needs: [resolve, images, backend]
     # `always()` lets a *skipped* backend (targets: frontend) through; a backend
-    # that failed still blocks the frontend.
+    # that failed still blocks the frontend, and so does a failed image build,
+    # which skips the backend rather than failing it.
     if: >-
       always() &&
       needs.resolve.result == 'success' &&
       needs.resolve.outputs.prerelease != 'true' &&
+      needs.images.result != 'failure' &&
+      needs.images.result != 'cancelled' &&
       needs.backend.result != 'failure' &&
       needs.backend.result != 'cancelled' &&
       (inputs.targets || 'all') != 'backend'

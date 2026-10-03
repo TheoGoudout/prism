@@ -42,9 +42,17 @@ services:
 
   prestart:
     environment: *local-backend-env
+    # compose.yml only names the published image; build it locally instead.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
 
   backend:
     restart: "no"
+    # compose.yml only names the published image; build it locally instead.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     environment: *local-backend-env
@@ -69,6 +77,10 @@ services:
 
   celery-worker:
     restart: "no"
+    # compose.yml only names the published image; build it locally instead.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment: *local-backend-env
     develop:
       watch:
@@ -83,6 +95,10 @@ services:
 
   celery-beat:
     restart: "no"
+    # compose.yml only names the published image; build it locally instead.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment: *local-backend-env
 
   adminer:

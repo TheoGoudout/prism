@@ -35,13 +35,18 @@ To use another domain without changing the repository, set it in three places:
 
 [`release.yml`](.github/workflows/release.yml) runs when a release is published:
 
-1. **Backend**: [`deploy-coolify.yml`](.github/workflows/deploy-coolify.yml)
-   resolves the tag, `PATCH`es the Coolify application's git ref to it,
-   triggers a deployment, waits for the build, then waits for
-   `https://api.prism.ai/api/v1/utils/health-check/` to answer and checks
-   `/api/v1/openapi.json` reports the released version (the
+1. **Backend image**: [`images.yml`](.github/workflows/images.yml) builds
+   `backend/Dockerfile` from the tag on a GitHub runner and pushes it to GHCR
+   as `ghcr.io/theogoudout/prism-backend`, tagged `sha-<short commit>` and with
+   the release tag.
+2. **Backend**: [`deploy-coolify.yml`](.github/workflows/deploy-coolify.yml)
+   resolves the tag, checks anonymously that its image is on GHCR, `PATCH`es the
+   Coolify application's git ref to the tag and its `TAG` variable to
+   `sha-<short>`, triggers a deployment (the host pulls, it never builds), then
+   waits for `https://api.prism.ai/api/v1/utils/health-check/` to answer and
+   checks `/api/v1/openapi.json` reports the released version (the
    `backend/pyproject.toml` version at the tag).
-2. **Frontend**: once the backend succeeded,
+3. **Frontend**: once the backend succeeded,
    [`deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) builds the
    same tag, deploys it with wrangler and checks `https://app.prism.ai/` answers
    200.
@@ -90,8 +95,12 @@ Pushes to `master` deploy nothing: they run CI only.
 | Roll the frontend back on its own | **Deploy frontend to Cloudflare**, `ref` = the previous tag |
 
 Use `force: true` to redeploy the ref the backend is already pinned to; otherwise
-Coolify may decide there is nothing to rebuild. A backend rollback does not roll
+Coolify may decide there is nothing to redeploy. A backend rollback does not roll
 back database migrations: check the migrations between the two tags first.
+
+A tag deploys only once its image exists. Releases from before images were
+published to GHCR have none: run **Backend image** (`images.yml`) with that tag
+first, then roll back to it.
 
 ### GitHub setup
 
@@ -130,13 +139,22 @@ backend that silently did not deploy is a frontend talking to the wrong API.
    that, `deploy-coolify.yml` moves it on each release.
 3. **Turn auto-deploy off** (*Advanced → Auto Deploy*), so pushes to `master`
    never reach production. Releases deploy it instead.
-4. Give the `backend` service the domain `https://api.prism.ai:8000`: Coolify
+4. Do not set `TAG`: `deploy-coolify.yml` owns it, and sets it on every
+   deploy to the image of the tag being deployed.
+5. Give the `backend` service the domain `https://api.prism.ai:8000`: Coolify
    proxies `api.prism.ai` to the container's port 8000 and handles HTTPS. Point
    the `api.prism.ai` DNS record at the Coolify server. No other service needs a
    domain.
 
 Coolify 4.2 or newer is required: it made the deploy endpoint `POST`-only, which
 is what the workflow sends.
+
+**Nothing is built on the Coolify host.** `compose.yml` names the GHCR image
+and has no `build:` section, so Coolify only pulls it. The host pulls without
+credentials, so **the GHCR package must be public**. The repository is public,
+but check it once after the first release: GitHub → your profile → *Packages* →
+`prism-backend` → *Package settings* → *Change visibility*. The deploy's image
+check fails with that hint if it is not.
 
 The Coolify host must be reachable from GitHub-hosted runners. Behind an IP
 allowlist or Cloudflare Access, the API calls fail and you need either an Access
@@ -185,6 +203,7 @@ the defaults below. Set the AI key to enable the performance analyses.
 | `POSTGRES_DB` | `app` |
 | `AI_MODEL` | `gpt-4o-mini` |
 | `CELERY_CONCURRENCY` | `4` worker processes |
+| `WEB_CONCURRENCY` | `4` API (uvicorn) worker processes, each a full copy of the app. `1` is enough on a small host shared with other stacks. |
 | `LANGCHAIN_PROJECT` | `prism` |
 
 **Optional**:
@@ -213,9 +232,13 @@ backend's domain) as the redirect URI in each platform's developer console.
 | `db` | PostgreSQL 18 |
 | `redis` | Celery broker and result backend |
 | `prestart` | Waits for the database, runs `alembic upgrade head`, creates the first superuser, exits. Everything else waits for it. |
-| `backend` | FastAPI, four workers |
+| `backend` | FastAPI, `WEB_CONCURRENCY` workers (four by default) |
 | `celery-worker` | Syncs, token refreshes, AI analyses |
 | `celery-beat` | The scheduler. Exactly one must run: never scale it. |
+
+`prestart`, `backend`, `celery-worker` and `celery-beat` all run the one GHCR
+image. `compose.override.yml`, which Coolify never reads, adds their `build:`
+sections back for local development.
 
 There is no reverse proxy (Coolify's handles routing and TLS), no frontend
 (Cloudflare) and no Adminer: use Coolify's terminal on the `db` container, or
@@ -223,8 +246,9 @@ its database backups, instead. Every service has a memory cap so the OOM killer,
 if it ever fires, takes the misbehaving container rather than Postgres.
 
 `.github/workflows/test-docker-compose.yml` boots exactly this file on every pull
-request, with stand-ins for the magic variables, and checks the API, worker,
-beat and migrations.
+request, with stand-ins for the magic variables and the pull request's own image
+built under the name the file asks for, and checks the API, worker, beat and
+migrations.
 
 ---
 
