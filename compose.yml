@@ -129,13 +129,14 @@ services:
   backend:
     image: prism/backend:${TAG:-latest}
     restart: always
-    # `fastapi run --workers 4`: four copies of the app, LangChain included.
+    # `fastapi run --workers $WEB_CONCURRENCY` (4 by default): one copy of the
+    # app, LangChain included, per worker. Lower it on a small shared host.
     mem_limit: 1536m
     mem_reservation: 384m
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["fastapi", "run", "--workers", "4", "app/main.py"]
+    command: ["fastapi", "run", "--workers", "${WEB_CONCURRENCY:-4}", "app/main.py"]
     depends_on:
       db:
         condition: service_healthy

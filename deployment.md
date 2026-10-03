@@ -157,6 +157,7 @@ the defaults below. Set the AI key to enable the performance analyses.
 | `POSTGRES_DB` | `app` |
 | `AI_MODEL` | `gpt-4o-mini` |
 | `CELERY_CONCURRENCY` | `4` worker processes |
+| `WEB_CONCURRENCY` | `4` API (uvicorn) worker processes, each a full copy of the app. `1` is enough on a small host shared with other stacks. |
 | `LANGCHAIN_PROJECT` | `prism` |
 
 **Optional**:
