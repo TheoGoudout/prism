@@ -87,3 +87,18 @@ updates:
     groups:
       docker-compose:
         update-types: [minor, patch]
+
+  # pre-commit hooks: they run on every commit and in the pre-commit job, and
+  # nothing else would ever move them off the revision they are pinned at.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ⬆
+    labels: [dependencies, internal]
+    groups:
+      pre-commit:
+        update-types: [minor, patch]

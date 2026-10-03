@@ -38,7 +38,9 @@ To use another domain without changing the repository, set it in three places:
 1. **Backend**: [`deploy-coolify.yml`](.github/workflows/deploy-coolify.yml)
    resolves the tag, `PATCH`es the Coolify application's git ref to it,
    triggers a deployment, waits for the build, then waits for
-   `https://api.prism.ai/api/v1/utils/health-check/` to answer.
+   `https://api.prism.ai/api/v1/utils/health-check/` to answer and checks
+   `/api/v1/openapi.json` reports the released version (the
+   `backend/pyproject.toml` version at the tag).
 2. **Frontend**: once the backend succeeded,
    [`deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) builds the
    same tag, deploys it with wrangler and checks `https://app.prism.ai/` answers
@@ -48,8 +50,33 @@ The API is upgraded before the clients that call it, and a backend that failed t
 deploy stops the frontend. Pre-releases are not deployed. In the run, **Re-run
 failed jobs** retries only the target that broke.
 
-To release: draft a release on GitHub with a new tag (`v1.2.0`), and publish it.
-GitHub creates the tag on publish.
+### Cutting a release
+
+Releasing is two steps, and only the second one deploys:
+
+1. Run **Prepare Release**
+   ([`release-prepare.yml`](.github/workflows/release-prepare.yml)) from
+   `master`, picking a bump (`patch`, `minor`, `major`, `rc`, or an `explicit`
+   version). It refuses to run unless every version file agrees
+   (`bun scripts/set-version.mjs --check`), the version is new and sorts above
+   every existing tag, and master's CI is green. It then writes the version to
+   every file that carries it ([`scripts/set-version.mjs`](scripts/set-version.mjs)
+   has the list), commits that to `master`, and opens a **draft** release whose
+   notes GitHub generates from the merged pull requests, sorted by label
+   ([`.github/release.yml`](.github/release.yml)).
+2. Review the draft and press **Publish release**. GitHub creates the tag at that
+   moment, at the bump commit, and `release.yml` deploys it.
+
+The tag is never pushed by a workflow, so a tag without a release cannot exist,
+and nothing reaches production without a person pressing Publish. A version with
+an `-rcN` suffix becomes a pre-release, which is not deployed.
+
+Prepare Release needs a `RELEASE_TOKEN` repository secret: a fine-grained PAT
+(or GitHub App token) with **Contents: read and write** on this repository. The
+bump commit has to be pushed with it rather than with `GITHUB_TOKEN`, because
+GitHub runs no workflows for a push made with `GITHUB_TOKEN`, and the released
+commit would then have no CI. If `master` is protected, that token's owner must
+be allowed to push to it.
 
 Pushes to `master` deploy nothing: they run CI only.
 
@@ -58,8 +85,9 @@ Pushes to `master` deploy nothing: they run CI only.
 | To | Run |
 |---|---|
 | Re-deploy a release (all, or `backend` / `frontend` only) | **Release** workflow, `tag` = the release |
-| Roll the backend back | **Deploy backend to Coolify**, `ref` = the previous tag |
-| Roll the frontend back | **Deploy frontend to Cloudflare**, `ref` = the previous tag |
+| Roll both back | **Rollback**, `tag` = the previous release: the frontend goes back first, then the backend — the reverse of a release, so the frontend is never ahead of the API it talks to |
+| Roll the backend back on its own | **Deploy backend to Coolify**, `ref` = the previous tag |
+| Roll the frontend back on its own | **Deploy frontend to Cloudflare**, `ref` = the previous tag |
 
 Use `force: true` to redeploy the ref the backend is already pinned to; otherwise
 Coolify may decide there is nothing to rebuild. A backend rollback does not roll

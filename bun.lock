@@ -7,7 +7,7 @@
     },
     "frontend": {
       "name": "frontend",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@hookform/resolvers": "^5.9.1",
         "@radix-ui/react-avatar": "^1.2.6",
