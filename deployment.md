@@ -21,8 +21,9 @@ Publishing a GitHub release deploys both, backend first.
 To use another domain, change it in the four places that carry it:
 
 1. `frontend/.env.production`: `VITE_API_URL`;
-2. Coolify's environment variables: `FRONTEND_HOST` and `API_BASE_URL` (the
-   `compose.yml` defaults are the `prism.ai` values);
+2. Coolify's `FRONTEND_HOST` environment variable (the `compose.yml` default
+   is the `prism.ai` value). `API_BASE_URL` follows the backend's domain on its
+   own;
 3. the `production` GitHub Environment's **variables**: `APP_URL` and `API_URL`,
    which the deploy workflows use to verify the sites (they default to the
    `prism.ai` values);
@@ -126,6 +127,7 @@ nothing to set. Coolify generates them on the first deploy and keeps them stable
 | `SERVICE_PASSWORD_POSTGRES` | `POSTGRES_PASSWORD` |
 | `SERVICE_PASSWORD_64_SECRETKEY` | `SECRET_KEY` |
 | `SERVICE_PASSWORD_FIRSTSUPERUSER` | `FIRST_SUPERUSER_PASSWORD`: read it from the tab to log in the first time |
+| `SERVICE_URL_BACKEND` | `API_BASE_URL`: the backend's domain, which builds the OAuth redirect URIs. `SERVICE_URL_BACKEND_8000` declares it and routes it to port 8000; Coolify starts with a generated sslip.io domain until you set yours (step 1). |
 
 > **Never change `SECRET_KEY`.** Besides signing sessions, it derives the key
 > that encrypts the OAuth tokens stored in the database
@@ -133,11 +135,13 @@ nothing to set. Coolify generates them on the first deploy and keeps them stable
 > unreadable, and they all have to be reconnected. Outside local development
 > the backend refuses to start without one.
 
-**Required**:
+Nothing has to be set by hand: a first deploy starts with the values above and
+the defaults below. Set the AI key to enable the performance analyses.
+
+**AI analyses**:
 
 | Variable | Description |
 |---|---|
-| `FIRST_SUPERUSER` | Email of the first admin user |
 | `AI_PROVIDER` | `openai`, `anthropic` or `google` (default `openai`) |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | The key of the chosen provider |
 
@@ -145,8 +149,8 @@ nothing to set. Coolify generates them on the first deploy and keeps them stable
 
 | Variable | Default |
 |---|---|
+| `FIRST_SUPERUSER` | `admin@prism.ai`: email of the first admin user. Coolify has no magic variable for an email address; log in with it and change it from the app. |
 | `FRONTEND_HOST` | `https://app.prism.ai`: links in emails, and always an allowed CORS origin |
-| `API_BASE_URL` | `https://api.prism.ai`: builds the OAuth redirect URIs |
 | `ENVIRONMENT` | `production` |
 | `PROJECT_NAME` | `Prism` |
 | `POSTGRES_DB` | `app` |
@@ -168,8 +172,8 @@ nothing to set. Coolify generates them on the first deploy and keeps them stable
 | `SENTRY_DSN` | Sentry error tracking |
 | `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_ENDPOINT` | LangSmith tracing |
 
-Register `https://api.prism.ai/api/v1/oauth/callback/{platform}` as the redirect
-URI in each platform's developer console.
+Register `https://api.prism.ai/api/v1/oauth/callback/{platform}` (the
+backend's domain) as the redirect URI in each platform's developer console.
 
 ### 3. The stack
 
