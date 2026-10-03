@@ -132,11 +132,12 @@ services:
   backend:
     image: ${IMAGE_REGISTRY:-ghcr.io/theogoudout}/prism-backend:${TAG:-latest}
     restart: always
-    # `fastapi run --workers $WEB_CONCURRENCY` (4 by default): one copy of the
-    # app, LangChain included, per worker. Lower it on a small shared host.
+    # `fastapi run --workers $WEB_CONCURRENCY`: one copy of the app, LangChain
+    # included, per worker. One by default, sized for the small VPS this shares
+    # with two other stacks; raise it on a bigger host.
     mem_limit: 1536m
     mem_reservation: 384m
-    command: ["fastapi", "run", "--workers", "${WEB_CONCURRENCY:-4}", "app/main.py"]
+    command: ["fastapi", "run", "--workers", "${WEB_CONCURRENCY:-1}", "app/main.py"]
     depends_on:
       db:
         condition: service_healthy
@@ -159,7 +160,7 @@ services:
     # Syncs and AI analyses run here; a year-in-review holds up to 300 posts.
     mem_limit: 1536m
     mem_reservation: 256m
-    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCY:-4}"]
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCY:-1}"]
     depends_on:
       db:
         condition: service_healthy
