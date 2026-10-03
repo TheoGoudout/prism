@@ -18,16 +18,16 @@ Publishing a GitHub release deploys both, backend first.
 | Frontend | `https://app.prism.ai` | Cloudflare Workers |
 | API | `https://api.prism.ai` (docs at `/docs`) | Coolify |
 
-To use another domain, change it in the four places that carry it:
+To use another domain without changing the repository, set it in three places:
 
-1. `frontend/.env.production`: `VITE_API_URL`;
+1. the `production` GitHub Environment's **variables**: `APP_URL` and `API_URL`.
+   The deploy workflows verify the sites at these URLs, and the frontend build
+   bakes `API_URL` in as `VITE_API_URL`, overriding `frontend/.env.production`
+   (they default to the `prism.ai` values);
 2. Coolify's `FRONTEND_HOST` environment variable (the `compose.yml` default
    is the `prism.ai` value). `API_BASE_URL` follows the backend's domain on its
    own;
-3. the `production` GitHub Environment's **variables**: `APP_URL` and `API_URL`,
-   which the deploy workflows use to verify the sites (they default to the
-   `prism.ai` values);
-4. the custom domains in Cloudflare and in Coolify (below).
+3. the custom domains in Cloudflare and in Coolify (below).
 
 ---
 
@@ -83,7 +83,8 @@ Secrets on the `production` environment:
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
 
 Variables on the `production` environment (optional, only to change the domain):
-`APP_URL`, `API_URL`.
+`APP_URL` (the frontend's URL) and `API_URL` (the backend's URL, also built into
+the frontend).
 
 The deploy fails, rather than skipping, when a Coolify secret is missing: a
 backend that silently did not deploy is a frontend talking to the wrong API.
@@ -238,8 +239,9 @@ old Worker.
 | SPA fallback (`try_files $uri /index.html`) | `assets.not_found_handling: "single-page-application"` |
 | `/api`, `/docs`, `/redoc` return 404 | `frontend/worker/index.ts` |
 
-The API URL is baked in at build time from `frontend/.env.production` (Vite
-loads it for `vite build`). It holds public values only: anything in a `VITE_*`
+The API URL is baked in at build time: from the `API_URL` variable in the
+deploy workflow, otherwise from `frontend/.env.production` (Vite loads it for
+`vite build`). It holds public values only: anything in a `VITE_*`
 variable ends up in the bundle.
 
 ### Deploying by hand
