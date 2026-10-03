@@ -202,8 +202,8 @@ the defaults below. Set the AI key to enable the performance analyses.
 | `PROJECT_NAME` | `Prism` |
 | `POSTGRES_DB` | `app` |
 | `AI_MODEL` | `gpt-4o-mini` |
-| `CELERY_CONCURRENCY` | `4` worker processes |
-| `WEB_CONCURRENCY` | `4` API (uvicorn) worker processes, each a full copy of the app. `1` is enough on a small host shared with other stacks. |
+| `CELERY_CONCURRENCY` | `1` worker process — sized for a small shared host; raise it on a bigger one |
+| `WEB_CONCURRENCY` | `1` API (uvicorn) worker process, each a full copy of the app — sized for a small shared host; raise it on a bigger one |
 | `LANGCHAIN_PROJECT` | `prism` |
 
 **Optional**:
@@ -232,7 +232,7 @@ backend's domain) as the redirect URI in each platform's developer console.
 | `db` | PostgreSQL 18 |
 | `redis` | Celery broker and result backend |
 | `prestart` | Waits for the database, runs `alembic upgrade head`, creates the first superuser, exits. Everything else waits for it. |
-| `backend` | FastAPI, `WEB_CONCURRENCY` workers (four by default) |
+| `backend` | FastAPI, `WEB_CONCURRENCY` workers (one by default) |
 | `celery-worker` | Syncs, token refreshes, AI analyses |
 | `celery-beat` | The scheduler. Exactly one must run: never scale it. |
 
