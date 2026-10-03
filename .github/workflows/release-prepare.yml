@@ -49,9 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      # The bump commit is pushed with RELEASE_TOKEN; this token only creates
-      # the draft release.
-      contents: write
+      # The bump commit is pushed with RELEASE_TOKEN, not with this token.
+      contents: write # To create the draft release.
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
