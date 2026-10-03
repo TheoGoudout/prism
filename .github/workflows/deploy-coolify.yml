@@ -14,7 +14,8 @@ name: Deploy backend to Coolify
 # with its tag.
 #
 #   called by release.yml -> the published release's tag
-#   workflow_dispatch     -> any ref; an older tag is the rollback path
+#   called by rollback.yml -> an older tag, after the frontend has gone back
+#   workflow_dispatch     -> any ref, to move the backend on its own
 #
 # The application's auto-deploy webhook is off, so pushes to master never reach
 # production — see deployment.md.
@@ -138,6 +139,7 @@ jobs:
         id: verify
         env:
           API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
+          EXPECTED: ${{ steps.target.outputs.version }}
         run: .github/scripts/deploy-coolify/verify-the-deployed-backend.sh
 
       - name: Report
@@ -146,6 +148,8 @@ jobs:
           REF: ${{ inputs.ref }}
           SHA: ${{ steps.target.outputs.sha }}
           IMAGE: ${{ steps.image.outputs.image }}
+          EXPECTED: ${{ steps.target.outputs.version }}
+          LIVE: ${{ steps.verify.outputs.live }}
           DEPLOYMENT: ${{ steps.trigger.outputs.uuid }}
           API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
           OUTCOME: ${{ steps.verify.outcome }}

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Write what this deploy did to the run summary.
 #
-# REF, SHA, IMAGE, DEPLOYMENT, API_URL and OUTCOME come from the calling step's env,
-# which runs `if: always()`, so some are empty when the deploy failed early.
+# REF, SHA, IMAGE, EXPECTED, LIVE, DEPLOYMENT, API_URL and OUTCOME come from the
+# calling step's env, which runs `if: always()`, so some are empty when the
+# deploy failed early.
 set -euo pipefail
 
 {
@@ -15,5 +16,7 @@ set -euo pipefail
   echo "| Image | \`${IMAGE:-not resolved}\` |"
   echo "| Deployment | \`${DEPLOYMENT:-not reported}\` |"
   echo "| API | ${API_URL} |"
-  echo "| Health check | ${OUTCOME:-not run} |"
+  echo "| Expected version | \`${EXPECTED:-not resolved}\` |"
+  echo "| Live version | \`${LIVE:-not reported}\` |"
+  echo "| Health and version check | ${OUTCOME:-not run} |"
 } >> "$GITHUB_STEP_SUMMARY"

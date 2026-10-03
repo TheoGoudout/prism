@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 
 import sentry_sdk
 from fastapi import FastAPI
@@ -30,6 +31,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    # The installed package's version, i.e. backend/pyproject.toml, which
+    # scripts/set-version.mjs bumps on a release. deploy-coolify.yml reads it
+    # back from /openapi.json to check the deploy is serving the released ref.
+    version=version("app"),
     lifespan=lifespan,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,

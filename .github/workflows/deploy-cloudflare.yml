@@ -5,8 +5,9 @@ name: Deploy frontend to Cloudflare
 # release.yml runs deploy-coolify.yml first so the API is upgraded before the
 # frontend that calls it.
 #
-#   called by release.yml -> the published release's tag
-#   workflow_dispatch     -> any ref, e.g. to roll the frontend back on its own
+#   called by release.yml  -> the published release's tag
+#   called by rollback.yml -> an older tag, ahead of the backend
+#   workflow_dispatch      -> any ref, e.g. to roll the frontend back on its own
 
 on:
   workflow_call:

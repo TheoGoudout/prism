@@ -1,0 +1,67 @@
+name: Rollback
+
+# Click-to-rollback: Actions → Rollback → Run workflow, give the tag to return
+# to.
+#
+# A thin wrapper over the two reusable workflows release.yml calls, so a
+# rollback goes through exactly the machinery a deploy does — the version check
+# in deploy-coolify.yml and the reachability check in deploy-cloudflare.yml both
+# hold, which is what makes "it rolled back" a checked claim rather than a
+# hopeful one.
+#
+# **The order is the reverse of release.yml, and that is the point.** A release
+# deploys the backend first, because "API ahead of frontend" is the tolerable
+# mismatch: the frontend ships a generated OpenAPI client, so a frontend ahead
+# of its API calls a contract the server has not shipped. A rollback moves the
+# API *backwards*. Running it first would leave the new frontend talking to the
+# old API — the bad direction, for the whole length of the Cloudflare deploy.
+# So the frontend goes back first here, and the API follows.
+#
+# Both jobs share the concurrency groups of the deploy workflows they call, so a
+# rollback can never overlap a deploy.
+#
+# This reverts application versions only. Database migrations are not reversed:
+# check that the older backend can read the newer schema before rolling back,
+# or roll the migration back first. See deployment.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to roll back to, e.g. v1.2.0"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  # Never cancelled: interrupting a rollback half-way is the state it exists to
+  # get out of.
+  group: rollback
+  cancel-in-progress: false
+
+jobs:
+  frontend:
+    name: Frontend
+    # First, not second — see the header.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-cloudflare.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ inputs.tag }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  backend:
+    name: Backend
+    needs: frontend
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-coolify.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ inputs.tag }}
+    secrets:
+      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}

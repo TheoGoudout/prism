@@ -1,0 +1,27 @@
+# Sections of the release notes GitHub generates for a draft release
+# (release-prepare.yml creates it with --generate-notes). Keyed on the labels
+# labeler.yml's check-labels job requires exactly one of on every pull request.
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+changelog:
+  exclude:
+    labels:
+      - internal
+    authors:
+      - dependabot
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: Security
+      labels: [security]
+    - title: Features
+      labels: [feature]
+    - title: Fixes
+      labels: [bug]
+    - title: Refactors
+      labels: [refactor]
+    - title: Upgrades
+      labels: [upgrade]
+    - title: Docs
+      labels: [docs]
+    - title: Other changes
+      labels: ["*"]
