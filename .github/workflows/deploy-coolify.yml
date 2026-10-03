@@ -1,8 +1,17 @@
 name: Deploy backend to Coolify
 
 # Deploys `backend/` and the database (the stack in the root `compose.yml`) by
-# pinning the production Coolify application to a git ref and redeploying it.
-# Coolify builds from source, so the ref it tracks *is* the version running.
+# pinning the production Coolify application to a git ref, setting its TAG
+# variable to that ref's backend image, and redeploying it.
+#
+# Nothing is built on the Coolify host: images.yml publishes the backend image
+# to GHCR and compose.yml only names it. The ref is where Coolify reads
+# compose.yml from; TAG decides which image runs. Both move together here, so
+# the version running is the ref the application tracks.
+#
+# The ref must have an image. release.yml builds it first; an older release
+# that predates the images can be made deployable by dispatching images.yml
+# with its tag.
 #
 #   called by release.yml -> the published release's tag
 #   workflow_dispatch     -> any ref; an older tag is the rollback path
@@ -18,7 +27,7 @@ on:
         required: true
         type: string
       force:
-        description: "Rebuild without the build cache"
+        description: "Redeploy even if Coolify thinks nothing changed"
         required: false
         default: false
         type: boolean
@@ -38,7 +47,7 @@ on:
         required: true
         type: string
       force:
-        description: "Rebuild without the build cache (needed to redeploy the ref already pinned)"
+        description: "Redeploy even if Coolify thinks nothing changed (needed to redeploy the ref already pinned)"
         required: false
         default: false
         type: boolean
@@ -55,8 +64,9 @@ jobs:
   deploy:
     name: Deploy backend (production)
     runs-on: ubuntu-latest
-    # Generous: the job waits on a container build on the Coolify host.
-    timeout-minutes: 45
+    # The host only pulls an image; the long tail is the health check waiting
+    # for the container to come up behind the proxy.
+    timeout-minutes: 30
     environment:
       name: production
       url: ${{ vars.API_URL || 'https://api.prism.ai' }}
@@ -83,6 +93,14 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: .github/scripts/deploy-coolify/resolve-the-ref.sh
 
+      - name: Confirm the image exists
+        id: image
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+          OWNER: ${{ github.repository_owner }}
+          REF: ${{ inputs.ref }}
+        run: .github/scripts/deploy-coolify/confirm-the-image-exists.sh
+
       - name: Point the application at the ref
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
@@ -90,6 +108,14 @@ jobs:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
           REF: ${{ inputs.ref }}
         run: .github/scripts/deploy-coolify/point-the-application-at-the-ref.sh
+
+      - name: Point the application at the image
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          TAG: ${{ steps.image.outputs.tag }}
+        run: .github/scripts/deploy-coolify/point-the-application-at-the-image.sh
 
       - name: Trigger the deployment
         id: trigger
@@ -100,13 +126,13 @@ jobs:
           FORCE: ${{ inputs.force }}
         run: .github/scripts/deploy-coolify/trigger-the-deployment.sh
 
-      - name: Wait for the build to finish
+      - name: Wait for the deployment to finish
         if: steps.trigger.outputs.uuid != ''
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           DEPLOYMENT_UUID: ${{ steps.trigger.outputs.uuid }}
-        run: .github/scripts/deploy-coolify/wait-for-the-build-to-finish.sh
+        run: .github/scripts/deploy-coolify/wait-for-the-deployment-to-finish.sh
 
       - name: Verify the deployed backend
         id: verify
@@ -119,6 +145,7 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
           SHA: ${{ steps.target.outputs.sha }}
+          IMAGE: ${{ steps.image.outputs.image }}
           DEPLOYMENT: ${{ steps.trigger.outputs.uuid }}
           API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
           OUTCOME: ${{ steps.verify.outcome }}

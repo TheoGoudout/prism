@@ -39,6 +39,8 @@ jobs:
       SERVICE_PASSWORD_64_SECRETKEY: ci-only-secret-key
       SERVICE_PASSWORD_FIRSTSUPERUSER: ci-only-superuser-password
       SERVICE_URL_BACKEND: http://localhost:8000
+      # The image the Build step tags; never a tag that exists on GHCR.
+      TAG: ci
       # Nothing else: every other variable must work from its compose.yml
       # default, as it does on a first Coolify deploy.
     steps:
@@ -46,9 +48,12 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      # No .env and no override file: Coolify has neither.
+      # No .env and no override file: Coolify has neither. compose.yml has no
+      # build sections either — Coolify pulls the image from GHCR — so build
+      # this commit's image under the name and TAG compose.yml will ask for,
+      # and Compose finds it locally instead of pulling.
       - name: Build
-        run: docker compose -f compose.yml build
+        run: docker build -f backend/Dockerfile -t "ghcr.io/theogoudout/prism-backend:${TAG}" .
       - name: Start the stack
         run: docker compose -f compose.yml up -d --wait --wait-timeout 300
       - name: Check the API, worker and beat
