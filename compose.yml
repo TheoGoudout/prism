@@ -9,6 +9,12 @@
 # No reverse proxy either: Coolify routes the backend's domain to its port
 # 8000 and terminates TLS itself.
 #
+# Nothing is built here either. The four backend services run the image
+# .github/workflows/images.yml publishes to GHCR, and Coolify only pulls it. TAG
+# picks the image: deploy-coolify.yml sets it to the immutable sha-<short> of
+# the release being deployed, so never set it by hand. compose.override.yml
+# adds the `build:` sections back for local development.
+#
 # Variables named SERVICE_* are Coolify magic variables: Coolify generates them
 # on the first deploy and keeps them stable afterwards. They are referenced flat
 # (an empty `:-` default only, never a chain) so Coolify's scanner reliably detects them.
@@ -57,11 +63,8 @@ services:
   # Runs the migrations and creates the first superuser, then exits. The API,
   # worker and beat all wait for it to complete successfully.
   prestart:
-    image: prism/backend:${TAG:-latest}
+    image: ${IMAGE_REGISTRY:-ghcr.io/theogoudout}/prism-backend:${TAG:-latest}
     restart: "no"
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -127,15 +130,12 @@ services:
       - LANGCHAIN_ENDPOINT=${LANGCHAIN_ENDPOINT:-}
 
   backend:
-    image: prism/backend:${TAG:-latest}
+    image: ${IMAGE_REGISTRY:-ghcr.io/theogoudout}/prism-backend:${TAG:-latest}
     restart: always
     # `fastapi run --workers $WEB_CONCURRENCY` (4 by default): one copy of the
     # app, LangChain included, per worker. Lower it on a small shared host.
     mem_limit: 1536m
     mem_reservation: 384m
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     command: ["fastapi", "run", "--workers", "${WEB_CONCURRENCY:-4}", "app/main.py"]
     depends_on:
       db:
@@ -154,14 +154,11 @@ services:
       start_period: 20s
 
   celery-worker:
-    image: prism/backend:${TAG:-latest}
+    image: ${IMAGE_REGISTRY:-ghcr.io/theogoudout}/prism-backend:${TAG:-latest}
     restart: always
     # Syncs and AI analyses run here; a year-in-review holds up to 300 posts.
     mem_limit: 1536m
     mem_reservation: 256m
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCY:-4}"]
     depends_on:
       db:
@@ -182,13 +179,10 @@ services:
   # Exactly one beat may run, or every scheduled task fires twice: never scale
   # this service.
   celery-beat:
-    image: prism/backend:${TAG:-latest}
+    image: ${IMAGE_REGISTRY:-ghcr.io/theogoudout}/prism-backend:${TAG:-latest}
     restart: always
     mem_limit: 256m
     mem_reservation: 64m
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
     depends_on:
       redis:

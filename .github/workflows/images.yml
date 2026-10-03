@@ -1,0 +1,72 @@
+name: Backend image
+
+# Builds backend/Dockerfile here and publishes it to GHCR, so the Coolify host
+# only ever pulls. Building on the host meant a `uv sync` competing for memory
+# and CPU with the very stack it was about to replace — on a small VPS shared
+# with other projects, the step most likely to get something OOM-killed.
+#
+#   called by release.yml -> sha-<short> + the release tag
+#   workflow_dispatch     -> sha-<short> (+ the tag, when the ref is one): how
+#                            an older release is made deployable again
+#
+# The backend, celery-worker, celery-beat and prestart services all run this one
+# image. Deploys pin the immutable `sha-<short>` (deploy-coolify.yml sets
+# Coolify's TAG variable to it): a tag that never moves is one Docker cannot
+# mistake for an image it already has.
+#
+# amd64 only: the Coolify host is x86. An arm64 host needs a second platform
+# here, built on a native runner.
+#
+# No build cache: this runs inside release.yml, which holds the production
+# deploy credentials, and a cache entry written by a less-privileged run has no
+# business being restored there. (zizmor: cache-poisoning)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build, e.g. v1.2.0"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build, e.g. v1.2.0"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: images-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write # To push the image to GHCR with the workflow's own token.
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Resolve the image tags
+        id: tags
+        env:
+          REF: ${{ inputs.ref }}
+        run: .github/scripts/images/resolve-the-image-tags.sh
+
+      # The runner's own docker CLI rather than docker/* actions: one build and
+      # one push need nothing those add, and it keeps .github/zizmor.yml's
+      # allowlist of trusted action publishers where it is.
+      - name: Build and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+          SHA: ${{ steps.tags.outputs.sha }}
+        run: .github/scripts/images/build-and-push.sh
