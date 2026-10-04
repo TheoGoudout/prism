@@ -27,7 +27,8 @@ trap 'rm -f "$overlay" "$generated"' EXIT
 
 # Every service that runs the backend image. A local tag, and
 # `pull_policy: build`, so Coolify builds it on every deploy instead of
-# looking for it in a registry. The four share one tag and context, so after
+# looking for it in a registry. ENVIRONMENT defaults to dev here, where
+# compose.yml defaults it to production. The four share one tag and context, so after
 # the first, BuildKit's cache makes the other three builds no-ops.
 cat > "$overlay" <<'EOF'
 services:
@@ -37,24 +38,32 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
   backend:
     image: prism-backend:dev
     pull_policy: build
     build:
       context: .
       dockerfile: backend/Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
   celery-worker:
     image: prism-backend:dev
     pull_policy: build
     build:
       context: .
       dockerfile: backend/Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
   celery-beat:
     image: prism-backend:dev
     pull_policy: build
     build:
       context: .
       dockerfile: backend/Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
 EOF
 
 # The merged stack, as this machine's Compose renders it.

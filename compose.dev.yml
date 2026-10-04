@@ -24,7 +24,7 @@ services:
         required: true
     environment:
       - PROJECT_NAME=${PROJECT_NAME:-Prism}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
       - FRONTEND_HOST=${FRONTEND_HOST:-https://app.prism.ai}
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-}
       - SERVICE_URL_BACKEND_8000
@@ -100,7 +100,7 @@ services:
         required: true
     environment:
       - PROJECT_NAME=${PROJECT_NAME:-Prism}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
       - FRONTEND_HOST=${FRONTEND_HOST:-https://app.prism.ai}
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-}
       - SERVICE_URL_BACKEND_8000
@@ -170,7 +170,7 @@ services:
         required: true
     environment:
       - PROJECT_NAME=${PROJECT_NAME:-Prism}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
       - FRONTEND_HOST=${FRONTEND_HOST:-https://app.prism.ai}
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-}
       - SERVICE_URL_BACKEND_8000
@@ -260,7 +260,7 @@ services:
         restart: true
     environment:
       - PROJECT_NAME=${PROJECT_NAME:-Prism}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
       - FRONTEND_HOST=${FRONTEND_HOST:-https://app.prism.ai}
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-}
       - SERVICE_URL_BACKEND_8000

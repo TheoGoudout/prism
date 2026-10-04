@@ -374,9 +374,9 @@ A third Coolify application, set up like the other two except:
    `test-docker-compose.yml` fails while it is stale.
 3. Do not set `TAG`: nothing pulls by tag here.
 4. Domain `https://api.dev.prism.ai:8000` on the `backend` service.
-5. `FRONTEND_HOST=https://app.dev.prism.ai`, and `ENVIRONMENT=staging`: the
-   backend knows only `local`, `staging` and `production`, and dev should behave
-   like a deployed non-production environment. Register
+5. `FRONTEND_HOST=https://app.dev.prism.ai`. `ENVIRONMENT` needs no setting:
+   `compose.dev.yml` defaults it to `dev`, which the backend treats like staging
+   and production (a real `SECRET_KEY` required, no local-only routes). Register
    `https://api.dev.prism.ai/api/v1/oauth/callback/{platform}` in any platform
    console you test against.
 
