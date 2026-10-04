@@ -9,6 +9,7 @@ import pytest
 from sqlmodel import Session
 
 from app import crud
+from app.core.config import settings
 from app.integrations.oauth.base import TokenResponse
 from app.models.integration import Integration, IntegrationStatus, Platform
 from app.worker.tasks.sync import sync_all_active_integrations, sync_integration
@@ -79,6 +80,20 @@ def test_integrations_needing_reconnect_are_skipped(
     with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: sync_fn}):
         assert _run(db, integration.id) == {"status": "skipped", "reason": status.value}
     sync_fn.assert_not_called()
+
+
+def test_integrations_of_unavailable_platforms_are_skipped(
+    db: Session, integration: Integration, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "TWITTER_CLIENT_ID", "")
+    sync_fn = MagicMock()
+    with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: sync_fn}):
+        result = _run(db, integration.id)
+
+    assert result == {"status": "skipped", "reason": "platform_unavailable"}
+    sync_fn.assert_not_called()
+    db.refresh(integration)
+    assert integration.status == IntegrationStatus.active
 
 
 def test_failure_records_error_and_retries(
@@ -180,3 +195,23 @@ def test_nightly_sync_enqueues_only_syncable_integrations(db: Session) -> None:
     assert str(by_status[IntegrationStatus.error].id) in enqueued
     assert str(by_status[IntegrationStatus.expired].id) not in enqueued
     assert str(by_status[IntegrationStatus.disconnected].id) not in enqueued
+
+
+def test_nightly_sync_skips_unavailable_platforms(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = create_random_workspace(db, create_random_user(db))
+    twitter = create_fake_integration(db, workspace, platform=Platform.twitter)
+    linkedin = create_fake_integration(db, workspace, platform=Platform.linkedin)
+    monkeypatch.setattr(settings, "LINKEDIN_CLIENT_SECRET", "")
+
+    with (
+        patch("app.worker.tasks.sync.Session") as session_cls,
+        patch("app.worker.tasks.sync.sync_integration") as task,
+    ):
+        session_cls.return_value.__enter__.return_value = db
+        sync_all_active_integrations.run()
+
+    enqueued = {call.args[0] for call in task.delay.call_args_list}
+    assert str(twitter.id) in enqueued
+    assert str(linkedin.id) not in enqueued

@@ -4,7 +4,6 @@ from datetime import timedelta
 
 import httpx
 
-from app.core.config import settings
 from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
@@ -20,11 +19,8 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
     TOKEN_URL = "https://oauth2.googleapis.com/token"
     REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
-    def _client_id(self) -> str:
-        return settings.GOOGLE_CLIENT_ID
-
-    def _client_secret(self) -> str:
-        return settings.GOOGLE_CLIENT_SECRET
+    CLIENT_ID_SETTING = "GOOGLE_CLIENT_ID"
+    CLIENT_SECRET_SETTING = "GOOGLE_CLIENT_SECRET"
 
     def _extra_auth_params(self) -> dict[str, str]:
         return {

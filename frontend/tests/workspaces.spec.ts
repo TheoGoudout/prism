@@ -164,21 +164,44 @@ test.describe("Integrations", () => {
     await expect(page).toHaveURL("/integrations")
   })
 
-  test("Owners see the connect menu with every platform", async ({ page }) => {
+  test("Owners can connect only the platforms set up on the server", async ({
+    page,
+  }) => {
+    // Which platforms are set up depends on the server's credentials
+    await page.route("**/integrations/platforms", (route) =>
+      route.fulfill({ json: ["facebook", "twitter", "tiktok"] }),
+    )
     const { email, password } = await newUser()
     await logInUser(page, email, password)
 
     await page.goto("/integrations")
     await page.getByRole("button", { name: "Connect platform" }).click()
-    for (const label of [
-      "Facebook",
-      "Instagram",
-      "Twitter / X",
-      "LinkedIn",
-      "TikTok",
-      "Google Analytics",
-    ]) {
+    for (const label of ["Facebook", "Twitter / X", "TikTok"]) {
       await expect(page.getByRole("menuitem", { name: label })).toBeVisible()
     }
+    for (const label of ["Instagram", "LinkedIn", "Google Analytics"]) {
+      await expect(page.getByRole("menuitem", { name: label })).toHaveCount(0)
+    }
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("tab", { name: "LinkedIn" })).toHaveCount(0)
+    await expect(page.getByRole("tab", { name: "Facebook" })).toBeVisible()
+  })
+
+  test("Owners are told when no platform is set up", async ({ page }) => {
+    await page.route("**/integrations/platforms", (route) =>
+      route.fulfill({ json: [] }),
+    )
+    const { email, password } = await newUser()
+    await logInUser(page, email, password)
+
+    await page.goto("/integrations")
+    await page.getByRole("button", { name: "Connect platform" }).click()
+    await expect(
+      page.getByRole("menuitem", { name: "No platforms are set up yet" }),
+    ).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(
+      page.getByRole("heading", { name: "How to connect your accounts" }),
+    ).toHaveCount(0)
   })
 })

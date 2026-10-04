@@ -18,12 +18,13 @@ def _settings(**overrides: str) -> Settings:
     return Settings(_env_file=None, **{**REQUIRED, **overrides})  # type: ignore[call-arg]
 
 
+@pytest.mark.parametrize("environment", ["dev", "staging", "production"])
 def test_missing_secret_key_is_refused_outside_local(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, environment: str
 ) -> None:
     monkeypatch.delenv("SECRET_KEY", raising=False)
     with pytest.raises(ValidationError, match="SECRET_KEY must be set"):
-        _settings(ENVIRONMENT="production")
+        _settings(ENVIRONMENT=environment)
 
 
 def test_missing_secret_key_is_allowed_locally(

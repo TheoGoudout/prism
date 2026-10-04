@@ -7,6 +7,7 @@
 # `-w '\n%{http_code}'` / `tail -n1` / `sed '$d'` pair to disagree with itself.
 #
 # COOLIFY_URL and COOLIFY_API_TOKEN come from the calling step's env.
+# coolify_upsert_env also reads COOLIFY_APP_UUID.
 #
 # After coolify_call, two variables hold the result:
 #   COOLIFY_CODE   the HTTP status, or 000 when curl itself failed
@@ -43,4 +44,24 @@ coolify_require_ok() {
     printf '%s\n' "$COOLIFY_BODY"
     exit 1
   fi
+}
+
+# Set one environment variable on the application, creating it if it is absent.
+#
+#   coolify_upsert_env KEY VALUE
+#
+# PATCH and POST are not interchangeable: PATCH updates an existing variable and
+# answers 404 when there is none, POST creates one. Whether TAG already exists
+# depends on whether a deploy (or a person) ever set it, which a deploy should
+# not have to know.
+coolify_upsert_env() {
+  local payload
+  payload=$(jq -cn --arg k "$1" --arg v "$2" '{key: $k, value: $v}')
+
+  coolify_call PATCH "/api/v1/applications/${COOLIFY_APP_UUID}/envs" "$payload"
+  if [ "$COOLIFY_CODE" = "404" ]; then
+    echo "No $1 variable on the application yet — creating it."
+    coolify_call POST "/api/v1/applications/${COOLIFY_APP_UUID}/envs" "$payload"
+  fi
+  coolify_require_ok "set the $1 variable"
 }
