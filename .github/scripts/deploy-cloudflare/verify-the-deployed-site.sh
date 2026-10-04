@@ -7,7 +7,9 @@
 # "deployed" and "reachable" are genuinely two claims. deploy-coolify.yml
 # asserts both about the API; this is the same assertion for the static sites.
 #
-# PROJECT, ENVIRONMENT and HAS_CLOUDFLARE come from the calling step's env.
+# PROJECT, ENVIRONMENT and HAS_CLOUDFLARE come from the calling step's env;
+# APP_URL, when set, is the environment's APP_URL variable and replaces the
+# default host below.
 set -euo pipefail
 
 if [ "$HAS_CLOUDFLARE" != "true" ]; then
@@ -15,14 +17,19 @@ if [ "$HAS_CLOUDFLARE" != "true" ]; then
   exit 0
 fi
 
-case "${PROJECT}/${ENVIRONMENT}" in
-  frontend/production) HOST="app.prism.ai" ;;
-  frontend/staging) HOST="app.staging.prism.ai" ;;
-  *)
-    echo "::error::No hostname known for ${PROJECT} in ${ENVIRONMENT}."
-    exit 1
-    ;;
-esac
+if [ "$PROJECT" = "frontend" ] && [ -n "${APP_URL:-}" ]; then
+  HOST=${APP_URL#https://}
+  HOST=${HOST%/}
+else
+  case "${PROJECT}/${ENVIRONMENT}" in
+    frontend/production) HOST="app.prism.ai" ;;
+    frontend/staging) HOST="app.staging.prism.ai" ;;
+    *)
+      echo "::error::No hostname known for ${PROJECT} in ${ENVIRONMENT}."
+      exit 1
+      ;;
+  esac
+fi
 
 # Cloudflare propagates a new version across the edge in seconds, but not
 # instantly, and a cold DNS answer can lag it. Six tries at 10s is generous

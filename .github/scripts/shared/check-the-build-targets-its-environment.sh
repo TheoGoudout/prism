@@ -10,6 +10,8 @@
 #
 #   PROJECT      frontend
 #   ENVIRONMENT  staging | production
+#   API_URL      optional: the environment's API_URL variable, which the build
+#                used instead of the committed file
 set -euo pipefail
 
 case "$PROJECT" in
@@ -19,6 +21,10 @@ esac
 
 FILE="${PROJECT}/.env.${ENVIRONMENT}"
 URL=$(grep "^${KEY}=" "$FILE" | cut -d= -f2- | tr -d '"' || true)
+if [ -n "${API_URL:-}" ]; then
+  URL=$API_URL
+  FILE="the ${ENVIRONMENT} environment's API_URL variable"
+fi
 
 if [ -z "$URL" ] || [[ "$URL" == *CHANGEME* ]] || [[ "$URL" != https://* ]]; then
   echo "::error file=${FILE}::${KEY} must be an https:// URL, got '${URL}'."

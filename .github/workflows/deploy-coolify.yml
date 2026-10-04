@@ -114,6 +114,8 @@ jobs:
           REF: ${{ inputs.ref }}
           REPOSITORY: ${{ github.repository }}
           ENVIRONMENT: ${{ inputs.environment }}
+          # Optional, per GitHub Environment: overrides the default API host.
+          API_URL: ${{ vars.API_URL }}
         run: .github/scripts/deploy-coolify/resolve-ref-commit-and-version.sh
 
       - name: Confirm the image exists

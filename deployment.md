@@ -148,6 +148,17 @@ Secrets, set on **each** environment with that environment's values:
 The deploy fails, rather than skipping, when a Coolify secret is missing: a
 backend that silently did not deploy is a frontend talking to the wrong API.
 
+Variables, optional, set on an environment to move it off the default domains
+in [Domains](#domains):
+
+| Variable | Overrides | Read by |
+|---|---|---|
+| `API_URL` | The API URL, e.g. `https://api.example.com` | the frontend build (instead of `VITE_API_URL` in `frontend/.env.<environment>`) and the backend deploy's health and version check |
+| `APP_URL` | The frontend URL, e.g. `https://app.example.com` | the frontend deploy's reachability check |
+
+Both are build- and check-time only. The backend's own `FRONTEND_HOST` (CORS,
+links in emails) is still set on the Coolify application.
+
 ---
 
 ## Coolify (backend)

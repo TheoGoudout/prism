@@ -6,6 +6,8 @@
 # typo'd tag fails before Coolify is touched.
 #
 # GH_TOKEN, REF, REPOSITORY and ENVIRONMENT come from the calling step's env.
+# API_URL, when set, is the environment's API_URL variable and replaces the
+# default host below.
 set -euo pipefail
 
 if ! SHA=$(gh api "repos/${REPOSITORY}/commits/${REF}" --jq .sha 2>/dev/null); then
@@ -28,14 +30,23 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-case "$ENVIRONMENT" in
-  production) API_HOST="api.prism.ai" ;;
-  staging) API_HOST="api.staging.prism.ai" ;;
-  *)
-    echo "::error::Unknown environment '${ENVIRONMENT}'."
+if [ -n "${API_URL:-}" ]; then
+  if [[ "$API_URL" != https://* ]]; then
+    echo "::error::The ${ENVIRONMENT} environment's API_URL variable must be an https:// URL, got '${API_URL}'."
     exit 1
-    ;;
-esac
+  fi
+  API_HOST=${API_URL#https://}
+  API_HOST=${API_HOST%/}
+else
+  case "$ENVIRONMENT" in
+    production) API_HOST="api.prism.ai" ;;
+    staging) API_HOST="api.staging.prism.ai" ;;
+    *)
+      echo "::error::Unknown environment '${ENVIRONMENT}'."
+      exit 1
+      ;;
+  esac
+fi
 
 {
   echo "sha=$SHA"
