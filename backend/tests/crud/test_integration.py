@@ -3,7 +3,7 @@
 from sqlmodel import Session
 
 from app.crud import integration as icrud
-from app.models.integration import Platform
+from app.models.integration import IntegrationCreate, Platform
 from tests.utils.integration import create_fake_account, create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
@@ -146,6 +146,36 @@ def test_upsert_platform_account_updates(db: Session) -> None:
     )
     assert updated.id == created.id  # same row
     assert updated.name == "Updated"
+
+
+def test_long_avatar_urls_are_stored(db: Session) -> None:
+    """Instagram's CDN avatar URLs carry long signed query strings."""
+    ws = _make_workspace(db)
+    avatar = "https://scontent.cdninstagram.com/v/pic.jpg?" + "x" * 700
+
+    integration = icrud.upsert_integration(
+        session=db,
+        integration_in=IntegrationCreate(
+            platform=Platform.instagram,
+            workspace_id=ws.id,
+            access_token="IG-token",
+            external_account_id="ig-long-avatar",
+            external_account_name="Long avatar",
+            external_account_avatar=avatar,
+        ),
+    )
+    account = icrud.upsert_platform_account(
+        session=db,
+        integration=integration,
+        external_id="ig-long-avatar",
+        name="Long avatar",
+        avatar_url=avatar,
+    )
+
+    db.refresh(integration)
+    db.refresh(account)
+    assert integration.external_account_avatar == avatar
+    assert account.avatar_url == avatar
 
 
 def test_get_integrations_for_workspace(db: Session) -> None:
