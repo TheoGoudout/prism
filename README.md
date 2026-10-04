@@ -144,7 +144,8 @@ the worker log which platform integrations are activated and which are not
 
 | Platform | Variables | Notes |
 |----------|-----------|-------|
-| Facebook, Instagram | `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | One Meta app serves both. Graph API version is pinned in `backend/app/integrations/meta.py`. |
+| Facebook | `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Graph API version is pinned in `backend/app/integrations/meta.py`. |
+| Instagram | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | The Instagram app ID and secret of the Meta app (*Instagram → API setup with Instagram login*), not its Facebook ones. Instagram accounts connected before through Facebook Login also need the Facebook variables. |
 | Twitter / X | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | OAuth 2.0 with PKCE |
 | LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Requires the Community Management API product |
 | TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | |
@@ -153,7 +154,9 @@ the worker log which platform integrations are activated and which are not
 In each provider's developer console, register the redirect URI
 `{API_BASE_URL}/api/v1/oauth/callback/{platform}`. The `{platform}` value is
 one of `facebook`, `instagram`, `twitter`, `linkedin`, `tiktok` or
-`google_analytics`.
+`google_analytics`. For Instagram, that is the Meta app's *Instagram → API
+setup with Instagram login → Set up Instagram business login* settings, apart
+from the Facebook Login ones.
 
 ## Testing and linting
 

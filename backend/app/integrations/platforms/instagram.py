@@ -1,7 +1,9 @@
 """
 Instagram Business sync.
 
-For every Instagram Business account linked to the user's Facebook Pages:
+For the Instagram account connected with Instagram Login (or, for those
+connected before through Facebook Login, every Instagram Business account
+linked to the user's Facebook Pages):
   - the account is stored as a PlatformAccount
   - daily account insights (reach, new followers) and today's follower total
     become MetricSnapshots
@@ -22,10 +24,13 @@ from sqlmodel import Session
 from app import crud
 from app.integrations.common import engagement_total, log_http_errors, parse_datetime
 from app.integrations.meta import (
+    GRAPH_API,
+    INSTAGRAM_GRAPH_API,
     daily_insights,
     first_value,
     graph_get,
     graph_get_all,
+    uses_instagram_login,
 )
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
@@ -47,8 +52,30 @@ _CONTENT_TYPES: dict[str, ContentType] = {
 }
 
 
+def _fetch_own_account(user_token: str) -> dict[str, Any]:
+    """The Instagram account connected with Instagram Login."""
+    me = graph_get(
+        "me",
+        user_token,
+        {"fields": "user_id,username,name,profile_picture_url,followers_count"},
+        api=INSTAGRAM_GRAPH_API,
+    )
+    ig_id = str(me.get("user_id") or me["id"])
+    return {
+        "ig_id": ig_id,
+        "name": me.get("name") or me.get("username") or ig_id,
+        "avatar_url": me.get("profile_picture_url"),
+        "token": user_token,
+        "api": INSTAGRAM_GRAPH_API,
+        "followers_count": me.get("followers_count"),
+    }
+
+
 def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
-    """The Instagram Business accounts linked to the user's Facebook Pages."""
+    """
+    The Instagram Business accounts linked to the user's Facebook Pages, for
+    integrations connected through Facebook Login.
+    """
     pages = graph_get_all(
         "me/accounts",
         user_token,
@@ -64,7 +91,8 @@ def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
             "ig_id": ig["id"],
             "name": ig.get("name") or ig.get("username") or ig["id"],
             "avatar_url": ig.get("profile_picture_url"),
-            "page_token": page.get("access_token", user_token),
+            "token": page.get("access_token", user_token),
+            "api": GRAPH_API,
             "followers_count": ig.get("followers_count"),
         }
         for page in pages
@@ -78,8 +106,10 @@ def _sync_account_insights(
     ig_id: str,
     token: str,
     followers_count: int | None = None,
+    *,
+    api: str = GRAPH_API,
 ) -> None:
-    by_day = daily_insights(ig_id, token, _ACCOUNT_METRICS)
+    by_day = daily_insights(ig_id, token, _ACCOUNT_METRICS, api=api)
     # Only the current follower total is available, so record it on today's
     # snapshot; over time this builds up a daily follower history.
     if followers_count is not None:
@@ -99,11 +129,13 @@ def _sync_account_insights(
         )
 
 
-def _media_insights(media_id: str, media_type: str, token: str) -> dict[str, Any]:
+def _media_insights(
+    media_id: str, media_type: str, token: str, api: str
+) -> dict[str, Any]:
     """{metric name: value}, or {} if Meta won't return insights for the media."""
     metrics = _STORY_METRICS if media_type == "STORY" else _MEDIA_METRICS
     try:
-        data = graph_get(f"{media_id}/insights", token, {"metric": metrics})
+        data = graph_get(f"{media_id}/insights", token, {"metric": metrics}, api=api)
     except httpx.HTTPStatusError as exc:
         logger.warning("Could not fetch insights for media %s: %s", media_id, exc)
         return {}
@@ -111,7 +143,12 @@ def _media_insights(media_id: str, media_type: str, token: str) -> dict[str, Any
 
 
 def _sync_media(
-    session: Session, platform_account_id: uuid.UUID, ig_id: str, token: str
+    session: Session,
+    platform_account_id: uuid.UUID,
+    ig_id: str,
+    token: str,
+    *,
+    api: str = GRAPH_API,
 ) -> None:
     data = graph_get(
         f"{ig_id}/media",
@@ -120,6 +157,7 @@ def _sync_media(
             "fields": "id,media_type,timestamp,caption,permalink,media_url,thumbnail_url",
             "limit": 100,
         },
+        api=api,
     )
     for item in data.get("data", []):
         published_at = parse_datetime(item.get("timestamp"))
@@ -130,7 +168,7 @@ def _sync_media(
             continue
 
         media_type: str = item.get("media_type", "IMAGE")
-        insights = _media_insights(item["id"], media_type, token)
+        insights = _media_insights(item["id"], media_type, token, api)
         likes = insights.get("likes")
         comments = insights.get("comments")
         shares = insights.get("shares")
@@ -163,8 +201,12 @@ def _sync_media(
 def sync_instagram(
     session: Session, integration: Integration, access_token: str
 ) -> None:
-    """Sync every Instagram Business account linked to the user's Pages."""
-    for ig in _fetch_instagram_accounts(access_token):
+    """Sync the connected Instagram account(s)."""
+    if uses_instagram_login(access_token):
+        accounts = [_fetch_own_account(access_token)]
+    else:
+        accounts = _fetch_instagram_accounts(access_token)
+    for ig in accounts:
         account = crud.upsert_platform_account(
             session=session,
             integration=integration,
@@ -178,8 +220,9 @@ def sync_instagram(
                 session,
                 account.id,
                 ig["ig_id"],
-                ig["page_token"],
+                ig["token"],
                 ig.get("followers_count"),
+                api=ig["api"],
             )
         with log_http_errors(f"Instagram media for {ig['ig_id']}"):
-            _sync_media(session, account.id, ig["ig_id"], ig["page_token"])
+            _sync_media(session, account.id, ig["ig_id"], ig["token"], api=ig["api"])

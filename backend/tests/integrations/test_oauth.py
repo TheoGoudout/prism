@@ -7,6 +7,7 @@ import logging
 import urllib.parse
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.integrations.oauth.base import AccountNotFoundError, OAuthState
+from app.integrations.oauth.base import OAuthState
 from app.integrations.oauth.facebook import facebook_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.instagram import instagram_provider
@@ -151,11 +152,14 @@ def test_platform_unavailable_without_its_credentials(
     assert is_available(Platform.linkedin)
 
 
-def test_meta_platforms_share_the_facebook_app(
+def test_instagram_uses_its_own_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Instagram Login has its own app id and secret, apart from Facebook's."""
     monkeypatch.setattr(settings, "FACEBOOK_APP_SECRET", "")
     assert not is_available(Platform.facebook)
+    assert is_available(Platform.instagram)
+    monkeypatch.setattr(settings, "INSTAGRAM_APP_SECRET", "")
     assert not is_available(Platform.instagram)
 
 
@@ -243,57 +247,123 @@ def test_facebook_get_account_info() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_instagram_get_account_info_with_ig_account() -> None:
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "data": [
-            {
-                "id": "page-1",
-                "instagram_business_account": {
-                    "id": "ig-789",
-                    "name": "My IG",
-                    "profile_picture_url": "https://example.com/ig.jpg",
-                },
-            }
-        ]
+def test_instagram_auth_url_uses_instagram_login() -> None:
+    url = instagram_provider.get_auth_url(redirect_uri="http://localhost/cb", state="s")
+    assert url.startswith("https://www.instagram.com/oauth/authorize?")
+    params = _query(url)
+    assert params["client_id"] == settings.INSTAGRAM_APP_ID
+    assert params["scope"] == (
+        "instagram_business_basic,instagram_business_manage_insights"
+    )
+
+
+@pytest.mark.parametrize(
+    "short_response",
+    [
+        {"access_token": "IG-short", "user_id": 1},
+        {"data": [{"access_token": "IG-short", "user_id": 1}]},
+    ],
+)
+def test_instagram_exchange_code_upgrades_to_long_lived(
+    short_response: dict[str, Any],
+) -> None:
+    short = MagicMock()
+    short.json.return_value = short_response
+    long = MagicMock()
+    long.json.return_value = {"access_token": "IG-long", "expires_in": 5184000}
+
+    with (
+        patch("app.integrations.oauth.base.httpx.post", return_value=short) as post,
+        patch("httpx.get", return_value=long) as get,
+    ):
+        result = instagram_provider.exchange_code(
+            code="c", redirect_uri="http://localhost/cb"
+        )
+
+    assert post.call_args.args[0] == "https://api.instagram.com/oauth/access_token"
+    assert post.call_args.kwargs["data"]["grant_type"] == "authorization_code"
+    assert get.call_args.args[0] == "https://graph.instagram.com/access_token"
+    assert get.call_args.kwargs["params"]["grant_type"] == "ig_exchange_token"
+    assert get.call_args.kwargs["params"]["access_token"] == "IG-short"
+    assert result.access_token == "IG-long"
+    assert result.refresh_token is None
+    assert result.expires_at is not None
+    assert (result.expires_at - datetime.now(UTC)).days >= 59
+
+
+def test_instagram_refresh() -> None:
+    refreshed = MagicMock()
+    refreshed.json.return_value = {"access_token": "IG-new", "expires_in": 5184000}
+
+    with patch("httpx.get", return_value=refreshed) as get:
+        result = instagram_provider.refresh("IG-old")
+
+    assert get.call_args.args[0] == "https://graph.instagram.com/refresh_access_token"
+    assert get.call_args.kwargs["params"] == {
+        "grant_type": "ig_refresh_token",
+        "access_token": "IG-old",
     }
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("httpx.get", return_value=mock_response):
-        info = instagram_provider.get_account_info("ig-token")
-
-    assert info.external_id == "ig-789"
-    assert info.name == "My IG"
+    assert result.access_token == "IG-new"
 
 
-def test_instagram_get_account_info_without_business_account_raises() -> None:
-    """Without a linked IG Business account there is nothing to sync."""
-    pages_response = MagicMock()
-    pages_response.json.return_value = {"data": [{"id": "page-without-ig"}]}
+def test_instagram_refresh_of_a_facebook_login_token_goes_through_facebook() -> None:
+    """Integrations connected before Instagram Login keep a Facebook token."""
+    refreshed = MagicMock()
+    refreshed.json.return_value = {"access_token": "EAA-new", "expires_in": 5184000}
 
-    with patch("httpx.get", return_value=pages_response):
-        with pytest.raises(AccountNotFoundError) as exc_info:
-            instagram_provider.get_account_info("token")
-    assert exc_info.value.error_code == "no_instagram_account"
+    with patch(
+        "app.integrations.oauth.base.httpx.post", return_value=refreshed
+    ) as post:
+        result = instagram_provider.refresh("EAA-old")
+
+    assert post.call_args.kwargs["data"]["grant_type"] == "fb_exchange_token"
+    assert post.call_args.kwargs["data"]["client_id"] == settings.FACEBOOK_APP_ID
+    assert result.access_token == "EAA-new"
 
 
-def test_instagram_get_account_info_follows_pagination() -> None:
-    """The linked Page may not be on the first page of /me/accounts."""
-    first = MagicMock()
-    first.json.return_value = {
-        "data": [{"id": "page-1"}],
-        "paging": {"next": "https://graph.facebook.com/next-page"},
+def test_instagram_revoke() -> None:
+    with patch("httpx.delete") as delete:
+        assert not instagram_provider.revoke(access_token="IG-tok", refresh_token=None)
+        delete.assert_not_called()
+        delete.return_value = MagicMock()
+        assert instagram_provider.revoke(access_token="EAA-tok", refresh_token=None)
+        delete.assert_called_once()
+
+
+def test_instagram_grant_owner_id() -> None:
+    assert (
+        instagram_provider.grant_owner_id(
+            access_token="IG-tok", external_account_id="ig-1"
+        )
+        == "ig-1"
+    )
+    me = MagicMock()
+    me.json.return_value = {"id": "fb-user"}
+    with patch("httpx.get", return_value=me):
+        assert (
+            instagram_provider.grant_owner_id(
+                access_token="EAA-tok", external_account_id="ig-1"
+            )
+            == "fb-user"
+        )
+
+
+def test_instagram_get_account_info() -> None:
+    me = MagicMock()
+    me.json.return_value = {
+        "id": "app-scoped-id",
+        "user_id": 17841400000000000,
+        "username": "mybrand",
+        "profile_picture_url": "https://example.com/ig.jpg",
     }
-    second = MagicMock()
-    second.json.return_value = {
-        "data": [{"id": "page-2", "instagram_business_account": {"id": "ig-2"}}]
-    }
 
-    with patch("httpx.get", side_effect=[first, second]) as mock_get:
-        info = instagram_provider.get_account_info("token")
+    with patch("httpx.get", return_value=me) as get:
+        info = instagram_provider.get_account_info("IG-tok")
 
-    assert info.external_id == "ig-2"
-    assert mock_get.call_args.args[0] == "https://graph.facebook.com/next-page"
+    assert get.call_args.args[0].startswith("https://graph.instagram.com/")
+    assert info.external_id == "17841400000000000"
+    assert info.name == "mybrand"
+    assert info.avatar_url == "https://example.com/ig.jpg"
 
 
 # ---------------------------------------------------------------------------
@@ -645,24 +715,6 @@ def test_callback_provider_error_redirects_with_error(
     assert r.status_code == 302
     assert "error=connection_failed" in r.headers["location"]
     assert "secret" not in r.headers["location"]
-
-
-def test_callback_account_not_found_redirects_with_its_code(
-    client: TestClient, db: Session
-) -> None:
-    user, _ = create_user_with_headers(client, db)
-    ws = create_random_workspace(db, user)
-    state = _make_state(ws.id, user.id)
-    provider = _mock_provider()
-    provider.get_account_info.side_effect = AccountNotFoundError(
-        "no_instagram_account", "nothing linked"
-    )
-
-    with patch("app.integrations.oauth.registry.get_provider", return_value=provider):
-        r = _callback(client, code="c", state=state)
-
-    assert r.status_code == 302
-    assert "error=no_instagram_account" in r.headers["location"]
 
 
 def test_callback_invalid_state_redirects(client: TestClient) -> None:

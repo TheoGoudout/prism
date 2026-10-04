@@ -48,6 +48,7 @@ const DEBUG_DIR = path.join(OUT_DIR, "_debug")
 
 const LOGIN_PAGES = [
   "https://www.facebook.com/",
+  "https://www.instagram.com/accounts/login/",
   "https://x.com/login",
   "https://www.linkedin.com/login",
   "https://www.tiktok.com/login",
@@ -86,21 +87,12 @@ async function checkIfPresent(page: Page, label: RegExp) {
   if ((await box.count()) > 0 && !(await box.isChecked())) await box.check()
 }
 
-const META_SCREENS = (platform: "facebook" | "instagram"): Screen[] => [
+const FACEBOOK_SCREENS: Screen[] = [
   {
     name: "continue",
     match: /Continue as /i,
-    file: `${platform}-continue.png`,
+    file: "facebook-continue.png",
     next: (page) => click(page, /^Continue as /i),
-  },
-  {
-    name: "instagram accounts",
-    match: /Choose the Instagram accounts|Select (the )?Instagram accounts/i,
-    file: "instagram-accounts.png",
-    next: async (page) => {
-      await checkIfPresent(page, /all current and future/i)
-      await click(page, /^Continue$/i)
-    },
   },
   {
     name: "businesses",
@@ -114,7 +106,7 @@ const META_SCREENS = (platform: "facebook" | "instagram"): Screen[] => [
   {
     name: "pages",
     match: /Choose the Pages|Select (the )?Pages/i,
-    file: `${platform}-pages.png`,
+    file: "facebook-pages.png",
     next: async (page) => {
       await checkIfPresent(page, /all current and future Pages/i)
       await click(page, /^Continue$/i)
@@ -123,7 +115,7 @@ const META_SCREENS = (platform: "facebook" | "instagram"): Screen[] => [
   {
     name: "permissions",
     match: /Review what .+ is requesting|is requesting access to/i,
-    file: `${platform}-permissions.png`,
+    file: "facebook-permissions.png",
     next: (page) => click(page, /^Save$/i),
   },
   {
@@ -135,8 +127,15 @@ const META_SCREENS = (platform: "facebook" | "instagram"): Screen[] => [
 ]
 
 const SCREENS: Record<Platform, Screen[]> = {
-  facebook: META_SCREENS("facebook"),
-  instagram: META_SCREENS("instagram"),
+  facebook: FACEBOOK_SCREENS,
+  instagram: [
+    {
+      name: "allow",
+      match: /Allow .+ to access|wants to access|would like to access/i,
+      file: "instagram-allow.png",
+      next: (page) => click(page, /^Allow$/i),
+    },
+  ],
   twitter: [
     {
       name: "authorize",

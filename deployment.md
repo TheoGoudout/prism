@@ -249,7 +249,8 @@ the defaults below. Set the AI key to enable the performance analyses.
 
 | Variable | Description |
 |---|---|
-| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Facebook Pages and Instagram (one Meta app). Each platform is only available once both its variables are set; the startup logs list which are activated. |
+| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` | Facebook Pages. Each platform is only available once both its variables are set; the startup logs list which are activated. |
+| `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | Instagram, connected with Instagram Login: the Instagram app ID and secret shown in the Meta app under *Instagram → API setup with Instagram login*. Instagram accounts connected before through Facebook Login also need the Facebook variables to keep syncing. |
 | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | Twitter / X |
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn |
 | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | TikTok |
@@ -260,7 +261,8 @@ the defaults below. Set the AI key to enable the performance analyses.
 | `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_ENDPOINT` | LangSmith tracing |
 
 Register `https://api.prism.ai/api/v1/oauth/callback/{platform}` (the
-backend's domain) as the redirect URI in each platform's developer console.
+backend's domain) as the redirect URI in each platform's developer console
+(for Instagram, in the Meta app's Instagram business login settings).
 
 ### 3. The stack
 

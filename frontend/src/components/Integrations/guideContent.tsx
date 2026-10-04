@@ -169,99 +169,53 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
   },
 
   instagram: {
-    summary:
-      "Connect an Instagram business or creator account. This goes through Facebook.",
+    summary: "Connect an Instagram business or creator account.",
     beforeYouStart: [
       <>
         Your Instagram account must be a <strong>professional</strong> account
         (Business or Creator). In the Instagram app: open your profile, tap the
         menu <strong>☰</strong>, then{" "}
         <strong>Account type and tools → Switch to professional account</strong>
-        .
+        . It's free and you can switch back at any time.
       </>,
-      <>
-        It must be <strong>linked to a Facebook Page</strong>. In the Instagram
-        app: <strong>Edit profile → Page → Connect or create</strong>, then pick
-        your Page.
-      </>,
-      <>
-        The <strong>Facebook</strong> login of someone with full control of that
-        Page. (You will log in with Facebook, not with Instagram.)
-      </>,
+      <>The username and password of that Instagram account.</>,
     ],
     steps: [
       openMenuStep("instagram", "Instagram"),
       {
-        title: "Log in with Facebook",
+        title: "Log in with Instagram",
         body: (
           <>
-            A <strong>Facebook</strong> page opens. This is normal: Instagram
-            statistics are shared through Facebook. Log in, or click{" "}
-            <strong>Continue as [your name]</strong> if you are already logged
-            in.
+            An <strong>Instagram</strong> page opens. Log in with the account
+            you want to follow. If you are already logged in with another
+            account, switch to the right one first.
           </>
-        ),
-        image: shot(
-          "instagram-continue.png",
-          "Facebook asking to continue as the logged-in person",
-        ),
-      },
-      {
-        title: "Choose your Instagram account",
-        body: (
-          <>
-            Tick the Instagram account you want to follow and click{" "}
-            <strong>Continue</strong>.
-          </>
-        ),
-        image: shot(
-          "instagram-accounts.png",
-          "Facebook's list of Instagram accounts to share with Prism",
-        ),
-      },
-      {
-        title: "Choose the Facebook Page linked to it",
-        body: (
-          <>
-            Tick the Facebook Page your Instagram account is linked to (this is
-            required, even if you don't want Facebook statistics) and click{" "}
-            <strong>Continue</strong>.
-          </>
-        ),
-        image: shot(
-          "instagram-pages.png",
-          "Facebook's list of Pages to share with Prism",
         ),
       },
       {
         title: "Allow access",
         body: (
           <>
-            Leave every switch <strong>on</strong>, click <strong>Save</strong>,
-            then <strong>Got it</strong>. Prism can only read statistics; it
+            Click <strong>Allow</strong>. Prism can only read statistics; it
             never posts anything.
           </>
         ),
         image: shot(
-          "instagram-permissions.png",
-          "Facebook's summary of what Prism will be able to do",
+          "instagram-allow.png",
+          "Instagram asking to allow Prism to access the account",
         ),
       },
       doneStep("instagram", "Instagram"),
     ],
     troubleshooting: [
       <>
-        <strong>"We couldn't connect to the platform"?</strong> This usually
-        means Prism found no professional Instagram account linked to the Pages
-        you ticked. Check the two points in "Before you start", then try again
-        and make sure you tick both the Instagram account and its Page.
+        <strong>Instagram asks you to switch to a professional account?</strong>{" "}
+        Prism can only read the statistics of Business and Creator accounts.
+        Switch as shown in "Before you start", then connect again.
       </>,
       <>
-        <strong>Your account isn't in the list?</strong> On Facebook, open{" "}
-        <strong>
-          Settings &amp; privacy → Settings → Business integrations
-        </strong>
-        , remove Prism, then connect again.
+        <strong>The wrong account got connected?</strong> Log out of
+        instagram.com in this browser (or switch account), then connect again.
       </>,
       RECONNECT_TIP,
     ],

@@ -49,8 +49,6 @@ const OAUTH_ERRORS: Record<string, string> = {
   platform_unavailable: "This platform is no longer set up on this server.",
   connection_failed:
     "We couldn't connect to the platform. Please try again in a moment.",
-  no_instagram_account:
-    "No Instagram professional account was found. Make sure your Instagram account is a Business or Creator account linked to a Facebook Page, then reconnect and select that Page when Facebook asks which Pages to share.",
 }
 
 /**

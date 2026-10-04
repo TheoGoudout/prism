@@ -52,18 +52,6 @@ class AccountInfo:
     avatar_url: str | None
 
 
-class AccountNotFoundError(ValueError):
-    """
-    The authorization succeeded but there is no account Prism can connect,
-    e.g. no Instagram professional account behind the Pages the user shared.
-    `error_code` is passed to the frontend, which explains how to fix it.
-    """
-
-    def __init__(self, error_code: str, message: str) -> None:
-        super().__init__(message)
-        self.error_code = error_code
-
-
 # ---------------------------------------------------------------------------
 # State parameter
 # ---------------------------------------------------------------------------
