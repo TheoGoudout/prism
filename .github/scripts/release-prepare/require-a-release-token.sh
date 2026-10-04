@@ -2,7 +2,7 @@
 # Refuse to run without the PAT the bump commit has to be pushed with.
 #
 # GITHUB_TOKEN pushes do not trigger other workflows, so a bump commit pushed
-# with it lands on master with no CI at all — and the release would then be cut
+# with it lands on the default branch with no CI at all — and the release would then be cut
 # from a commit nothing ever checked.
 set -euo pipefail
 
