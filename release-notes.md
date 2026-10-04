@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.1 (2026-10-04)
+
+### Features
+
+* Let each environment override the API and frontend URLs. PR [#65](https://github.com/TheoGoudout/prism/pull/65) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.0 (2026-10-04)
 
 ### Features
