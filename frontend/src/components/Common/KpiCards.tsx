@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  ArrowDown,
+  ArrowUp,
   Eye,
   Heart,
   MousePointerClick,
@@ -12,7 +14,9 @@ import {
 import type { MetricTotals } from "@/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatChange, type KpiComparison } from "@/lib/comparison"
 import { formatCompact, formatPercent, formatSigned } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
 type KpiMetric = keyof Pick<
   MetricTotals,
@@ -83,11 +87,45 @@ const KPIS: Record<
   },
 }
 
-interface KpiCardsProps {
+export interface KpiCardsProps {
   metrics: KpiMetric[]
   totals: MetricTotals | undefined
   loading: boolean
   className?: string
+  /** Each metric compared with another period, e.g. "+12% vs Sep 1 – Sep 30". */
+  comparison?: {
+    label: string
+    /** Where projected figures end, e.g. "Oct 30". */
+    projectedTo?: string
+    metrics: Partial<Record<KpiMetric, KpiComparison>>
+  }
+}
+
+function Change({
+  comparison,
+  label,
+}: {
+  comparison: KpiComparison
+  label: string
+}) {
+  const { change, kind, perDay } = comparison
+  const Arrow =
+    change == null || change === 0 ? null : change > 0 ? ArrowUp : ArrowDown
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 font-medium tabular-nums",
+          change != null && change > 0 && "text-success",
+          change != null && change < 0 && "text-destructive",
+        )}
+      >
+        {Arrow && <Arrow className="size-3" aria-hidden />}
+        {formatChange(change, kind)}
+      </span>
+      {perDay && "per day "}vs {label}
+    </p>
+  )
 }
 
 /** One card per metric, e.g. "Views 12.3K". */
@@ -96,6 +134,7 @@ export function KpiCards({
   totals,
   loading,
   className,
+  comparison,
 }: KpiCardsProps) {
   return (
     <div className={className}>
@@ -107,6 +146,7 @@ export function KpiCards({
           tone,
           format = formatCompact,
         } = KPIS[metric]
+        const compared = comparison?.metrics[metric]
         return (
           <Card
             key={metric}
@@ -134,6 +174,21 @@ export function KpiCards({
                 <p className="font-display text-3xl font-extrabold tracking-tight">
                   {format(totals?.[metric])}
                 </p>
+              )}
+              {compared?.projected && !loading && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ~
+                  {format(
+                    compared.current === null
+                      ? null
+                      : Math.round(compared.current),
+                  )}{" "}
+                  projected
+                  {comparison?.projectedTo && ` by ${comparison.projectedTo}`}
+                </p>
+              )}
+              {compared && comparison && !loading && (
+                <Change comparison={compared} label={comparison.label} />
               )}
               <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
             </CardContent>

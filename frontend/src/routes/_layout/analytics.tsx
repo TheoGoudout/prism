@@ -4,8 +4,12 @@ import type { Platform } from "@/client"
 import { FollowersTable } from "@/components/Analytics/FollowersTable"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
+import {
+  PeriodControls,
+  type PeriodSelection,
+} from "@/components/Analytics/PeriodControls"
 import { TrendChart } from "@/components/Analytics/TrendChart"
-import { KpiCards } from "@/components/Common/KpiCards"
+import { KpiCards, type KpiCardsProps } from "@/components/Common/KpiCards"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { PostLabel } from "@/components/Posts/PostLabel"
@@ -17,46 +21,195 @@ import {
   useMetricsTimeseries,
   useTopPosts,
 } from "@/hooks/useMetrics"
-import { formatPercent, lastDays } from "@/lib/format"
+import {
+  type ClosedPeriod,
+  type ComparisonBasis,
+  compareKpi,
+  comparisonBasis,
+  type Day,
+  formatDay,
+  formatPeriod,
+  isDay,
+  type KpiMetric,
+  lastDaysPeriod,
+  type Period,
+  periodEnd,
+  periodLength,
+  projectTotals,
+  today,
+} from "@/lib/comparison"
+import { type DateRange, formatPercent } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
+
+/** The periods, in the URL so that a comparison can be shared. */
+interface AnalyticsSearch {
+  from?: Day
+  to?: Day
+  compareFrom?: Day
+  compareTo?: Day
+}
+
+const KPI_METRICS: KpiMetric[] = [
+  "exposures",
+  "reach",
+  "engagements",
+  "engagement_rate",
+  "followers_count",
+  "followers_growth",
+]
+
+const day = (value: unknown) => (isDay(value) ? value : undefined)
 
 export const Route = createFileRoute("/_layout/analytics")({
   component: AnalyticsPage,
+  validateSearch: (search: Record<string, unknown>): AnalyticsSearch => ({
+    from: day(search.from),
+    to: day(search.to),
+    compareFrom: day(search.compareFrom),
+    compareTo: day(search.compareTo),
+  }),
   head: () => ({
     meta: [{ title: "Analytics - Prism" }],
   }),
 })
 
+/** The periods the search params describe; an invalid end is dropped. */
+function periods(search: AnalyticsSearch, now: Day) {
+  const from = search.from && search.from <= now ? search.from : undefined
+  const main: Period = from
+    ? {
+        from,
+        to:
+          search.to && search.to >= from && search.to < now
+            ? search.to
+            : undefined,
+      }
+    : lastDaysPeriod(30, now)
+  let compare: ClosedPeriod | null = null
+  if (search.compareFrom && search.compareTo) {
+    const [start, end] = [search.compareFrom, search.compareTo].sort()
+    compare = { from: start, to: end > now ? now : end }
+  }
+  return { main, compare }
+}
+
+function basisNote(
+  basis: ComparisonBasis,
+  main: Period,
+  compare: ClosedPeriod,
+  now: Day,
+): string | null {
+  const mainLabel = formatPeriod(main, now)
+  const compareLabel = formatPeriod(compare, now)
+  switch (basis.kind) {
+    case "total":
+      return null
+    case "projected":
+      return `${mainLabel} is projected at its current pace (from its ${basis.completeDays} complete days) to ${basis.length} days, the length of ${compareLabel}. Followers follow their current trend; rates aren't projected.`
+    case "perDay":
+      return basis.tooEarly
+        ? `Too few complete days to project ${mainLabel} yet: counts are compared per day.`
+        : "The periods have different lengths: counts are compared per day."
+  }
+}
+
 function AnalyticsPage() {
   const workspace = useCurrentWorkspace()
-  const range = lastDays(30)
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const now = today()
+  const { main, compare } = periods(search, now)
+
+  const range: DateRange = { dateFrom: main.from, dateTo: periodEnd(main, now) }
+  const compareRange: DateRange | null = compare
+    ? { dateFrom: compare.from, dateTo: compare.to }
+    : null
+
   const summary = useMetricsSummary(range)
   const timeseries = useMetricsTimeseries(range)
   const posts = useTopPosts(range)
   const followers = useFollowers(range)
+  const compareSummary = useMetricsSummary(compareRange)
+  const compareTimeseries = useMetricsTimeseries(compareRange)
+  const compareFollowers = useFollowers(compareRange)
   const byPlatform = Object.entries(summary.data?.by_platform ?? {})
+
+  const basis = compare ? comparisonBasis(main, compare, now) : null
+
+  let comparison: KpiCardsProps["comparison"]
+  const projectionReady =
+    basis?.kind !== "projected" || (timeseries.data && followers.data)
+  if (
+    compare &&
+    basis &&
+    summary.data &&
+    compareSummary.data &&
+    projectionReady
+  ) {
+    const projections =
+      basis.kind === "projected"
+        ? projectTotals(timeseries.data!, followers.data!, main.from, basis)
+        : {}
+    const context = {
+      main: summary.data.totals,
+      compare: compareSummary.data.totals,
+      basis,
+      projections,
+      mainLength: periodLength(main, now),
+      compareLength: periodLength(compare, now),
+    }
+    comparison = {
+      label: formatPeriod(compare, now),
+      projectedTo:
+        basis.kind === "projected" ? formatDay(basis.end, now) : undefined,
+      metrics: Object.fromEntries(
+        KPI_METRICS.map((metric) => [metric, compareKpi(metric, context)]),
+      ),
+    }
+  }
+
+  const select = (selection: PeriodSelection) =>
+    navigate({
+      search: {
+        from: selection.main.from,
+        to: selection.main.to,
+        compareFrom: selection.compareFrom,
+        compareTo: selection.compareTo,
+      },
+      replace: true,
+    })
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Analytics</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Last 30 days · {workspace.name}
+          {formatPeriod(main, now)}
+          {compare && ` vs ${formatPeriod(compare, now)}`} · {workspace.name}
         </p>
       </div>
 
+      <PeriodControls
+        now={now}
+        selection={{
+          main,
+          compareFrom: search.compareFrom,
+          compareTo: search.compareTo,
+        }}
+        onChange={select}
+      />
+      {compare && basis && basisNote(basis, main, compare, now) && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          {basisNote(basis, main, compare, now)}
+        </p>
+      )}
+
       <KpiCards
         className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6"
-        metrics={[
-          "exposures",
-          "reach",
-          "engagements",
-          "engagement_rate",
-          "followers_count",
-          "followers_growth",
-        ]}
+        metrics={KPI_METRICS}
         totals={summary.data?.totals}
-        loading={summary.isLoading}
+        loading={summary.isLoading || (!!compare && compareSummary.isLoading)}
+        comparison={comparison}
       />
 
       <InsightsPanel range={range} />
@@ -67,8 +220,20 @@ function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <TrendChart
-            points={timeseries.data ?? []}
-            loading={timeseries.isLoading}
+            main={main}
+            mainPoints={timeseries.data ?? []}
+            mainFollowers={followers.data ?? []}
+            compare={compare}
+            comparePoints={compareTimeseries.data ?? []}
+            compareFollowers={compareFollowers.data ?? []}
+            basis={basis}
+            now={now}
+            loading={
+              timeseries.isLoading ||
+              followers.isLoading ||
+              (!!compare &&
+                (compareTimeseries.isLoading || compareFollowers.isLoading))
+            }
           />
         </CardContent>
       </Card>

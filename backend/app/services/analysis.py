@@ -164,13 +164,7 @@ def build_prompt(
 ) -> tuple[dict[str, Any], dict[str, uuid.UUID]]:
     """The chain's variables, and the post id behind each post reference."""
     limits = PROMPT_LIMITS[kind]
-    length = query.date_to - query.date_from + timedelta(days=1)
-    previous = MetricsQuery(
-        query.workspace_id,
-        query.platform,
-        query.date_from - length,
-        query.date_from - timedelta(days=1),
-    )
+    previous = query.previous()
     variables = prompt_variables(
         workspace_name=workspace_name,
         query=query,

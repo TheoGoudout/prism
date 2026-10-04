@@ -105,7 +105,13 @@ def get_metrics_query(
     date_to: date | None = None,
 ) -> MetricsQuery:
     """The workspace's metrics, filtered by the platform and date query params."""
-    return MetricsQuery.build(member.workspace_id, platform, date_from, date_to)
+    query = MetricsQuery.build(member.workspace_id, platform, date_from, date_to)
+    if query.date_from > query.date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="date_from must be on or before date_to",
+        )
+    return query
 
 
 MetricsQueryDep = Annotated[MetricsQuery, Depends(get_metrics_query)]

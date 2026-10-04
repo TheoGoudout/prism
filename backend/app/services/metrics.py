@@ -95,6 +95,20 @@ class MetricsQuery:
         date_from = date_from or date_to - timedelta(days=DEFAULT_RANGE_DAYS - 1)
         return cls(workspace_id, platform, date_from, date_to)
 
+    @property
+    def days(self) -> int:
+        """Length of the range, both bounds included."""
+        return (self.date_to - self.date_from).days + 1
+
+    def previous(self) -> MetricsQuery:
+        """The range of the same length that ends the day before this one."""
+        return MetricsQuery(
+            self.workspace_id,
+            self.platform,
+            self.date_from - timedelta(days=self.days),
+            self.date_from - timedelta(days=1),
+        )
+
 
 def account_platforms(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
     """{account id: platform name} for the workspace's active accounts."""
@@ -283,7 +297,7 @@ def timeseries(session: Session, query: MetricsQuery) -> list[TimeSeriesPoint]:
             for field in CHART_FIELDS:
                 by_date[day][field] += values.get(field, 0)
 
-    days = (query.date_to - query.date_from).days + 1
+    days = query.days
     return [
         TimeSeriesPoint(date=day, **by_date.get(day, {}))
         for day in (query.date_from + timedelta(days=i) for i in range(days))
@@ -303,7 +317,7 @@ def followers_timeseries(
             counts[snap.platform_account_id][snap.date] = snap.followers_count
 
     by_platform: dict[str, dict[date, int]] = defaultdict(lambda: defaultdict(int))
-    days = (query.date_to - query.date_from).days + 1
+    days = query.days
     for account_id, account_counts in counts.items():
         latest: int | None = None
         for day in (query.date_from + timedelta(days=i) for i in range(days)):
