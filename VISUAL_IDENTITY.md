@@ -128,8 +128,14 @@ domain: no Google Fonts and no third-party font CDN.
   then the sections; the active item is a soft white highlight.
 - The spectrum band, then a slim header, then the page: title, period
   ("Last 30 days · Acme Coffee"), a row of KPI cards, then charts and tables.
-- Sign-in: an ink panel with soft coloured light falling across it, the logo
-  and the tagline **"Every platform, one clear picture."**
+- Phones: the five main sections move to a tab bar along the bottom
+  (`MobileTabBar`, sharing `navItems` with the sidebar); the active tab
+  carries a short spectrum bar. Workspace, admin and settings stay in the
+  sidebar sheet.
+- Sign-in: an ink panel with soft coloured light falling across it, the logo,
+  the tagline **"Every platform, one clear picture."**, and a glimpse of the
+  dashboard: a frosted KPI card and a views-and-reach trend
+  (`AuthPreview`).
 
 ## Logo
 

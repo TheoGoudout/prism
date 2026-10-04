@@ -37,6 +37,12 @@ changing a value; scatter-type charts stop at three series.
 - `font-sans` — Inter: everything else. Tables use tabular figures.
 - Fonts are bundled from `@fontsource-variable/*`. Never add a font-CDN link.
 
+## Layout
+
+- Ink sidebar on desktop; on phones the main sections are `MobileTabBar`,
+  which reads `navItems` from `AppSidebar` — add a section there, once.
+- Sign-in panel: logo, tagline and `AuthPreview` on the ink background.
+
 ## Primitives
 
 `frontend/src/components/ui/` is shadcn-generated: don't edit it. Style at

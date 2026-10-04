@@ -21,7 +21,8 @@ import { type Item, Main } from "./Main"
 import { User } from "./User"
 import { WorkspaceSelector } from "./WorkspaceSelector"
 
-const baseItems: Item[] = [
+/** The app's sections, shared by the sidebar and the mobile tab bar. */
+export const navItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: BarChart2, title: "Analytics", path: "/analytics" },
   { icon: Newspaper, title: "Posts", path: "/posts" },
@@ -33,8 +34,8 @@ function AppSidebar() {
   const { user: currentUser } = useAuth()
 
   const items = currentUser?.is_superuser
-    ? [...baseItems, { icon: Users, title: "Admin", path: "/admin" }]
-    : baseItems
+    ? [...navItems, { icon: Users, title: "Admin", path: "/admin" }]
+    : navItems
 
   return (
     <Sidebar collapsible="icon">

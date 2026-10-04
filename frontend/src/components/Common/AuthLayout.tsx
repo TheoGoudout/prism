@@ -1,5 +1,6 @@
 import { Appearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
+import { AuthPreview } from "./AuthPreview"
 import { Footer } from "./Footer"
 
 interface AuthLayoutProps {
@@ -23,19 +24,22 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           aria-hidden="true"
           className="absolute bottom-1/4 right-10 size-64 rounded-full bg-[radial-gradient(closest-side,oklch(0.72_0.16_50/0.3),transparent)] blur-2xl"
         />
-        <div className="relative flex flex-col items-center gap-5 text-center">
-          <Logo
-            variant="full"
-            className="text-white [&_span]:text-4xl [&_svg]:size-12"
-            asLink={false}
-          />
-          <p className="max-w-xs text-lg text-sidebar-foreground">
-            Every platform, one clear picture.
-          </p>
-          <div
-            aria-hidden="true"
-            className="bg-spectrum h-1 w-24 rounded-full"
-          />
+        <div className="relative flex flex-col items-center gap-10 text-center">
+          <div className="flex flex-col items-center gap-5">
+            <Logo
+              variant="full"
+              className="text-white [&_span]:text-4xl [&_svg]:size-12"
+              asLink={false}
+            />
+            <p className="max-w-xs text-lg text-sidebar-foreground">
+              Every platform, one clear picture.
+            </p>
+            <div
+              aria-hidden="true"
+              className="bg-spectrum h-1 w-24 rounded-full"
+            />
+          </div>
+          <AuthPreview />
         </div>
       </div>
       <div className="flex flex-col gap-4 p-6 md:p-10">

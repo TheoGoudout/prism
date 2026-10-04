@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 
 import { Footer } from "@/components/Common/Footer"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
+import { MobileTabBar } from "@/components/Sidebar/MobileTabBar"
 import {
   SidebarInset,
   SidebarProvider,
@@ -48,12 +49,16 @@ function LayoutInner() {
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/70 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1 text-muted-foreground" />
         </header>
-        <main className="flex-1 p-6 md:p-8">
+        <main className="flex-1 p-6 pb-24 md:p-8">
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>
-        <Footer />
+        {/* On phones the tab bar takes the footer's place */}
+        <div className="hidden md:block">
+          <Footer />
+        </div>
+        <MobileTabBar />
       </SidebarInset>
     </SidebarProvider>
   )
