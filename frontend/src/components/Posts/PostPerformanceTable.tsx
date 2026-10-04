@@ -37,7 +37,7 @@ const BENCHMARK_ROWS = [
 function TierBadge({ value }: { value: Tier | null }) {
   if (value === "top")
     return (
-      <Badge className="shrink-0 bg-green-600 text-white dark:bg-green-500">
+      <Badge className="shrink-0 bg-success text-success-foreground">
         <ArrowUp /> Top 5%
       </Badge>
     )

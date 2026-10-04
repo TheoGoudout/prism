@@ -11,6 +11,10 @@
    - `bun run lint`
 5. If you change the API, regenerate the frontend client with
    `./scripts/generate-client.sh`.
-6. Pull requests need one of these labels: `breaking`, `security`,
+6. For any visual change, follow [VISUAL_IDENTITY.md](VISUAL_IDENTITY.md):
+   colours come from the tokens in `frontend/src/index.css` (no hex, no
+   Tailwind palette classes), data uses the chart palette in order, and
+   fonts stay bundled from Fontsource.
+7. Pull requests need one of these labels: `breaking`, `security`,
    `feature`, `bug`, `refactor`, `upgrade`, `docs` or `internal`. CI checks
    for it.
