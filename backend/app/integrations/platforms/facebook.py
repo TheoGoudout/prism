@@ -22,7 +22,12 @@ from sqlmodel import Session
 
 from app import crud
 from app.integrations.common import engagement_total, log_http_errors, parse_datetime
-from app.integrations.meta import daily_insights, first_value, graph_get
+from app.integrations.meta import (
+    daily_insights,
+    first_value,
+    graph_get,
+    graph_get_all,
+)
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 
@@ -58,11 +63,9 @@ _POST_FIELDS = (
 
 
 def _fetch_managed_pages(user_token: str) -> list[dict[str, Any]]:
-    data = graph_get(
+    return graph_get_all(
         "me/accounts", user_token, {"fields": "id,name,access_token,picture"}
     )
-    pages: list[dict[str, Any]] = data.get("data", [])
-    return pages
 
 
 def _sync_page_insights(

@@ -21,7 +21,12 @@ from sqlmodel import Session
 
 from app import crud
 from app.integrations.common import engagement_total, log_http_errors, parse_datetime
-from app.integrations.meta import daily_insights, first_value, graph_get
+from app.integrations.meta import (
+    daily_insights,
+    first_value,
+    graph_get,
+    graph_get_all,
+)
 from app.models.integration import Integration
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 
@@ -44,7 +49,7 @@ _CONTENT_TYPES: dict[str, ContentType] = {
 
 def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
     """The Instagram Business accounts linked to the user's Facebook Pages."""
-    data = graph_get(
+    pages = graph_get_all(
         "me/accounts",
         user_token,
         {
@@ -62,7 +67,7 @@ def _fetch_instagram_accounts(user_token: str) -> list[dict[str, Any]]:
             "page_token": page.get("access_token", user_token),
             "followers_count": ig.get("followers_count"),
         }
-        for page in data.get("data", [])
+        for page in pages
         if (ig := page.get("instagram_business_account"))
     ]
 

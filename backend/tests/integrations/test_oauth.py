@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.integrations.oauth.base import OAuthState
+from app.integrations.oauth.base import AccountNotFoundError, OAuthState
 from app.integrations.oauth.facebook import facebook_provider
 from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.instagram import instagram_provider
@@ -272,8 +272,28 @@ def test_instagram_get_account_info_without_business_account_raises() -> None:
     pages_response.json.return_value = {"data": [{"id": "page-without-ig"}]}
 
     with patch("httpx.get", return_value=pages_response):
-        with pytest.raises(ValueError, match="No Instagram Business account"):
+        with pytest.raises(AccountNotFoundError) as exc_info:
             instagram_provider.get_account_info("token")
+    assert exc_info.value.error_code == "no_instagram_account"
+
+
+def test_instagram_get_account_info_follows_pagination() -> None:
+    """The linked Page may not be on the first page of /me/accounts."""
+    first = MagicMock()
+    first.json.return_value = {
+        "data": [{"id": "page-1"}],
+        "paging": {"next": "https://graph.facebook.com/next-page"},
+    }
+    second = MagicMock()
+    second.json.return_value = {
+        "data": [{"id": "page-2", "instagram_business_account": {"id": "ig-2"}}]
+    }
+
+    with patch("httpx.get", side_effect=[first, second]) as mock_get:
+        info = instagram_provider.get_account_info("token")
+
+    assert info.external_id == "ig-2"
+    assert mock_get.call_args.args[0] == "https://graph.facebook.com/next-page"
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +645,24 @@ def test_callback_provider_error_redirects_with_error(
     assert r.status_code == 302
     assert "error=connection_failed" in r.headers["location"]
     assert "secret" not in r.headers["location"]
+
+
+def test_callback_account_not_found_redirects_with_its_code(
+    client: TestClient, db: Session
+) -> None:
+    user, _ = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    state = _make_state(ws.id, user.id)
+    provider = _mock_provider()
+    provider.get_account_info.side_effect = AccountNotFoundError(
+        "no_instagram_account", "nothing linked"
+    )
+
+    with patch("app.integrations.oauth.registry.get_provider", return_value=provider):
+        r = _callback(client, code="c", state=state)
+
+    assert r.status_code == 302
+    assert "error=no_instagram_account" in r.headers["location"]
 
 
 def test_callback_invalid_state_redirects(client: TestClient) -> None:

@@ -24,7 +24,7 @@ from app import crud
 from app.api.deps import SessionDep
 from app.core.config import settings
 from app.integrations.oauth import registry
-from app.integrations.oauth.base import OAuthState
+from app.integrations.oauth.base import AccountNotFoundError, OAuthState
 from app.models.integration import Integration, IntegrationCreate, Platform
 from app.worker.tasks import sync as sync_tasks
 
@@ -86,6 +86,10 @@ def callback(
 
     try:
         integration = _connect_integration(session, oauth_state, code)
+    except AccountNotFoundError as exc:
+        # Not a failure on our side: the user has something to fix
+        logger.info("OAuth callback for %s: %s", platform.value, exc)
+        return _back_to_frontend(error=exc.error_code)
     except Exception:
         logger.exception("OAuth callback failed for platform %s", platform.value)
         return _back_to_frontend(error="connection_failed")

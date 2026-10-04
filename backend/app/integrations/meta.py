@@ -28,6 +28,19 @@ def graph_get(
     )
 
 
+def graph_get_all(
+    path: str, token: str, params: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """GET every item of a paginated Graph API edge, following `paging.next`."""
+    data = graph_get(path, token, params)
+    items: list[dict[str, Any]] = data.get("data", [])
+    while next_url := (data.get("paging") or {}).get("next"):
+        # The `next` URL already carries the token and the original params
+        data = get_json(next_url)
+        items.extend(data.get("data", []))
+    return items
+
+
 def first_value(entry: dict[str, Any]) -> Any:
     """The value of a lifetime insight entry ({"values": [{"value": …}]})."""
     values = entry.get("values") or [{}]
