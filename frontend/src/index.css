@@ -90,14 +90,27 @@
   /* Single-series marks (sparklines) */
   --series-1: var(--chart-1);
 
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.3 0.02 270);
-  --sidebar-primary: oklch(0.51 0.22 277);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.955 0.02 277);
-  --sidebar-accent-foreground: oklch(0.38 0.16 277);
-  --sidebar-border: oklch(0.925 0.006 265);
-  --sidebar-ring: oklch(0.51 0.22 277);
+  /* The signature: white light split by the prism, indigo -> violet ->
+     magenta -> orange. Used for brand moments only (header rule, primary
+     buttons, avatars), never to encode data. */
+  --spectrum: linear-gradient(
+    90deg,
+    oklch(0.51 0.22 277),
+    oklch(0.56 0.22 300),
+    oklch(0.62 0.2 350),
+    oklch(0.7 0.17 45)
+  );
+  --glow-1: oklch(0.6 0.2 277 / 0.13);
+  --glow-2: oklch(0.65 0.2 340 / 0.1);
+
+  --sidebar: oklch(0.235 0.06 277);
+  --sidebar-foreground: oklch(0.86 0.03 277);
+  --sidebar-primary: oklch(0.72 0.15 277);
+  --sidebar-primary-foreground: oklch(0.18 0.05 277);
+  --sidebar-accent: oklch(1 0 0 / 0.09);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.1);
+  --sidebar-ring: oklch(0.72 0.15 277);
 }
 
 .dark {
@@ -129,14 +142,16 @@
   --chart-3: #109476;
   --chart-4: #c58612;
   --chart-5: #d4578a;
-  --sidebar: oklch(0.185 0.011 275);
-  --sidebar-foreground: oklch(0.9 0.008 270);
-  --sidebar-primary: oklch(0.56 0.2 277);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.26 0.04 277);
-  --sidebar-accent-foreground: oklch(0.9 0.05 277);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.68 0.16 277);
+  --glow-1: oklch(0.6 0.2 277 / 0.18);
+  --glow-2: oklch(0.6 0.2 330 / 0.1);
+  --sidebar: oklch(0.19 0.045 277);
+  --sidebar-foreground: oklch(0.86 0.03 277);
+  --sidebar-primary: oklch(0.72 0.15 277);
+  --sidebar-primary-foreground: oklch(0.18 0.05 277);
+  --sidebar-accent: oklch(1 0 0 / 0.09);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.1);
+  --sidebar-ring: oklch(0.72 0.15 277);
 }
 
 @layer base {
@@ -155,6 +170,14 @@
     font-family: var(--font-display);
     letter-spacing: -0.015em;
   }
+  :is(button, a[data-slot="button"]).bg-primary {
+    background-image: linear-gradient(
+      135deg,
+      var(--primary) 20%,
+      oklch(0.56 0.24 315)
+    );
+    box-shadow: 0 6px 18px -6px oklch(0.51 0.22 290 / 0.6);
+  }
   /* Numbers line up in every table. */
   [data-slot="table"] {
     font-variant-numeric: tabular-nums;
@@ -162,5 +185,23 @@
   button,
   [role="button"] {
     cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .bg-spectrum {
+    background-image: var(--spectrum);
+  }
+  .text-spectrum {
+    background-image: var(--spectrum);
+    background-clip: text;
+    color: transparent;
+  }
+  /* Soft coloured light falling on the top of the page. */
+  .bg-prism-glow {
+    background-image:
+      radial-gradient(52rem 22rem at 85% -6rem, var(--glow-2), transparent 70%),
+      radial-gradient(48rem 20rem at 15% -8rem, var(--glow-1), transparent 70%);
+    background-repeat: no-repeat;
   }
 }
