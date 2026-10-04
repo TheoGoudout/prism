@@ -15,6 +15,7 @@ from sqlmodel import Session, col, select
 
 from app import crud
 from app.core.db import engine
+from app.integrations.oauth import registry
 from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.tokens import TokenExpiredError, ensure_fresh_token
 from app.models.integration import Integration, IntegrationStatus
@@ -54,6 +55,13 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
             return {"status": "not_found", "integration_id": integration_id}
         if integration.status not in SYNCABLE_STATUSES:
             return {"status": "skipped", "reason": integration.status.value}
+        if not registry.is_available(integration.platform):
+            logger.warning(
+                "sync_integration: skipping %s, the %s integration is not set up",
+                integration_id,
+                integration.platform.value,
+            )
+            return {"status": "skipped", "reason": "platform_unavailable"}
 
         try:
             ensure_fresh_token(session=session, integration=integration)
@@ -85,10 +93,17 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
 
 @celery_app.task(name="app.worker.tasks.sync.sync_all_active_integrations")
 def sync_all_active_integrations() -> dict[str, Any]:
-    """Enqueue a sync for every syncable integration (scheduled nightly)."""
+    """
+    Enqueue a sync for every syncable integration (scheduled nightly), except
+    those of platforms whose app isn't set up.
+    """
+    available = registry.available_platforms()
     with Session(engine) as session:
         integration_ids = session.exec(
-            select(Integration.id).where(col(Integration.status).in_(SYNCABLE_STATUSES))
+            select(Integration.id).where(
+                col(Integration.status).in_(SYNCABLE_STATUSES),
+                col(Integration.platform).in_(available),
+            )
         ).all()
 
     for integration_id in integration_ids:

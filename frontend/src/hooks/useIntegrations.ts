@@ -16,6 +16,21 @@ export function useIntegrations() {
   })
 }
 
+/**
+ * The platforms that can be connected: those whose app is set up on the
+ * server. The others are hidden.
+ */
+export function useAvailablePlatforms() {
+  const workspace = useCurrentWorkspace()
+  return useQuery({
+    queryKey: ["available-platforms", workspace.id],
+    queryFn: () =>
+      IntegrationsService.listAvailablePlatforms({ workspaceId: workspace.id }),
+    // Server configuration: it only changes on a redeploy
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
 export function useSyncIntegration(integration: IntegrationPublic) {
   const queryClient = useQueryClient()
   const { showSuccessToast, showApiError } = useCustomToast()

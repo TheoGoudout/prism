@@ -1,0 +1,149 @@
+name: Prepare Release
+
+# Step 1 of 2 of the release process (see deployment.md).
+#
+# Validates that master is in a releasable state, writes release notes from the
+# pull requests merged since the last stable release, bumps every version file,
+# commits that to master, and opens a DRAFT GitHub Release.
+#
+# It deliberately does NOT create the git tag. The draft release carries a
+# tag_name that does not exist yet; GitHub creates the tag at the moment you
+# publish the draft. That makes tag-without-a-release impossible, and the draft
+# is the review gate: nothing is deployed until a person presses Publish.
+#
+# Publishing the draft fires `release: published`, which release.yml picks up.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "How to derive the next version"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - rc
+          - explicit
+      version:
+        description: "Exact version, e.g. 1.5.0 or 1.5.0-rc1 (only used when bump = explicit)"
+        required: false
+        type: string
+
+permissions: {}
+
+# The `secrets` context is not available in a step-level `if`, so surface the
+# presence of the token as an env var (same pattern as pre-commit.yml).
+env:
+  HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+  # The notes are generated in one step and read by another, so the path they
+  # meet on is named here rather than written out twice.
+  RELEASE_BODY_FILE: /tmp/release-body.md
+
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate, bump and draft the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # The bump commit is pushed with RELEASE_TOKEN, not with this token.
+      contents: write # To create the draft release.
+      pull-requests: read # To read merged pull requests' titles and labels, for the notes.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history + tags: the notes start at the last stable tag, and
+          # validation compares against every existing tag.
+          fetch-depth: 0
+          fetch-tags: true
+          # A token other than the default GITHUB_TOKEN is needed so the bump
+          # commit actually triggers CI (same reason as pre-commit.yml).
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }} # zizmor: ignore[secrets-outside-env]
+          # Load-bearing: commit-the-bump-to-master.sh pushes through the
+          # credential helper this checkout installs. This job uploads no
+          # artifacts, so there is nothing for the persisted credential to be
+          # packed into.
+          persist-credentials: true # zizmor: ignore[artipacked] -- required for `git push`; see above
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+          # No cache. This job installs nothing — set-version.mjs is
+          # dependency-free — so there is nothing for a restored cache to speed
+          # up, and this job holds the release token. A cache entry poisoned by
+          # a less-privileged workflow has no business being restored here.
+          no-cache: true
+
+      - name: Require a release token
+        if: env.HAS_RELEASE_TOKEN != 'true'
+        run: .github/scripts/release-prepare/require-a-release-token.sh
+
+      - name: Refuse to release from anywhere but master
+        env:
+          REF: ${{ github.ref }}
+        run: .github/scripts/release-prepare/refuse-to-release-from-anywhere-but-master.sh
+
+      - name: Verify all version files agree
+        run: bun scripts/set-version.mjs --check
+
+      - name: Compute the next version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT: ${{ inputs.version }}
+        run: .github/scripts/release-prepare/compute-the-next-version.sh
+
+      - name: Validate the version and the tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/release-prepare/validate-the-version-and-the-tag.sh
+
+      - name: Require master to be green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: .github/scripts/release-prepare/require-master-to-be-green.sh
+
+      - name: Generate release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BODY_FILE: ${{ env.RELEASE_BODY_FILE }}
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/release-prepare/generate-release-notes.sh
+
+      - name: Bump every version file
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/set-version.mjs "$VERSION"
+
+      - name: Commit the bump to master
+        id: commit
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: .github/scripts/release-prepare/commit-the-bump-to-master.sh
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          BODY_FILE: ${{ env.RELEASE_BODY_FILE }}
+        run: .github/scripts/release-prepare/create-the-draft-release.sh
+
+      - name: Summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          RELEASES_URL: ${{ github.server_url }}/${{ github.repository }}/releases
+        run: .github/scripts/release-prepare/summary.sh

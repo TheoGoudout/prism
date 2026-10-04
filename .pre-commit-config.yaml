@@ -18,6 +18,7 @@
 #                 no-embedded-scripts rule (.github/scripts/README.md)
 #   Dependabot    its schema
 #   API           the generated frontend client is up to date
+#   versions      every version file agrees (scripts/set-version.mjs)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -139,6 +140,16 @@ repos:
         language: unsupported
         pass_filenames: false
         files: (^|/)(pyproject\.toml|uv\.lock)$
+
+      # Every file scripts/set-version.mjs writes must carry the same version,
+      # or Prepare Release refuses to run. Caught here instead, on the commit
+      # that introduces the drift.
+      - id: version-drift
+        name: Version files agree
+        entry: bun scripts/set-version.mjs --check
+        language: system
+        pass_filenames: false
+        files: ^(backend/pyproject\.toml|uv\.lock|frontend/package\.json|bun\.lock|frontend/src/client/core/OpenAPI\.ts|scripts/set-version\.mjs)$
 
       # GitHub Actions security audit. Offline only: the online audits need a
       # token and network round-trips per action, which belongs in CI

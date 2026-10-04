@@ -70,6 +70,9 @@ async function mockApi(page: Page, integrations: IntegrationPublic[]) {
     }
     if (url.pathname === "/api/v1/workspaces/") return json([WORKSPACE])
     if (url.pathname.endsWith("/integrations/")) return json(integrations)
+    if (url.pathname.endsWith("/integrations/platforms")) {
+      return json(PLATFORMS)
+    }
     return json({})
   })
 }

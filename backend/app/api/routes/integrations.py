@@ -1,10 +1,15 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import crud
-from app.api.deps import CurrentMember, SessionDep, require_manager
+from app.api.deps import (
+    CurrentMember,
+    SessionDep,
+    get_current_member,
+    require_manager,
+)
 from app.api.routes.oauth import redirect_uri
 from app.integrations.oauth import registry
 from app.integrations.oauth.base import OAuthState, generate_pkce_pair
@@ -23,6 +28,14 @@ router = APIRouter(
 )
 
 
+def _require_available(platform: Platform) -> None:
+    if not registry.is_available(platform):
+        raise HTTPException(
+            status_code=400,
+            detail=f"The {platform.value} integration is not set up on this server",
+        )
+
+
 def _get_integration(
     session: SessionDep, member: WorkspaceMember, integration_id: uuid.UUID
 ) -> Integration:
@@ -39,6 +52,16 @@ def list_integrations(session: SessionDep, member: CurrentMember) -> Any:
     )
 
 
+@router.get(
+    "/platforms",
+    dependencies=[Depends(get_current_member)],
+    response_model=list[Platform],
+)
+def list_available_platforms() -> Any:
+    """The platforms that can be connected: those whose app is set up."""
+    return registry.available_platforms()
+
+
 @router.get("/connect/{platform}", response_model=OAuthConnectResponse)
 def connect(platform: Platform, member: CurrentMember) -> Any:
     """
@@ -46,10 +69,8 @@ def connect(platform: Platform, member: CurrentMember) -> Any:
     send the user to. The provider then calls back GET /oauth/callback/{platform}.
     """
     require_manager(member, "connect integrations")
-    try:
-        provider = registry.get_provider(platform)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _require_available(platform)
+    provider = registry.get_provider(platform)
 
     verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
     state = OAuthState(
@@ -85,4 +106,5 @@ def trigger_sync(
     """Enqueue a sync now; it runs in the background."""
     require_manager(member, "trigger syncs")
     integration = _get_integration(session, member, integration_id)
+    _require_available(integration.platform)
     sync_tasks.sync_integration.delay(str(integration.id))
