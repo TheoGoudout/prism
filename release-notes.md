@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.5 (2026-10-04)
+
+### Fixes
+
+* Store avatar URLs up to 2048 characters. PR [#69](https://github.com/TheoGoudout/prism/pull/69) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.4 (2026-10-04)
 
 ### Features
