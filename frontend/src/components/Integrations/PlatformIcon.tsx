@@ -24,7 +24,7 @@ export function PlatformIcon({
     <span
       aria-hidden="true"
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-bold text-white",
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-bold text-white dark:ring-1 dark:ring-white/15",
         className,
       )}
       style={{ backgroundColor: color }}

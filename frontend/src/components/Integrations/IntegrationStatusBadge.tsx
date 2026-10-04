@@ -20,7 +20,15 @@ export function IntegrationStatusBadge({
   className?: string
 }) {
   return (
-    <Badge variant={VARIANTS[status]} className={cn("capitalize", className)}>
+    <Badge
+      variant={VARIANTS[status]}
+      className={cn(
+        "capitalize",
+        status === "active" &&
+          "border-transparent bg-success/12 text-success [a&]:hover:bg-success/20",
+        className,
+      )}
+    >
       {status}
     </Badge>
   )
