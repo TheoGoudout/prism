@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.3 (2026-10-04)
+
+### Features
+
+* Compare analytics with another period, projecting an open-ended one. PR [#67](https://github.com/TheoGoudout/prism/pull/67) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.2 (2026-10-04)
 
 ### Features
