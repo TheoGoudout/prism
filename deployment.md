@@ -13,13 +13,19 @@ and **production**:
 | Environment | Deployed by | When |
 |---|---|---|
 | **dev** | Coolify and Cloudflare Workers Builds, watching `master` | every push to `master` |
-| **staging** | [`release.yml`](.github/workflows/release.yml) | every published pre-release and release |
+| **staging** (opt-in) | [`release.yml`](.github/workflows/release.yml) | every published pre-release and release, once `STAGING_ENABLED` is `true` |
 | **production** | [`release.yml`](.github/workflows/release.yml) | every published release (not pre-releases) |
 
 Staging and production run the same jobs —
 [`deploy-environment.yml`](.github/workflows/deploy-environment.yml), backend
 first — with a different GitHub Environment; a release deploys both side by
 side. Dev never goes through Actions: see [Dev](#dev).
+
+Every environment is optional except production. Dev exists only once its
+Coolify application and Worker are set up; staging only once the
+`STAGING_ENABLED` repository variable is `true` (Settings → Secrets and
+variables → Actions → Variables). Without it a release deploys production
+alone and a pre-release deploys nothing.
 
 ## Domains
 

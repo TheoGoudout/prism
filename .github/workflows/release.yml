@@ -7,8 +7,11 @@ name: Release
 #      to the tag and pulling that image, then the frontend to Cloudflare,
 #      built from the same tag.
 #
-#   pre-release -> staging
-#   release     -> staging and production, side by side
+#   pre-release -> staging, if enabled
+#   release     -> production, and staging beside it if enabled
+#
+# Staging is opt-in: set the STAGING_ENABLED repository variable to `true`.
+# Without it a pre-release deploys nothing and a release production alone.
 #
 # Staging and production are the same jobs with a different GitHub
 # Environment. Dev is not here: it deploys itself from master (deployment.md).
@@ -96,6 +99,7 @@ jobs:
         id: environments
         env:
           PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          STAGING_ENABLED: ${{ vars.STAGING_ENABLED }}
         run: .github/scripts/release/resolve-environments.sh
 
   images:
@@ -103,7 +107,7 @@ jobs:
     needs: resolve
     # Built only when it is about to be deployed: same condition as the
     # backend half of the deploy job.
-    if: needs.resolve.outputs.run_coolify == 'true'
+    if: needs.resolve.outputs.run_coolify == 'true' && needs.resolve.outputs.environments != '[]'
     permissions:
       contents: read
       packages: write # images.yml pushes the backend image to GHCR.
@@ -124,13 +128,15 @@ jobs:
       needs.resolve.result == 'success' &&
       needs.images.result != 'failure' &&
       needs.images.result != 'cancelled' &&
+      needs.resolve.outputs.environments != '[]' &&
       (needs.resolve.outputs.run_coolify == 'true' || needs.resolve.outputs.run_cloudflare == 'true')
     strategy:
       # Staging and production roll out side by side; one failing does not
       # cancel the other.
       fail-fast: false
       matrix:
-        # staging for a pre-release; staging and production for a release.
+        # production for a release; with STAGING_ENABLED, staging as well, and
+        # for a pre-release staging alone (resolve-environments.sh).
         environment: ${{ fromJSON(needs.resolve.outputs.environments) }}
     permissions:
       contents: read
