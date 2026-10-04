@@ -711,3 +711,16 @@ def test_post_performance_history_window(client: TestClient, db: Session) -> Non
     # Too few posts to benchmark
     assert report["benchmarks"] == {}
     assert report["posts"][0]["percentile_ranks"] == {}
+
+
+def test_reversed_date_range_is_rejected(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    r = client.get(
+        _url(ws, "summary"),
+        headers=headers,
+        params={"date_from": str(TODAY), "date_to": str(YESTERDAY)},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"] == "date_from must be on or before date_to"
