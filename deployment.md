@@ -400,4 +400,3 @@ builds' preview deployments for non-`master` branches off unless you want them.
 A Worker has to exist before it can be connected: create it with one manual
 deploy first (`bun run --filter frontend build:dev && cd frontend && bun run
 deploy:dev`), then bind `app.dev.prism.ai` to it.
-
