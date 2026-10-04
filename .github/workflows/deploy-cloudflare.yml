@@ -5,10 +5,13 @@ name: Deploy to Cloudflare Workers
 # `deploy-coolify.yml`; both callers below run that first so the API is upgraded
 # before the frontend that calls it (see deployment.md).
 #
-#   called by deploy-staging.yml -> staging    (app.staging.prism.ai)
-#   called by release.yml        -> production (app.prism.ai)
-#   called by rollback.yml       -> either, at an older tag
-#   workflow_dispatch            -> either, on demand
+#   called by deploy-environment.yml -> staging    (app.staging.prism.ai)
+#                                    -> production (app.prism.ai)
+#   called by rollback.yml           -> either, at an older tag
+#   workflow_dispatch                -> either, on demand
+#
+# Dev (app.dev.prism.ai) is deployed by Cloudflare Workers Builds from master,
+# with the `dev` environment in frontend/wrangler.jsonc.
 
 on:
   workflow_call:
@@ -57,7 +60,7 @@ jobs:
       environment: ${{ steps.resolve.outputs.environment }}
     steps:
       # For .github/scripts/ only; nothing is built here.
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -82,7 +85,7 @@ jobs:
         project:
           - frontend
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # A production deploy builds the released tag, not whatever master has
