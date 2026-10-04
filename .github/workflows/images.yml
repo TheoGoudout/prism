@@ -3,42 +3,51 @@ name: Backend image
 # Builds backend/Dockerfile here and publishes it to GHCR, so the Coolify host
 # only ever pulls. Building on the host meant a `uv sync` competing for memory
 # and CPU with the very stack it was about to replace — on a small VPS shared
-# with other projects, the step most likely to get something OOM-killed.
+# with other projects, that is the step most likely to get something OOM-killed.
 #
-#   called by release.yml -> sha-<short> + the release tag
-#   workflow_dispatch     -> sha-<short> (+ the tag, when the ref is one): how
-#                            an older release is made deployable again
+#   called by deploy-staging.yml (a master push) -> sha-<short> + latest
+#   called by release.yml / workflow_dispatch     -> sha-<short> (+ the tag, for
+#                                                    a release)
 #
-# The backend, celery-worker, celery-beat and prestart services all run this one
-# image. Deploys pin the immutable `sha-<short>` (deploy-coolify.yml sets
-# Coolify's TAG variable to it): a tag that never moves is one Docker cannot
-# mistake for an image it already has.
+# This workflow deploys nothing: its callers do, after it. deploy-staging.yml
+# then deploys the staging backend and only after that the staging frontend,
+# so the two cannot race.
 #
-# amd64 only: the Coolify host is x86. An arm64 host needs a second platform
+# Every deploy pins the immutable `sha-<short>` (deploy-coolify.yml sets Coolify's
+# TAG variable to it). `latest` is a convenience for running the image by hand,
+# never what an environment runs: a tag that moves gives Docker no reason to
+# pull again, so a host that already has it would keep serving the old one.
+#
+# amd64 only: the Coolify hosts are x86. An arm64 host needs a second platform
 # here, built on a native runner.
 #
-# No build cache: this runs inside release.yml, which holds the production
-# deploy credentials, and a cache entry written by a less-privileged run has no
-# business being restored there. (zizmor: cache-poisoning)
+# No build cache. This workflow runs inside release.yml, which holds the
+# production deploy credentials, and a cache entry written by a less-privileged
+# run has no business being restored there. (zizmor: cache-poisoning)
 
 on:
   workflow_call:
     inputs:
       ref:
-        description: "Git ref to build, e.g. v1.2.0"
+        description: "Git ref to build, e.g. v1.8.0"
         required: true
         type: string
+    outputs:
+      tag:
+        description: "The immutable image tag that was published (sha-<short>)"
+        value: ${{ jobs.build.outputs.tag }}
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to build, e.g. v1.2.0"
+        description: "Git ref to build, e.g. v1.8.0 — also how an older release is made deployable"
         required: true
         type: string
 
 permissions: {}
 
 concurrency:
-  group: images-${{ inputs.ref }}
+  group: images-${{ inputs.ref || github.ref }}
+  # Never cancelled: a half-pushed image is worse than a queued one.
   cancel-in-progress: false
 
 jobs:
@@ -49,16 +58,19 @@ jobs:
     permissions:
       contents: read
       packages: write # To push the image to GHCR with the workflow's own token.
+    outputs:
+      tag: ${{ steps.tags.outputs.tag }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
       - name: Resolve the image tags
         id: tags
         env:
           REF: ${{ inputs.ref }}
+          EVENT: ${{ github.event_name }}
         run: .github/scripts/images/resolve-the-image-tags.sh
 
       # The runner's own docker CLI rather than docker/* actions: one build and

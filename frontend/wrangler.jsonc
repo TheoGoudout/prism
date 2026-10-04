@@ -1,7 +1,5 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Production only: there is no staging environment, so the top-level
-  // configuration is what deploys. See deployment.md.
   "name": "prism-frontend",
   "compatibility_date": "2026-09-01",
   "main": "worker/index.ts",
@@ -11,13 +9,38 @@
     // Deep links such as /analytics must resolve to the SPA shell.
     "not_found_handling": "single-page-application"
   },
-  // No `routes` key: the custom domain (app.prism.ai) is attached by hand in
-  // the Cloudflare dashboard. Declaring it here would make wrangler reconcile
+  // No `routes` key: the custom domains (app.prism.ai, app.staging.prism.ai)
+  // are attached by hand in the Cloudflare dashboard. Declaring it here would make wrangler reconcile
   // it against the zone on *every* deploy, which needs a CI token carrying
   // Workers Routes: Edit and DNS: Edit on the zone — enough to repoint
   // api.prism.ai if the token ever leaked. Leaving it out keeps the token
   // account-scoped.
   //
-  // The trade-off: renaming `name` silently orphans the dashboard binding.
-  "workers_dev": false
+  // The trade-off: renaming any `name` below silently orphans its dashboard
+  // binding.
+  "workers_dev": false,
+  "env": {
+    "staging": {
+      "name": "prism-frontend-staging",
+      // `assets` is repeated rather than left to environment inheritance.
+      // Wrangler does inherit it, but a named environment that silently
+      // resolves to no assets deploys an empty site, and this is the cheap way
+      // to make `deploy --dry-run --env staging` catch that instead.
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      }
+    },
+    // Same Worker name as before environments existed, so the app.prism.ai
+    // binding carries over.
+    "production": {
+      "name": "prism-frontend",
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      }
+    }
+  }
 }

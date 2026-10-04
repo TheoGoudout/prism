@@ -5,10 +5,11 @@
 # image only a logged-in client can see would pass a logged-in check here and
 # then fail on the host, mid-deploy.
 #
-# SHA, OWNER and REF come from the calling step's env.
+# SHA, IMAGE_TAG, OWNER and REF come from the calling step's env. IMAGE_TAG is
+# empty unless a caller (images.yml) names the tag it has just published.
 set -euo pipefail
 
-TAG="sha-${SHA:0:7}"
+TAG="${IMAGE_TAG:-sha-${SHA:0:7}}"
 IMAGE="ghcr.io/${OWNER,,}/prism-backend:${TAG}"
 
 if ! docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then

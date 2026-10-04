@@ -70,6 +70,8 @@ jobs:
       - name: Create .env files from the examples
         run: .github/scripts/shared/create-env-files.sh
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
@@ -121,6 +123,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
       - name: Install dependencies
         run: bun ci
       - name: Download blob reports from GitHub Actions Artifacts

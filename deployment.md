@@ -1,6 +1,7 @@
 # Deploying Prism
 
-Prism is deployed in two halves, to a single **production** environment:
+Prism is deployed in two halves, to two environments, **staging** and
+**production**:
 
 - **`frontend/`** is a static site on
   [Cloudflare Workers](https://developers.cloudflare.com/workers/static-assets/),
@@ -9,25 +10,27 @@ Prism is deployed in two halves, to a single **production** environment:
   [Coolify](https://coolify.io), a self-hosted PaaS that deploys the root
   [`compose.yml`](compose.yml).
 
-Publishing a GitHub release deploys both, backend first.
+Every push to `master` deploys staging; publishing a GitHub release deploys
+production. Both deploy the backend first.
 
 ## Domains
 
-| | URL | Hosted by |
-|---|---|---|
-| Frontend | `https://app.prism.ai` | Cloudflare Workers |
-| API | `https://api.prism.ai` (docs at `/docs`) | Coolify |
+| | Production | Staging | Hosted by |
+|---|---|---|---|
+| Frontend | `https://app.prism.ai` | `https://app.staging.prism.ai` | Cloudflare Workers |
+| API | `https://api.prism.ai` (docs at `/docs`) | `https://api.staging.prism.ai` | Coolify |
 
-To use another domain without changing the repository, set it in three places:
+Each environment's URLs are written down in the repository, and nowhere else:
 
-1. the `production` GitHub Environment's **variables**: `APP_URL` and `API_URL`.
-   The deploy workflows verify the sites at these URLs, and the frontend build
-   bakes `API_URL` in as `VITE_API_URL`, overriding `frontend/.env.production`
-   (they default to the `prism.ai` values);
-2. Coolify's `FRONTEND_HOST` environment variable (the `compose.yml` default
-   is the `prism.ai` value). `API_BASE_URL` follows the backend's domain on its
-   own;
-3. the custom domains in Cloudflare and in Coolify (below).
+1. `frontend/.env.<environment>`: the API URL built into that environment's
+   frontend (`VITE_API_URL`). `test-frontend.yml` builds both on every pull
+   request and fails if a bundle does not reference its file's URL;
+2. `.github/scripts/deploy-coolify/resolve-ref-commit-and-version.sh` and
+   `.github/scripts/deploy-cloudflare/verify-the-deployed-site.sh`: the hosts
+   the deploy workflows check once they have deployed;
+3. Coolify's `FRONTEND_HOST` on each application (the `compose.yml` default is
+   the production value, so the staging application must set it);
+4. the custom domains in Cloudflare and in Coolify (below).
 
 ---
 
@@ -41,7 +44,7 @@ To use another domain without changing the repository, set it in three places:
    the release tag.
 2. **Backend**: [`deploy-coolify.yml`](.github/workflows/deploy-coolify.yml)
    resolves the tag, checks anonymously that its image is on GHCR, `PATCH`es the
-   Coolify application's git ref to the tag and its `TAG` variable to
+   production Coolify application's git ref to the tag and its `TAG` variable to
    `sha-<short>`, triggers a deployment (the host pulls, it never builds), then
    waits for `https://api.prism.ai/api/v1/utils/health-check/` to answer and
    checks `/api/v1/openapi.json` reports the released version (the
@@ -52,8 +55,19 @@ To use another domain without changing the repository, set it in three places:
    200.
 
 The API is upgraded before the clients that call it, and a backend that failed to
-deploy stops the frontend. Pre-releases are not deployed. In the run, **Re-run
+deploy stops the frontend. Pre-releases are not deployed. The run's last job,
+**Release complete**, reports each target and fails if any of them did; **Re-run
 failed jobs** retries only the target that broke.
+
+### How a push reaches staging
+
+[`deploy-staging.yml`](.github/workflows/deploy-staging.yml) runs on every push
+to `master`, in the same order: it builds the commit's image (also tagged
+`latest`), points the staging Coolify application at `master` and that image,
+and only then deploys the staging frontend. A commit that touches only one half
+deploys only that half.
+
+
 
 ### Cutting a release
 
@@ -66,9 +80,10 @@ Releasing is two steps, and only the second one deploys:
    (`bun scripts/set-version.mjs --check`), the version is new and sorts above
    every existing tag, and master's CI is green. It then writes the version to
    every file that carries it ([`scripts/set-version.mjs`](scripts/set-version.mjs)
-   has the list), commits that to `master`, and opens a **draft** release whose
-   notes GitHub generates from the merged pull requests, sorted by label
-   ([`.github/release.yml`](.github/release.yml)).
+   has the list), writes the notes for the pull requests merged since the last
+   stable release into [`release-notes.md`](release-notes.md), sorted by label
+   ([`scripts/release_notes.py`](scripts/release_notes.py)), commits that to
+   `master`, and opens a **draft** release with the same notes.
 2. Review the draft and press **Publish release**. GitHub creates the tag at that
    moment, at the bump commit, and `release.yml` deploys it.
 
@@ -83,16 +98,16 @@ GitHub runs no workflows for a push made with `GITHUB_TOKEN`, and the released
 commit would then have no CI. If `master` is protected, that token's owner must
 be allowed to push to it.
 
-Pushes to `master` deploy nothing: they run CI only.
+Pushes to `master` deploy staging, never production (above).
 
 ### Re-deploying and rolling back
 
 | To | Run |
 |---|---|
-| Re-deploy a release (all, or `backend` / `frontend` only) | **Release** workflow, `tag` = the release |
-| Roll both back | **Rollback**, `tag` = the previous release: the frontend goes back first, then the backend — the reverse of a release, so the frontend is never ahead of the API it talks to |
-| Roll the backend back on its own | **Deploy backend to Coolify**, `ref` = the previous tag |
-| Roll the frontend back on its own | **Deploy frontend to Cloudflare**, `ref` = the previous tag |
+| Re-deploy a release (all, or `coolify` / `cloudflare` only) | **Release** workflow, `tag` = the release |
+| Roll both back | **Rollback**, pick the environment, `tag` = the previous release: the frontend goes back first, then the backend — the reverse of a release, so the frontend is never ahead of the API it talks to |
+| Roll the backend back on its own | **Deploy backend to Coolify**, pick the environment, `ref` = the previous tag |
+| Roll the frontend back on its own | **Deploy to Cloudflare Workers**, pick the environment |
 
 Use `force: true` to redeploy the ref the backend is already pinned to; otherwise
 Coolify may decide there is nothing to redeploy. A backend rollback does not roll
@@ -104,24 +119,20 @@ first, then roll back to it.
 
 ### GitHub setup
 
-Create a `production`
-[environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
-in the repository settings. Give it required reviewers if a release should wait
-for an approval before deploying.
+Create two
+[environments](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
+in the repository settings, `staging` and `production`. Give `production`
+required reviewers if a release should wait for an approval before deploying.
 
-Secrets on the `production` environment:
+Secrets, set on **each** environment with that environment's values:
 
 | Secret | Description |
 |---|---|
 | `COOLIFY_URL` | Base URL of the Coolify panel, no trailing slash |
 | `COOLIFY_API_TOKEN` | Coolify API token with write access to the application (**Keys & Tokens → API tokens**) |
-| `COOLIFY_APP_UUID` | The application's UUID: the last path segment of its URL in the Coolify dashboard |
+| `COOLIFY_APP_UUID` | The environment's application UUID: the last path segment of its URL in the Coolify dashboard |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API token, see [below](#api-token) |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-
-Variables on the `production` environment (optional, only to change the domain):
-`APP_URL` (the frontend's URL) and `API_URL` (the backend's URL, also built into
-the frontend).
 
 The deploy fails, rather than skipping, when a Coolify secret is missing: a
 backend that silently did not deploy is a frontend talking to the wrong API.
@@ -130,21 +141,27 @@ backend that silently did not deploy is a frontend talking to the wrong API.
 
 ## Coolify (backend)
 
-### 1. Create the application
+### 1. Create the applications
+
+Create one application per environment, the same way; they differ only in the
+branch they start on, their domain and `FRONTEND_HOST`.
 
 1. In Coolify, **+ New → Public/Private Repository** (with the Coolify GitHub
    App for a private repository), pick this repository, and choose the
    **Docker Compose** build pack with `/compose.yml` as the compose file.
-2. Set the git branch to the tag you are about to release (e.g. `v1.0.0`): after
-   that, `deploy-coolify.yml` moves it on each release.
-3. **Turn auto-deploy off** (*Advanced → Auto Deploy*), so pushes to `master`
-   never reach production. Releases deploy it instead.
+2. Set the git branch: `master` for staging, the tag you are about to release
+   (e.g. `v1.0.0`) for production. After that, `deploy-coolify.yml` moves it on
+   each deploy.
+3. **Turn auto-deploy off** (*Advanced → Auto Deploy*) on both: the workflows
+   deploy them, in order, and Coolify's own webhook would race them.
 4. Do not set `TAG`: `deploy-coolify.yml` owns it, and sets it on every
    deploy to the image of the tag being deployed.
-5. Give the `backend` service the domain `https://api.prism.ai:8000`: Coolify
-   proxies `api.prism.ai` to the container's port 8000 and handles HTTPS. Point
-   the `api.prism.ai` DNS record at the Coolify server. No other service needs a
-   domain.
+5. Give the `backend` service the domain `https://api.prism.ai:8000`
+   (staging: `https://api.staging.prism.ai:8000`): Coolify proxies it to the
+   container's port 8000 and handles HTTPS. Point the DNS record at the Coolify
+   server. No other service needs a domain.
+6. On staging, set `ENVIRONMENT=staging` and
+   `FRONTEND_HOST=https://app.staging.prism.ai`.
 
 Coolify 4.2 or newer is required: it made the deploy endpoint `POST`-only, which
 is what the workflow sends.
@@ -269,17 +286,19 @@ only because `frontend/wrangler.jsonc` declares no `routes`, see below.
 
 ### Custom domain
 
-The domain is bound by hand, once, in the Cloudflare dashboard: **Workers &
+Each domain is bound by hand, once, in the Cloudflare dashboard: **Workers &
 Pages → prism-frontend → Settings → Domains & Routes → Add → Custom domain →
-`app.prism.ai`**. Cloudflare creates the DNS record and certificate. The Worker
-must exist first, so bind it after the first release has deployed.
+`app.prism.ai`**, and the same for **prism-frontend-staging** →
+`app.staging.prism.ai`. Cloudflare creates the DNS record and certificate. A
+Worker must exist first, so bind each after its first deploy.
 
 Declaring it in `wrangler.jsonc` instead would make wrangler reconcile the zone's
 routes on every deploy, which needs a CI token with `Workers Routes: Edit` and
 `DNS: Edit` on the zone: enough to repoint `api.prism.ai` at anything if the
 token leaked. The cost is that renaming the Worker (`name` in `wrangler.jsonc`)
 silently orphans the binding: the deploy succeeds, and the site keeps serving the
-old Worker.
+old Worker. `wrangler.jsonc` has one `env` block per environment; production keeps
+the Worker name `prism-frontend`.
 
 `workers_dev` is `false`, so the Worker is not also reachable at a
 `*.workers.dev` URL.
@@ -291,18 +310,17 @@ old Worker.
 | SPA fallback (`try_files $uri /index.html`) | `assets.not_found_handling: "single-page-application"` |
 | `/api`, `/docs`, `/redoc` return 404 | `frontend/worker/index.ts` |
 
-The API URL is baked in at build time: from the `API_URL` variable in the
-deploy workflow, otherwise from `frontend/.env.production` (Vite loads it for
-`vite build`). It holds public values only: anything in a `VITE_*`
-variable ends up in the bundle.
+The API URL is baked in at build time from `frontend/.env.<environment>`
+(`bun run build:staging` / `build:production` pass Vite the mode). Those files
+hold public values only: anything in a `VITE_*` variable ends up in the bundle.
 
 ### Deploying by hand
 
 ```bash
 bun install
-bun run --filter frontend build
-cd frontend && bun run deploy:dry-run   # validate, upload nothing
-cd frontend && bun run deploy           # needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+bun run --filter frontend build:production
+cd frontend && bunx wrangler deploy --dry-run --env production   # validate, upload nothing
+cd frontend && bun run deploy:production   # needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
 ```
 
 `.github/workflows/test-frontend.yml` runs the build and the dry run on every

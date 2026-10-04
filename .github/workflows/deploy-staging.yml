@@ -1,0 +1,125 @@
+name: Deploy staging
+
+# Every push to master deploys staging, as one run and in the same order a
+# release deploys production: the backend image is built and published
+# (images.yml), the staging backend is pointed at it, and only then is the
+# frontend deployed.
+#
+# The order matters for the same reason it does in release.yml: the Cloudflare
+# upload takes seconds and the image build and Coolify rollout take minutes, so
+# deployed independently, every API change would put a staging frontend in
+# front of a backend that does not serve it yet — a generated client calling a
+# contract the server has not shipped.
+#
+# **Turn Automatic Deployment off on the staging application in Coolify**, or its
+# webhook keeps racing this run with a deploy of its own, and put the three
+# COOLIFY_* secrets on the `staging` GitHub Environment. See deployment.md.
+
+on:
+  push:
+    branches:
+      - master
+
+permissions: {}
+
+concurrency:
+  # Queued, never cancelled: a cancelled run can leave the backend deployed and
+  # the frontend not, which is the mismatch this workflow exists to prevent.
+  # The deploy workflows it calls also serialise on their own per-environment
+  # groups, which is what keeps a rollback from overlapping it.
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          # Only what each target is actually built from. Without this every
+          # commit to master redeployed everything — including docs-only commits
+          # and the `chore(release): x.y.z` bump release-prepare.yml pushes.
+          filters: |
+            backend:
+              - backend/**
+              - compose.yml
+              - pyproject.toml
+              - uv.lock
+              - .github/workflows/deploy-staging.yml
+              - .github/workflows/images.yml
+              - .github/workflows/deploy-coolify.yml
+              - .github/scripts/images/**
+              - .github/scripts/deploy-coolify/**
+            frontend:
+              - frontend/**
+              - package.json
+              - bun.lock
+              - .github/workflows/deploy-staging.yml
+              - .github/workflows/deploy-cloudflare.yml
+              - .github/scripts/deploy-cloudflare/**
+
+  images:
+    name: Backend image
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    permissions:
+      contents: read
+      packages: write # images.yml pushes the backend image to GHCR.
+    # `./`, not GitHub's newer `$/`: moving the deploy pipeline to a different
+    # reference syntax is a deliberate change, not a lint fix.
+    uses: ./.github/workflows/images.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ github.sha }}
+
+  coolify:
+    name: Backend
+    needs: [changes, images]
+    if: needs.changes.outputs.backend == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-coolify.yml # zizmor: ignore[self-repository]
+    with:
+      environment: staging
+      # The branch, not this commit's SHA: Coolify reads compose.yml from
+      # `git_branch`, which takes a branch or a tag but not a SHA. What runs is
+      # decided by image_tag, which is this commit's image.
+      ref: master
+      image_tag: ${{ needs.images.outputs.tag }}
+    secrets:
+      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+
+  cloudflare:
+    name: Frontend
+    needs: [changes, images, coolify]
+    # `always()` lets a *skipped* backend (a frontend-only commit) through; a
+    # failed image build or backend deploy still holds the frontend back.
+    if: >-
+      always() &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.frontend == 'true' &&
+      needs.images.result != 'failure' &&
+      needs.images.result != 'cancelled' &&
+      needs.coolify.result != 'failure' &&
+      needs.coolify.result != 'cancelled'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-cloudflare.yml # zizmor: ignore[self-repository]
+    with:
+      environment: staging
+      ref: ${{ github.sha }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
