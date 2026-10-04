@@ -107,7 +107,10 @@ jobs:
         env:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
-        run: bun run --filter "${PROJECT}" "build:${ENVIRONMENT}"
+          # Optional, per GitHub Environment: override the API URL the
+          # committed .env.<environment> names.
+          API_URL: ${{ vars.API_URL }}
+        run: .github/scripts/deploy-cloudflare/build-the-project.sh
 
       # Refuses an empty or placeholder URL before anything is uploaded: a
       # frontend built against no API answers every call with its own
@@ -116,6 +119,7 @@ jobs:
         env:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
+          API_URL: ${{ vars.API_URL }}
         run: .github/scripts/shared/check-the-build-targets-its-environment.sh
 
       - name: Deploy ${{ matrix.project }} to Cloudflare
@@ -132,4 +136,6 @@ jobs:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
           HAS_CLOUDFLARE: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+          # Optional, per GitHub Environment: the frontend's public URL.
+          APP_URL: ${{ vars.APP_URL }}
         run: .github/scripts/deploy-cloudflare/verify-the-deployed-site.sh
