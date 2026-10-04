@@ -1,8 +1,8 @@
 name: Test Frontend
 
-# What the Cloudflare deploy does, short of uploading: type-check and build the
-# production bundle, then have wrangler validate frontend/wrangler.jsonc and
-# bundle the Worker. A broken deploy config fails here, on the pull request,
+# What the Cloudflare deploy does, short of uploading, for each environment:
+# type-check and build the bundle, check it targets that environment's API, then
+# have wrangler validate frontend/wrangler.jsonc and bundle the Worker. A broken deploy config fails here, on the pull request,
 # instead of in the middle of a release.
 
 on:
@@ -43,34 +43,50 @@ jobs:
               - frontend/**
               - package.json
               - bun.lock
+              - .bun-version
               - .github/workflows/test-frontend.yml
+              - .github/scripts/shared/check-the-build-targets-its-environment.sh
 
   build:
-    name: Build and dry-run the deploy
+    name: Build and dry-run the deploy (${{ matrix.environment }})
     needs: changes
     if: needs.changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [frontend]
+        environment: [staging, production]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Lint
         run: bunx biome ci --files-ignore-unknown=true --no-errors-on-unmatched
         working-directory: frontend
-      - name: Type-check and build for production
-        run: bun run --filter frontend build
-      - name: Check the build targets the production API
-        run: grep -rqF "$(grep '^VITE_API_URL=' .env.production | cut -d= -f2)" dist/assets
-        working-directory: frontend
+      - name: Build
+        env:
+          PROJECT: ${{ matrix.project }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: bun run --filter "${PROJECT}" "build:${ENVIRONMENT}"
+      - name: Check the build targets its environment
+        env:
+          PROJECT: ${{ matrix.project }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: .github/scripts/shared/check-the-build-targets-its-environment.sh
       - name: Dry-run the Cloudflare deploy
-        run: bun run deploy:dry-run
-        working-directory: frontend
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+        working-directory: ${{ matrix.project }}
+        run: bunx wrangler deploy --dry-run --env "${ENVIRONMENT}"
 
   # https://github.com/marketplace/actions/alls-green#why
   alls-green-frontend: # The one check branch protection requires.
