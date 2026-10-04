@@ -9,9 +9,11 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 
+from app.integrations.meta import GRAPH_API, INSTAGRAM_GRAPH_API
 from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.platforms.instagram import (
     _fetch_instagram_accounts,
+    _fetch_own_account,
     _sync_account_insights,
     _sync_media,
     sync_instagram,
@@ -84,7 +86,8 @@ def test_fetch_instagram_accounts_returns_linked_accounts(mock_get):
     assert len(accounts) == 1
     assert accounts[0]["ig_id"] == "ig-111"
     assert accounts[0]["name"] == "My Brand"
-    assert accounts[0]["page_token"] == "page-tok"
+    assert accounts[0]["token"] == "page-tok"
+    assert accounts[0]["api"] == GRAPH_API
 
 
 @patch("httpx.get")
@@ -93,6 +96,36 @@ def test_fetch_instagram_accounts_empty(mock_get):
     mock_get.return_value.raise_for_status = MagicMock()
 
     assert _fetch_instagram_accounts("user-token") == []
+
+
+# ---------------------------------------------------------------------------
+# _fetch_own_account (Instagram Login)
+# ---------------------------------------------------------------------------
+
+
+@patch("httpx.get")
+def test_fetch_own_account(mock_get):
+    mock_get.return_value = MagicMock(
+        json=lambda: {
+            "id": "app-scoped-id",
+            "user_id": "ig-111",
+            "username": "mybrand",
+            "profile_picture_url": "https://cdn/pic.jpg",
+            "followers_count": 42,
+        },
+    )
+
+    account = _fetch_own_account("IG-token")
+
+    assert mock_get.call_args.args[0] == f"{INSTAGRAM_GRAPH_API}/me"
+    assert account == {
+        "ig_id": "ig-111",
+        "name": "mybrand",
+        "avatar_url": "https://cdn/pic.jpg",
+        "token": "IG-token",
+        "api": INSTAGRAM_GRAPH_API,
+        "followers_count": 42,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +254,37 @@ def test_sync_media_upserts_posts(mock_get, mock_crud):
 
 @patch("app.integrations.platforms.instagram.crud")
 @patch("httpx.get")
+def test_sync_media_and_insights_read_the_given_api(mock_get, mock_crud):
+    media_resp = {
+        "data": [
+            {
+                "id": "media-1",
+                "media_type": "IMAGE",
+                "timestamp": "2024-02-10T12:00:00+0000",
+            }
+        ]
+    }
+    mock_get.side_effect = [
+        MagicMock(json=lambda: media_resp),
+        MagicMock(json=lambda: {"data": []}),
+        MagicMock(json=lambda: {"data": []}),
+    ]
+
+    _sync_media(MagicMock(), uuid.uuid4(), "ig-111", "IG-tok", api=INSTAGRAM_GRAPH_API)
+    _sync_account_insights(
+        MagicMock(), uuid.uuid4(), "ig-111", "IG-tok", api=INSTAGRAM_GRAPH_API
+    )
+
+    urls = [c.args[0] for c in mock_get.call_args_list]
+    assert urls == [
+        f"{INSTAGRAM_GRAPH_API}/ig-111/media",
+        f"{INSTAGRAM_GRAPH_API}/media-1/insights",
+        f"{INSTAGRAM_GRAPH_API}/ig-111/insights",
+    ]
+
+
+@patch("app.integrations.platforms.instagram.crud")
+@patch("httpx.get")
 def test_sync_media_reel_content_type(mock_get, mock_crud):
     media_resp = {
         "data": [
@@ -294,8 +358,20 @@ def test_sync_instagram_processes_all_accounts(mock_crud, mock_insights, mock_me
     integ = _make_integration()
 
     ig_accounts = [
-        {"ig_id": "ig-A", "name": "Brand A", "avatar_url": None, "page_token": "tok-A"},
-        {"ig_id": "ig-B", "name": "Brand B", "avatar_url": None, "page_token": "tok-B"},
+        {
+            "ig_id": "ig-A",
+            "name": "Brand A",
+            "avatar_url": None,
+            "token": "tok-A",
+            "api": GRAPH_API,
+        },
+        {
+            "ig_id": "ig-B",
+            "name": "Brand B",
+            "avatar_url": None,
+            "token": "tok-B",
+            "api": GRAPH_API,
+        },
     ]
     mock_crud.upsert_platform_account.side_effect = [
         _make_account("ig-A"),
@@ -311,6 +387,41 @@ def test_sync_instagram_processes_all_accounts(mock_crud, mock_insights, mock_me
     assert mock_crud.upsert_platform_account.call_count == 2
     assert mock_insights.call_count == 2
     assert mock_media.call_count == 2
+
+
+@patch("app.integrations.platforms.instagram._sync_media")
+@patch("app.integrations.platforms.instagram._sync_account_insights")
+@patch("app.integrations.platforms.instagram.crud")
+def test_sync_instagram_with_instagram_login_reads_the_instagram_api(
+    mock_crud, mock_insights, mock_media
+):
+    integ = _make_integration()
+    mock_crud.upsert_platform_account.return_value = _make_account("ig-111")
+    own = {
+        "ig_id": "ig-111",
+        "name": "mybrand",
+        "avatar_url": None,
+        "token": "IG-token",
+        "api": INSTAGRAM_GRAPH_API,
+        "followers_count": 42,
+    }
+
+    with (
+        patch(
+            "app.integrations.platforms.instagram._fetch_own_account",
+            return_value=own,
+        ) as fetch_own,
+        patch(
+            "app.integrations.platforms.instagram._fetch_instagram_accounts"
+        ) as fetch_linked,
+    ):
+        sync_instagram(MagicMock(), integ, "IG-token")
+
+    fetch_own.assert_called_once_with("IG-token")
+    fetch_linked.assert_not_called()
+    assert mock_insights.call_args.kwargs["api"] == INSTAGRAM_GRAPH_API
+    assert mock_insights.call_args.args[3:] == ("IG-token", 42)
+    assert mock_media.call_args.kwargs["api"] == INSTAGRAM_GRAPH_API
 
 
 @patch(
@@ -340,7 +451,13 @@ def test_sync_instagram_insights_error_continues_to_media(
     with patch(
         "app.integrations.platforms.instagram._fetch_instagram_accounts",
         return_value=[
-            {"ig_id": "ig-X", "name": "X", "avatar_url": None, "page_token": "tok"}
+            {
+                "ig_id": "ig-X",
+                "name": "X",
+                "avatar_url": None,
+                "token": "tok",
+                "api": GRAPH_API,
+            }
         ],
     ):
         sync_instagram(MagicMock(), integ, "token")

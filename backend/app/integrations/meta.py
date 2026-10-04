@@ -1,4 +1,11 @@
-"""Meta Graph API access shared by Facebook and Instagram (login and sync)."""
+"""
+Meta Graph API access shared by Facebook and Instagram (login and sync).
+
+Instagram accounts are connected with Instagram Login and read through the
+Instagram Graph API (graph.instagram.com). Those connected before that went
+through Facebook Login and are read through the Facebook Graph API; their
+tokens are told apart by prefix (see uses_instagram_login).
+"""
 
 import logging
 from collections.abc import Sequence
@@ -17,15 +24,46 @@ logger = logging.getLogger(__name__)
 GRAPH_API_VERSION = "v25.0"
 GRAPH_API = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 FACEBOOK_DIALOG_URL = f"https://www.facebook.com/{GRAPH_API_VERSION}/dialog/oauth"
+INSTAGRAM_GRAPH_API = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
+
+
+def uses_instagram_login(token: str) -> bool:
+    """
+    Whether a token comes from Instagram Login (they start with "IG"), rather
+    than from Facebook Login (they start with "EAA").
+    """
+    return token.startswith("IG")
 
 
 def graph_get(
-    path: str, token: str, params: dict[str, Any] | None = None
+    path: str,
+    token: str,
+    params: dict[str, Any] | None = None,
+    *,
+    api: str = GRAPH_API,
 ) -> dict[str, Any]:
-    """GET a Graph API object or edge. Meta takes the token as a query param."""
-    return get_json(
-        f"{GRAPH_API}/{path}", params={**(params or {}), "access_token": token}
-    )
+    """
+    GET a Graph API object or edge, from the Facebook Graph API unless `api`
+    says otherwise. Meta takes the token as a query param.
+    """
+    return get_json(f"{api}/{path}", params={**(params or {}), "access_token": token})
+
+
+def graph_get_all(
+    path: str,
+    token: str,
+    params: dict[str, Any] | None = None,
+    *,
+    api: str = GRAPH_API,
+) -> list[dict[str, Any]]:
+    """GET every item of a paginated Graph API edge, following `paging.next`."""
+    data = graph_get(path, token, params, api=api)
+    items: list[dict[str, Any]] = data.get("data", [])
+    while next_url := (data.get("paging") or {}).get("next"):
+        # The `next` URL already carries the token and the original params
+        data = get_json(next_url)
+        items.extend(data.get("data", []))
+    return items
 
 
 def first_value(entry: dict[str, Any]) -> Any:
@@ -35,7 +73,7 @@ def first_value(entry: dict[str, Any]) -> Any:
 
 
 def daily_insights(
-    object_id: str, token: str, metrics: Sequence[str]
+    object_id: str, token: str, metrics: Sequence[str], *, api: str = GRAPH_API
 ) -> dict[date, dict[str, Any]]:
     """
     Daily insights of a Page or Instagram account over the sync window, as
@@ -55,7 +93,10 @@ def daily_insights(
 
     def fetch(metric_names: str) -> list[dict[str, Any]]:
         data = graph_get(
-            f"{object_id}/insights", token, {**params, "metric": metric_names}
+            f"{object_id}/insights",
+            token,
+            {**params, "metric": metric_names},
+            api=api,
         )
         entries: list[dict[str, Any]] = data.get("data", [])
         return entries

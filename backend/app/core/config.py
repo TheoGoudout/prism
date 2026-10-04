@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     # platform integration is actually used.
     FACEBOOK_APP_ID: str = ""
     FACEBOOK_APP_SECRET: str = ""
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
     TWITTER_CLIENT_ID: str = ""
     TWITTER_CLIENT_SECRET: str = ""
     LINKEDIN_CLIENT_ID: str = ""
