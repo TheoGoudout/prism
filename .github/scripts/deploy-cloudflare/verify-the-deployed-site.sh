@@ -1,26 +1,42 @@
 #!/usr/bin/env bash
-# Prove the Worker that was just deployed is serving on its custom domain.
+# Prove the Worker that was just deployed is actually serving.
 #
-# wrangler reports on its own upload, not on what the zone routes, and the
-# custom domain is bound by hand in the Cloudflare dashboard (see the comment in
-# frontend/wrangler.jsonc), so "deployed" and "reachable" are two claims.
+# wrangler reports on its own upload, not on what the zone routes — and the
+# custom domains here are attached by hand in the Cloudflare dashboard rather
+# than declared in wrangler.jsonc (see the comment in each project's config), so
+# "deployed" and "reachable" are genuinely two claims. deploy-coolify.yml
+# asserts both about the API; this is the same assertion for the static sites.
 #
-# APP_URL comes from the calling step's env.
+# PROJECT, ENVIRONMENT and HAS_CLOUDFLARE come from the calling step's env.
 set -euo pipefail
 
-URL="${APP_URL%/}/"
+if [ "$HAS_CLOUDFLARE" != "true" ]; then
+  echo "No Cloudflare credentials, so nothing was deployed to check."
+  exit 0
+fi
 
-# A new version reaches the whole edge in seconds, but not instantly.
+case "${PROJECT}/${ENVIRONMENT}" in
+  frontend/production) HOST="app.prism.ai" ;;
+  frontend/staging) HOST="app.staging.prism.ai" ;;
+  *)
+    echo "::error::No hostname known for ${PROJECT} in ${ENVIRONMENT}."
+    exit 1
+    ;;
+esac
+
+# Cloudflare propagates a new version across the edge in seconds, but not
+# instantly, and a cold DNS answer can lag it. Six tries at 10s is generous
+# without being a place a broken deploy can hide for long.
 for _ in $(seq 1 6); do
-  CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || echo 000)
+  CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "https://${HOST}/" || echo 000)
   if [ "$CODE" = "200" ]; then
-    echo "${URL} is serving (HTTP 200)."
+    echo "https://${HOST}/ is serving (HTTP 200)."
     exit 0
   fi
-  echo "${URL} answered ${CODE}, retrying."
+  echo "https://${HOST}/ answered ${CODE}, retrying."
   sleep 10
 done
 
-echo "::error::${URL} never returned 200. The upload succeeded, so check the" \
-  "Worker's custom domain binding and its runtime logs."
+echo "::error::https://${HOST}/ never returned 200 after the ${PROJECT} deploy." \
+  "The upload succeeded, so check the Worker's routes and its runtime logs."
 exit 1

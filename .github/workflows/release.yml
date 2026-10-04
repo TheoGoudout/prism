@@ -1,16 +1,26 @@
 name: Release
 
-# Publishing a GitHub release deploys it to production, as one run:
+# Publishing a GitHub release or pre-release deploys it, as one run:
 #
-#   1. the backend to Coolify, pinned to the release's tag;
-#   2. then the frontend to Cloudflare, built from the same tag.
+#   1. the backend image, built from the release's tag and pushed to GHCR;
+#   2. per environment (deploy-environment.yml): the backend to Coolify, pinned
+#      to the tag and pulling that image, then the frontend to Cloudflare,
+#      built from the same tag.
 #
-# The order is deliberate: the API is upgraded before the clients that call it,
-# and a backend that failed to deploy stops the frontend. "Re-run failed jobs"
-# retries only the target that broke.
+#   pre-release -> staging, if enabled
+#   release     -> production, and staging beside it if enabled
 #
-# Pre-releases are not deployed. A manual dispatch re-deploys an existing
-# release, all of it or one target.
+# Staging is opt-in: set the STAGING_ENABLED repository variable to `true`.
+# Without it a pre-release deploys nothing and a release production alone.
+#
+# Staging and production are the same jobs with a different GitHub
+# Environment. Dev is not here: it deploys itself from master (deployment.md).
+#
+# Within an environment the order is deliberate: the API is upgraded before the
+# client that calls it, and a backend that failed to deploy stops the frontend.
+# "Re-run failed jobs" retries only the target that broke. A manual dispatch
+# re-deploys an existing release, all of it or one target. The last job's
+# conclusion is the release's: it fails when any target did.
 
 on:
   release:
@@ -22,16 +32,17 @@ on:
         required: true
         type: string
       targets:
-        description: "Which targets to deploy"
+        description: "Which targets to run"
         required: true
         type: choice
         default: all
         options:
           - all
-          - backend
-          - frontend
+          - coolify
+          - cloudflare
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: release-${{ github.event.release.tag_name || inputs.tag }}
@@ -43,56 +54,134 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read # To check out .github/scripts/ and read the release.
+      contents: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
       prerelease: ${{ steps.release.outputs.prerelease }}
+      run_cloudflare: ${{ steps.targets.outputs.cloudflare }}
+      run_coolify: ${{ steps.targets.outputs.coolify }}
+      environments: ${{ steps.environments.outputs.environments }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      # The steps below run scripts from .github/scripts/, and one of them calls
+      # scripts/set-version.mjs, so this job needs the tree even though it
+      # builds nothing from it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Resolve the release
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+          # No cache. This job installs nothing — it runs set-version.mjs, which
+          # is dependency-free — so there is nothing for a restored cache to
+          # speed up, and this workflow is privileged: it is triggered by a
+          # published release and its called workflows hold the production
+          # deploy credentials. A cache entry poisoned by a less-privileged
+          # workflow has no business being restored here. (zizmor: cache-poisoning)
+          no-cache: true
+
+      - name: Resolve tag, version and pre-release flag
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
           REPOSITORY: ${{ github.repository }}
-        run: .github/scripts/release/resolve-the-release.sh
+        run: .github/scripts/release/resolve-tag-version-and-pre-release-flag.sh
 
-  backend:
-    name: Backend
+      - name: Resolve targets
+        id: targets
+        env:
+          TARGETS: ${{ inputs.targets || 'all' }}
+        run: .github/scripts/release/resolve-targets.sh
+
+      - name: Resolve environments
+        id: environments
+        env:
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          STAGING_ENABLED: ${{ vars.STAGING_ENABLED }}
+        run: .github/scripts/release/resolve-environments.sh
+
+  images:
+    name: Backend image
     needs: resolve
-    if: >-
-      needs.resolve.outputs.prerelease != 'true' &&
-      (inputs.targets || 'all') != 'frontend'
+    # Built only when it is about to be deployed: same condition as the
+    # backend half of the deploy job.
+    if: needs.resolve.outputs.run_coolify == 'true' && needs.resolve.outputs.environments != '[]'
     permissions:
       contents: read
-    uses: ./.github/workflows/deploy-coolify.yml # zizmor: ignore[self-repository]
+      packages: write # images.yml pushes the backend image to GHCR.
+    # `./`, not GitHub's newer `$/`: moving the release pipeline to a
+    # different reference syntax is a deliberate change, not a lint fix.
+    uses: ./.github/workflows/images.yml # zizmor: ignore[self-repository]
     with:
       ref: ${{ needs.resolve.outputs.tag }}
+
+  deploy:
+    name: Deploy ${{ matrix.environment }}
+    # Behind the image build: the Coolify hosts pull the image rather than
+    # building it, so it has to exist first. A failed image build skips every
+    # environment; a skipped one (targets: cloudflare) does not.
+    needs: [resolve, images]
+    if: >-
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.images.result != 'failure' &&
+      needs.images.result != 'cancelled' &&
+      needs.resolve.outputs.environments != '[]' &&
+      (needs.resolve.outputs.run_coolify == 'true' || needs.resolve.outputs.run_cloudflare == 'true')
+    strategy:
+      # Staging and production roll out side by side; one failing does not
+      # cancel the other.
+      fail-fast: false
+      matrix:
+        # production for a release; with STAGING_ENABLED, staging as well, and
+        # for a pre-release staging alone (resolve-environments.sh).
+        environment: ${{ fromJSON(needs.resolve.outputs.environments) }}
+    permissions:
+      contents: read
+    # `./`, not GitHub's newer `$/`: moving the release pipeline to a
+    # different reference syntax is a deliberate change, not a lint fix.
+    uses: ./.github/workflows/deploy-environment.yml # zizmor: ignore[self-repository]
+    with:
+      environment: ${{ matrix.environment }}
+      ref: ${{ needs.resolve.outputs.tag }}
+      coolify: ${{ needs.resolve.outputs.run_coolify == 'true' }}
+      cloudflare: ${{ needs.resolve.outputs.run_cloudflare == 'true' }}
     secrets:
       COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
       COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
       COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
-
-  frontend:
-    name: Frontend
-    needs: [resolve, backend]
-    # `always()` lets a *skipped* backend (targets: frontend) through; a backend
-    # that failed still blocks the frontend.
-    if: >-
-      always() &&
-      needs.resolve.result == 'success' &&
-      needs.resolve.outputs.prerelease != 'true' &&
-      needs.backend.result != 'failure' &&
-      needs.backend.result != 'cancelled' &&
-      (inputs.targets || 'all') != 'backend'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/deploy-cloudflare.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.resolve.outputs.tag }}
-    secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  release-complete:
+    name: Release complete
+    needs: [resolve, images, deploy]
+    # Runs even when a target failed or was skipped, so the run's conclusion is
+    # the release's conclusion rather than just the last job's.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # To check out .github/scripts/ below.
+    steps:
+      # The steps below run scripts from .github/scripts/, so this job needs the
+      # repository even though it builds nothing from it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Report
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          IMAGES_RESULT: ${{ needs.images.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          ENVIRONMENTS: ${{ needs.resolve.outputs.environments }}
+        run: .github/scripts/release/report.sh
+
+      - name: Fail if any target failed
+        env:
+          IMAGES_RESULT: ${{ needs.images.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+        run: .github/scripts/release/fail-if-any-target-failed.sh

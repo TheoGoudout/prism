@@ -5,8 +5,11 @@ are not stored: the tasks record their outcome on the Integration or
 PerformanceAnalysis row instead.
 """
 
+from typing import Any
+
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_ready
 
 from app.core.config import settings
 
@@ -39,3 +42,10 @@ celery_app.conf.update(
         },
     },
 )
+
+
+@worker_ready.connect
+def _log_platform_availability(**_kwargs: Any) -> None:
+    from app.integrations.oauth import registry
+
+    registry.log_availability()

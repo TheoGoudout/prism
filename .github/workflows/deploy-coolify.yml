@@ -1,30 +1,50 @@
 name: Deploy backend to Coolify
 
-# Deploys `backend/` and the database (the stack in the root `compose.yml`) by
-# pinning the production Coolify application to a git ref and redeploying it.
-# Coolify builds from source, so the ref it tracks *is* the version running.
+# Deploys `backend/` + the database — the stack described by the root
+# `compose.yml` — by pointing a Coolify application at a git ref, setting its
+# TAG variable to that ref's backend image, and asking it to redeploy.
 #
-#   called by release.yml -> the published release's tag
-#   workflow_dispatch     -> any ref; an older tag is the rollback path
+# Nothing is built on the Coolify host: images.yml publishes the backend image
+# to GHCR, and compose.yml only names it. The ref still matters — it is where
+# Coolify reads compose.yml from — but TAG decides which image runs. Both move
+# together here, so the version running is the ref the application tracks.
 #
-# The application's auto-deploy webhook is off, so pushes to master never reach
-# production — see deployment.md.
+#   called by deploy-environment.yml -> staging or production, at a release tag
+#                                       (release.yml decides which)
+#   called by rollback.yml           -> either environment, at an older tag
+#   workflow_dispatch                -> either environment, any ref
+#
+# The ref must have an image: every commit images.yml has built does. An older
+# release that predates the images can be made deployable by dispatching
+# images.yml with its tag first. Turn Coolify's own auto-deploy off on the
+# staging and production applications — see deployment.md. (Dev is the one
+# Coolify deploys by itself, from compose.dev.yml.)
 
 on:
   workflow_call:
     inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: string
       ref:
-        description: "Git ref for Coolify to track, e.g. v1.2.0"
+        description: "Git ref for Coolify to track, e.g. v1.5.0"
         required: true
         type: string
       force:
-        description: "Rebuild without the build cache"
+        description: "Redeploy even if Coolify thinks nothing changed"
         required: false
         default: false
         type: boolean
+      image_tag:
+        description: "Image tag to run; defaults to sha-<short> of the ref"
+        required: false
+        default: ""
+        type: string
     secrets:
-      # Named rather than inherited, and checked by the first step: a backend
-      # that silently did not deploy is a frontend talking to the wrong API.
+      # Named rather than inherited. All three are required — the deploy job's
+      # first step fails the run when any is missing, because a backend that
+      # silently did not deploy is a frontend talking to the wrong API.
       COOLIFY_URL:
         required: false
       COOLIFY_API_TOKEN:
@@ -33,38 +53,49 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
       ref:
-        description: "Git ref for Coolify to track, e.g. v1.2.0. An older tag rolls back."
+        description: "Git ref for Coolify to track, e.g. v1.5.0. An older tag rolls production back."
         required: true
         type: string
       force:
-        description: "Rebuild without the build cache (needed to redeploy the ref already pinned)"
+        description: "Redeploy even if Coolify thinks nothing changed"
         required: false
         default: false
         type: boolean
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  # Two deploys racing would leave the application pinned to a ref nobody
-  # asked for. Never cancelled half-way, either.
-  group: deploy-coolify-production
+  # Never let two deploys of the same environment race each other — the loser
+  # would leave the application pinned to a ref nobody asked for.
+  group: deploy-coolify-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
+
   deploy:
-    name: Deploy backend (production)
+    name: Deploy backend (${{ inputs.environment }})
     runs-on: ubuntu-latest
-    # Generous: the job waits on a container build on the Coolify host.
-    timeout-minutes: 45
-    environment:
-      name: production
-      url: ${{ vars.API_URL || 'https://api.prism.ai' }}
+    # The host only pulls an image now; the long tail is the health and version
+    # checks waiting for the container to come up behind the proxy.
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
     permissions:
-      contents: read # To check out .github/scripts/ and resolve the ref.
+      contents: read # To check out .github/scripts/ below.
     steps:
-      # Nothing is built here; the steps run scripts from .github/scripts/.
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      # Nothing is built from the repository here — the ref is resolved through
+      # the API — but the steps below run scripts out of .github/scripts/, so
+      # the tree has to be present.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -73,15 +104,26 @@ jobs:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: .github/scripts/deploy-coolify/require-coolify-credentials.sh
 
-      - name: Resolve the ref
+      - name: Resolve ref, commit and expected version
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ inputs.ref }}
           REPOSITORY: ${{ github.repository }}
-        run: .github/scripts/deploy-coolify/resolve-the-ref.sh
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: .github/scripts/deploy-coolify/resolve-ref-commit-and-version.sh
+
+      - name: Confirm the image exists
+        id: image
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          OWNER: ${{ github.repository_owner }}
+          REF: ${{ inputs.ref }}
+        run: .github/scripts/deploy-coolify/confirm-the-image-exists.sh
 
       - name: Point the application at the ref
         env:
@@ -90,6 +132,14 @@ jobs:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
           REF: ${{ inputs.ref }}
         run: .github/scripts/deploy-coolify/point-the-application-at-the-ref.sh
+
+      - name: Point the application at the image
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          TAG: ${{ steps.image.outputs.tag }}
+        run: .github/scripts/deploy-coolify/point-the-application-at-the-image.sh
 
       - name: Trigger the deployment
         id: trigger
@@ -100,26 +150,30 @@ jobs:
           FORCE: ${{ inputs.force }}
         run: .github/scripts/deploy-coolify/trigger-the-deployment.sh
 
-      - name: Wait for the build to finish
+      - name: Wait for the deployment to finish
         if: steps.trigger.outputs.uuid != ''
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           DEPLOYMENT_UUID: ${{ steps.trigger.outputs.uuid }}
-        run: .github/scripts/deploy-coolify/wait-for-the-build-to-finish.sh
+        run: .github/scripts/deploy-coolify/wait-for-the-deployment-to-finish.sh
 
       - name: Verify the deployed backend
         id: verify
         env:
-          API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
+          API_HOST: ${{ steps.target.outputs.api_host }}
+          EXPECTED: ${{ steps.target.outputs.version }}
         run: .github/scripts/deploy-coolify/verify-the-deployed-backend.sh
 
       - name: Report
         if: always()
         env:
+          ENVIRONMENT: ${{ inputs.environment }}
           REF: ${{ inputs.ref }}
           SHA: ${{ steps.target.outputs.sha }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          EXPECTED: ${{ steps.target.outputs.version }}
+          LIVE: ${{ steps.verify.outputs.live }}
           DEPLOYMENT: ${{ steps.trigger.outputs.uuid }}
-          API_URL: ${{ vars.API_URL || 'https://api.prism.ai' }}
-          OUTCOME: ${{ steps.verify.outcome }}
+          API_HOST: ${{ steps.target.outputs.api_host }}
         run: .github/scripts/deploy-coolify/report.sh

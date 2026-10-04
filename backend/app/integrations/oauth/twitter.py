@@ -4,7 +4,6 @@ from datetime import timedelta
 
 import httpx
 
-from app.core.config import settings
 from app.integrations.oauth.base import (
     AccountInfo,
     OAuthProvider,
@@ -21,11 +20,8 @@ class TwitterOAuthProvider(OAuthProvider):
     REVOKE_URL = "https://api.x.com/2/oauth2/revoke"
     USES_PKCE = True
 
-    def _client_id(self) -> str:
-        return settings.TWITTER_CLIENT_ID
-
-    def _client_secret(self) -> str:
-        return settings.TWITTER_CLIENT_SECRET
+    CLIENT_ID_SETTING = "TWITTER_CLIENT_ID"
+    CLIENT_SECRET_SETTING = "TWITTER_CLIENT_SECRET"
 
     def _token_request(self, data: dict[str, str]) -> TokenResponse:
         resp = httpx.post(

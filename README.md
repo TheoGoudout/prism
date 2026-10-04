@@ -135,7 +135,12 @@ and the git hooks, the [backend](backend/README.md) and
 | `AI_PROVIDER` (`openai` \| `anthropic` \| `google`), `AI_MODEL`, and the matching `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | AI insights and reports |
 | `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY` | Optional LangSmith tracing |
 
-Platform credentials are optional. Set only the ones you use:
+Platform credentials are optional. Set only the ones you use: a platform is
+available only once both its variables are set. The others are hidden from the
+*Connect platform* menu and the connection guides, can't be connected, and
+their existing integrations are skipped by the sync. On startup, the API and
+the worker log which platform integrations are activated and which are not
+(and the variables they are missing).
 
 | Platform | Variables | Notes |
 |----------|-----------|-------|
