@@ -16,8 +16,8 @@ import { formatCompact } from "@/lib/format"
 // Theme chart colours (defined in index.css; they adapt to dark mode)
 const SERIES: { key: keyof TimeSeriesPoint; name: string; color: string }[] = [
   { key: "exposures", name: "Views", color: "var(--chart-1)" },
-  { key: "reach", name: "Reach", color: "var(--chart-3)" },
-  { key: "engagements", name: "Engagements", color: "var(--chart-2)" },
+  { key: "reach", name: "Reach", color: "var(--chart-2)" },
+  { key: "engagements", name: "Engagements", color: "var(--chart-3)" },
 ]
 
 export function TrendChart({
