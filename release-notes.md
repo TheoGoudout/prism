@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.4 (2026-10-04)
+
+### Features
+
+* Connect Instagram with Instagram Login instead of Facebook Login. PR [#68](https://github.com/TheoGoudout/prism/pull/68) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.3 (2026-10-04)
 
 ### Features
