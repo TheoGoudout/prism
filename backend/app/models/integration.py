@@ -55,7 +55,8 @@ class Integration(SQLModel, table=True):
     # External account snapshot (cached at connect time)
     external_account_id: str = Field(max_length=255)
     external_account_name: str = Field(max_length=255)
-    external_account_avatar: str | None = Field(default=None, max_length=512)
+    # Meta CDN URLs carry long signed query strings
+    external_account_avatar: str | None = Field(default=None, max_length=2048)
 
     # Sync state
     last_synced_at: datetime | None = Field(
@@ -93,7 +94,7 @@ class PlatformAccount(SQLModel, table=True):
     platform: Platform
     external_id: str = Field(max_length=255, index=True)
     name: str = Field(max_length=255)
-    avatar_url: str | None = Field(default=None, max_length=512)
+    avatar_url: str | None = Field(default=None, max_length=2048)
     # e.g. "page", "profile", "business_account", "property"
     account_type: str | None = Field(default=None, max_length=64)
     is_active: bool = Field(default=True)
