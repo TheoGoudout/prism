@@ -1,0 +1,89 @@
+name: Deploy an environment
+
+# One environment's rollout: the backend to Coolify, then the frontend to
+# Cloudflare — the API upgraded before the client that calls it, and a backend
+# that failed to deploy holding the frontend back.
+#
+# The environment is the only thing that changes between staging and
+# production. release.yml calls this once per environment a release targets —
+# staging for a pre-release, staging and production (in parallel) for a stable
+# release — and each call reads that GitHub Environment's own secrets and
+# protection rules.
+#
+# Dev is not deployed from here: Coolify and Cloudflare Workers Builds deploy it
+# themselves from master (see deployment.md).
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment to deploy: staging or production"
+        required: true
+        type: string
+      ref:
+        description: "Release tag to deploy"
+        required: true
+        type: string
+      coolify:
+        description: "Deploy the backend"
+        required: false
+        default: true
+        type: boolean
+      cloudflare:
+        description: "Deploy the frontend"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      COOLIFY_URL:
+        required: false
+      COOLIFY_API_TOKEN:
+        required: false
+      COOLIFY_APP_UUID:
+        required: false
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  coolify:
+    name: Coolify (backend)
+    if: inputs.coolify
+    permissions:
+      contents: read
+    # `./`, not GitHub's newer `$/`: moving the release pipeline to a
+    # different reference syntax is a deliberate change, not a lint fix.
+    uses: ./.github/workflows/deploy-coolify.yml # zizmor: ignore[self-repository]
+    with:
+      environment: ${{ inputs.environment }}
+      ref: ${{ inputs.ref }}
+    secrets:
+      COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+
+  cloudflare:
+    name: Cloudflare (frontend)
+    needs: coolify
+    # `always()` lets a *skipped* backend (a frontend-only redeploy) through; a
+    # backend that failed or was cancelled still holds the frontend back.
+    if: >-
+      always() &&
+      inputs.cloudflare &&
+      needs.coolify.result != 'failure' &&
+      needs.coolify.result != 'cancelled'
+    permissions:
+      contents: read
+    # `./`, not GitHub's newer `$/`: moving the release pipeline to a
+    # different reference syntax is a deliberate change, not a lint fix.
+    uses: ./.github/workflows/deploy-cloudflare.yml # zizmor: ignore[self-repository]
+    with:
+      environment: ${{ inputs.environment }}
+      ref: ${{ inputs.ref }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

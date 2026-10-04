@@ -9,8 +9,8 @@
     // Deep links such as /analytics must resolve to the SPA shell.
     "not_found_handling": "single-page-application"
   },
-  // No `routes` key: the custom domains (app.prism.ai, app.staging.prism.ai)
-  // are attached by hand in the Cloudflare dashboard. Declaring it here would make wrangler reconcile
+  // No `routes` key: the custom domains (app.prism.ai, app.staging.prism.ai,
+  // app.dev.prism.ai) are attached by hand in the Cloudflare dashboard. Declaring it here would make wrangler reconcile
   // it against the zone on *every* deploy, which needs a CI token carrying
   // Workers Routes: Edit and DNS: Edit on the zone — enough to repoint
   // api.prism.ai if the token ever leaked. Leaving it out keeps the token
@@ -20,6 +20,14 @@
   // binding.
   "workers_dev": false,
   "env": {
+    "dev": {
+      "name": "prism-frontend-dev",
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      }
+    },
     "staging": {
       "name": "prism-frontend-staging",
       // `assets` is repeated rather than left to environment inheritance.

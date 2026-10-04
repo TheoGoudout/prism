@@ -48,6 +48,10 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
+      # Dev's Coolify stack is compose.yml built from source; a compose.yml
+      # change that was not regenerated into it would leave dev behind.
+      - name: Check compose.dev.yml matches compose.yml
+        run: scripts/generate-compose-dev.sh --check
       # No .env and no override file: Coolify has neither. compose.yml has no
       # build sections either — Coolify pulls the image from GHCR — so build
       # this commit's image under the name and TAG compose.yml will ask for,

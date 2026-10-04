@@ -5,10 +5,13 @@ name: Deploy to Cloudflare Workers
 # `deploy-coolify.yml`; both callers below run that first so the API is upgraded
 # before the frontend that calls it (see deployment.md).
 #
-#   called by deploy-staging.yml -> staging    (app.staging.prism.ai)
-#   called by release.yml        -> production (app.prism.ai)
-#   called by rollback.yml       -> either, at an older tag
-#   workflow_dispatch            -> either, on demand
+#   called by deploy-environment.yml -> staging    (app.staging.prism.ai)
+#                                    -> production (app.prism.ai)
+#   called by rollback.yml           -> either, at an older tag
+#   workflow_dispatch                -> either, on demand
+#
+# Dev (app.dev.prism.ai) is deployed by Cloudflare Workers Builds from master,
+# with the `dev` environment in frontend/wrangler.jsonc.
 
 on:
   workflow_call:

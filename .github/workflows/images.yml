@@ -5,18 +5,16 @@ name: Backend image
 # and CPU with the very stack it was about to replace — on a small VPS shared
 # with other projects, that is the step most likely to get something OOM-killed.
 #
-#   called by deploy-staging.yml (a master push) -> sha-<short> + latest
-#   called by release.yml / workflow_dispatch     -> sha-<short> (+ the tag, for
-#                                                    a release)
+#   called by release.yml / workflow_dispatch -> sha-<short> (+ the tag, for a
+#                                                release or pre-release)
 #
-# This workflow deploys nothing: its callers do, after it. deploy-staging.yml
-# then deploys the staging backend and only after that the staging frontend,
-# so the two cannot race.
+# This workflow deploys nothing: release.yml deploys staging and production
+# after it. Dev does not use it — Coolify builds the dev stack from source
+# (compose.dev.yml).
 #
 # Every deploy pins the immutable `sha-<short>` (deploy-coolify.yml sets Coolify's
-# TAG variable to it). `latest` is a convenience for running the image by hand,
-# never what an environment runs: a tag that moves gives Docker no reason to
-# pull again, so a host that already has it would keep serving the old one.
+# TAG variable to it): a tag that moves gives Docker no reason to pull again, so
+# a host that already has it would keep serving the old one.
 #
 # amd64 only: the Coolify hosts are x86. An arm64 host needs a second platform
 # here, built on a native runner.
@@ -70,7 +68,6 @@ jobs:
         id: tags
         env:
           REF: ${{ inputs.ref }}
-          EVENT: ${{ github.event_name }}
         run: .github/scripts/images/resolve-the-image-tags.sh
 
       # The runner's own docker CLI rather than docker/* actions: one build and
