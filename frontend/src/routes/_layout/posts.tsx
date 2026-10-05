@@ -28,7 +28,10 @@ import { platformLabel } from "@/lib/platforms"
 
 export const Route = createFileRoute("/_layout/posts")({
   component: PostsPage,
-  validateSearch: (search: Record<string, unknown>): { platform?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { account?: string; platform?: string } => ({
+    account: typeof search.account === "string" ? search.account : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
   }),
   head: () => ({
@@ -36,7 +39,7 @@ export const Route = createFileRoute("/_layout/posts")({
   }),
 })
 
-function PlatformReport({ report }: { report: PostPerformanceReport }) {
+function AccountReport({ report }: { report: PostPerformanceReport }) {
   const metrics = benchmarkedMetrics(report)
   const [selected, setSelected] = useState<PostMetric>()
   const chartMetric =
@@ -105,12 +108,24 @@ function PlatformReport({ report }: { report: PostPerformanceReport }) {
 function PostsPage() {
   const workspace = useCurrentWorkspace()
   const reports = usePostPerformance()
-  const { platform } = Route.useSearch()
+  const { account, platform } = Route.useSearch()
   const navigate = Route.useNavigate()
   const data = reports.data ?? []
-  const active = data.some((r) => r.platform === platform)
-    ? platform
-    : data[0]?.platform
+  // An account, or else the first account of a platform (older links)
+  const active = (
+    data.find((r) => r.platform_account_id === account) ??
+    data.find((r) => r.platform === platform) ??
+    data[0]
+  )?.platform_account_id
+  // Name accounts only where a platform has several
+  const platformCounts = new Map<string, number>()
+  for (const r of data) {
+    platformCounts.set(r.platform, (platformCounts.get(r.platform) ?? 0) + 1)
+  }
+  const tabLabel = (report: PostPerformanceReport) =>
+    (platformCounts.get(report.platform) ?? 0) > 1
+      ? report.account_name
+      : platformLabel(report.platform)
 
   return (
     <div className="space-y-6">
@@ -140,27 +155,30 @@ function PostsPage() {
         <Tabs
           value={active}
           onValueChange={(value) =>
-            navigate({ search: { platform: value }, replace: true })
+            navigate({ search: { account: value }, replace: true })
           }
         >
           <TabsList className="h-auto flex-wrap">
             {data.map((report) => (
-              <TabsTrigger key={report.platform} value={report.platform}>
+              <TabsTrigger
+                key={report.platform_account_id}
+                value={report.platform_account_id}
+              >
                 <PlatformIcon
                   platform={report.platform}
                   className="size-5 rounded text-[9px]"
                 />
-                {platformLabel(report.platform)}
+                {tabLabel(report)}
               </TabsTrigger>
             ))}
           </TabsList>
           {data.map((report) => (
             <TabsContent
-              key={report.platform}
-              value={report.platform}
+              key={report.platform_account_id}
+              value={report.platform_account_id}
               className="mt-4"
             >
-              <PlatformReport report={report} />
+              <AccountReport report={report} />
             </TabsContent>
           ))}
         </Tabs>

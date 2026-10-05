@@ -42,8 +42,9 @@ period with its own metrics.
 
 Do a complete performance analysis:
 1. Analyze each post: how it performed relative to the other posts of its
-   platform (see the benchmarks), and why it likely did so (topic, format,
-   timing, wording, call to action…).
+   account (see the benchmarks), and why it likely did so (topic, format,
+   timing, wording, call to action…). Accounts have different audiences:
+   never judge a post by comparing its raw numbers with another account's.
 2. Group posts that are about the same subject (campaign, product, theme) into
    topics, and judge each topic as a whole.
 3. Judge each platform, comparing with the previous period.
@@ -102,7 +103,7 @@ Previous period: {previous_date_from} to {previous_date_to}
 === Per-platform previous period ===
 {previous_platforms_text}
 
-=== Post benchmarks per platform (this period) ===
+=== Post benchmarks per account (this period) ===
 {benchmarks_text}
 
 === Posts ({post_count}{posts_note}) ===

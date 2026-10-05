@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { MetricsService } from "@/client"
+import { MetricsService, type TopPostRanking } from "@/client"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import type { DateRange } from "@/lib/format"
 
@@ -38,15 +38,19 @@ export function useFollowers(range: DateRange | null) {
   })
 }
 
-export function useTopPosts(range: DateRange, limit = 10) {
-  const params = { ...useMetricsParams(range), limit }
+export function useTopPosts(
+  range: DateRange,
+  ranking: TopPostRanking = "engagements",
+  limit = 10,
+) {
+  const params = { ...useMetricsParams(range), ranking, limit }
   return useQuery({
     queryKey: ["metrics", "posts", params],
     queryFn: () => MetricsService.getTopPosts(params),
   })
 }
 
-/** Each platform's latest posts, benchmarked against its post history. */
+/** Each account's latest posts, benchmarked against its post history. */
 export function usePostPerformance(limit = 20) {
   const workspace = useCurrentWorkspace()
   const params = { workspaceId: workspace.id, limit }

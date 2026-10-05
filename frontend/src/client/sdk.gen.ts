@@ -500,14 +500,16 @@ export class MetricsService {
     
     /**
      * Get Top Posts
-     * Top-performing posts (by engagements) published in the date range.
+     * Top-performing posts published in the date range: by engagements, or
+     * (`ranking=account`) relative to each account's posts of the past year.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.limit
+     * @param data.ranking
      * @param data.platform
      * @param data.dateFrom
      * @param data.dateTo
-     * @returns PostPublic Successful Response
+     * @returns TopPost Successful Response
      * @throws ApiError
      */
     public static getTopPosts(data: MetricsGetTopPostsData): CancelablePromise<MetricsGetTopPostsResponse> {
@@ -519,6 +521,7 @@ export class MetricsService {
             },
             query: {
                 limit: data.limit,
+                ranking: data.ranking,
                 platform: data.platform,
                 date_from: data.dateFrom,
                 date_to: data.dateTo
@@ -531,7 +534,7 @@ export class MetricsService {
     
     /**
      * Get Post Performance
-     * Per platform that has posts: the latest `limit` posts, each metric ranked
+     * Per account that has posts: the latest `limit` posts, each metric ranked
      * against the posts of the last `history_days`, with the P5 / median / P95
      * of that history as benchmarks.
      * @param data The data for the request.

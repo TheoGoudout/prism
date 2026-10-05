@@ -273,6 +273,20 @@ class PostPerformance(PostPublic):
     percentile_ranks: dict[str, float]
 
 
+class TopPostRanking(StrEnum):
+    # The most engagements, whatever the account's audience
+    engagements = "engagements"
+    # The best posts relative to their own account's other posts
+    account = "account"
+
+
+class TopPost(PostPublic):
+    account_name: str
+    # Percentile rank (0–100) of the post's engagements among its account's
+    # posts of the past year; None with too few posts to rank against
+    account_percentile: float | None = None
+
+
 class PostHistoryPoint(ContentMetrics):
     """A post's metrics only, for plotting the history over time."""
 
@@ -282,8 +296,13 @@ class PostHistoryPoint(ContentMetrics):
 
 
 class PostPerformanceReport(SQLModel):
-    """One platform's latest posts, compared with its own post history."""
+    """
+    One account's latest posts, compared with its own post history: a popular
+    account's posts and a small one's aren't comparable, even on one platform.
+    """
 
+    platform_account_id: uuid.UUID
+    account_name: str
     platform: Platform
     history_from: date_type
     history_to: date_type

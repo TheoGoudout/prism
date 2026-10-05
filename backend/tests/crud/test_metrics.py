@@ -172,41 +172,6 @@ def test_upsert_post_updates_existing(db: Session) -> None:
     assert updated.likes == 250
 
 
-def test_get_top_posts(db: Session) -> None:
-    account = _make_account(db)
-    for i, eng in enumerate([10, 500, 50, 200, 1]):
-        mcrud.upsert_post(
-            session=db,
-            platform_account_id=account.id,
-            post_in=PostUpsert(
-                external_id=f"top-{i}",
-                published_at=datetime(2024, 7, 1, tzinfo=UTC),
-                content_type=ContentType.post,
-                engagements=eng,
-            ),
-        )
-    top = mcrud.get_top_posts(
-        session=db,
-        platform_account_ids=[account.id],
-        start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 31),
-        limit=3,
-    )
-    assert len(top) == 3
-    assert top[0].engagements == 500
-    assert top[1].engagements == 200
-
-
-def test_get_top_posts_empty_accounts(db: Session) -> None:
-    result = mcrud.get_top_posts(
-        session=db,
-        platform_account_ids=[],
-        start_date=date(2024, 1, 1),
-        end_date=date(2024, 1, 31),
-    )
-    assert list(result) == []
-
-
 # ---------------------------------------------------------------------------
 # Post interactions (for follow-up syncs)
 # ---------------------------------------------------------------------------

@@ -159,51 +159,6 @@ def get_posts_for_accounts(
     return session.exec(statement).all()
 
 
-def get_top_posts(
-    *,
-    session: Session,
-    platform_account_ids: Sequence[uuid.UUID],
-    start_date: date,
-    end_date: date,
-    limit: int = 10,
-) -> Sequence[Post]:
-    """Most-engaging posts published by the accounts over a date range."""
-    if not platform_account_ids:
-        return []
-    statement = (
-        select(Post)
-        .where(col(Post.platform_account_id).in_(platform_account_ids))
-        .where(func.date(Post.published_at) >= start_date)
-        .where(func.date(Post.published_at) <= end_date)
-        .where(col(Post.engagements).is_not(None))
-        .order_by(col(Post.engagements).desc())
-        .limit(limit)
-    )
-    return session.exec(statement).all()
-
-
-def get_posts(
-    *,
-    session: Session,
-    platform_account_ids: Sequence[uuid.UUID],
-    start_date: date,
-    end_date: date,
-    limit: int,
-) -> Sequence[Post]:
-    """Posts published by the accounts over a date range, most engaging first."""
-    if not platform_account_ids:
-        return []
-    statement = (
-        select(Post)
-        .where(col(Post.platform_account_id).in_(platform_account_ids))
-        .where(func.date(Post.published_at) >= start_date)
-        .where(func.date(Post.published_at) <= end_date)
-        .order_by(col(Post.engagements).desc().nulls_last(), col(Post.published_at))
-        .limit(limit)
-    )
-    return session.exec(statement).all()
-
-
 def get_posts_by_ids(
     *, session: Session, post_ids: Sequence[uuid.UUID], workspace_id: uuid.UUID
 ) -> Sequence[Post]:
