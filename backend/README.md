@@ -73,6 +73,27 @@ uv run celery -A app.worker.celery_app worker --beat --loglevel=info
 5. Create a migration (the enum is a database type) and regenerate the
    frontend client.
 
+## Importing an Instagram history
+
+To try Prism on a real account without connecting it, copy the daily history
+table of a public profile from [instrack.app](https://instrack.app) (Date,
+Followers Count, Following Count, Media Count, Engagement Rate) into a text
+file and import it into a workspace:
+
+```bash
+uv run python -m app.import_instrack history.txt --workspace <slug> --username <handle>
+# in Docker:
+docker compose exec backend python -m app.import_instrack /path/in/container.txt --workspace <slug> --username <handle>
+```
+
+Each day becomes a snapshot with the follower and media counts, and the net
+follower change as followers gained or lost. instrack's engagement rate and
+the following count are kept in `raw_data` only: the rate isn't Prism's
+(engagements / views). The account belongs to a *disconnected* Instagram
+integration, so it is never synced. Importing again updates the same days, and
+disconnecting the integration deletes the data.
+`tests/fixtures/instrack_airt_de_famille.txt` is a sample.
+
 ## Tests
 
 ```bash
