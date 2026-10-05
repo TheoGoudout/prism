@@ -30,6 +30,8 @@ from app.crud.metrics import (
     get_posts_for_accounts,
     get_snapshots_for_accounts,
     get_top_posts,
+    merge_imported_posts,
+    merge_imported_snapshots,
     upsert_metric_snapshot,
     upsert_post,
 )
@@ -83,6 +85,8 @@ __all__ = [
     "mark_integration_error",
     "mark_integration_expired",
     "mark_integration_synced",
+    "merge_imported_posts",
+    "merge_imported_snapshots",
     "save",
     "update_integration_tokens",
     "update_member_role",

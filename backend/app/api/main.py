@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     ai,
     analyses,
+    imports,
     integrations,
     login,
     metrics,
@@ -24,6 +25,7 @@ api_router.include_router(oauth.router)
 api_router.include_router(metrics.router)
 api_router.include_router(ai.router)
 api_router.include_router(analyses.router)
+api_router.include_router(imports.router)
 
 
 if settings.ENVIRONMENT == "local":
