@@ -12,8 +12,13 @@ from app import crud
 from app.core.config import settings
 from app.integrations.oauth.base import TokenResponse
 from app.models.integration import Integration, IntegrationStatus, Platform
-from app.worker.tasks.sync import sync_all_active_integrations, sync_integration
-from tests.utils.integration import create_fake_integration
+from app.models.metrics import ContentType, PostUpsert
+from app.worker.tasks.sync import (
+    sync_all_active_integrations,
+    sync_due_integrations,
+    sync_integration,
+)
+from tests.utils.integration import create_fake_account, create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
 
@@ -54,6 +59,42 @@ def test_successful_sync(db: Session, integration: Integration) -> None:
     sync_fn.assert_called_once_with(db, integration, "fake-access-token")
     db.refresh(integration)
     assert integration.last_synced_at is not None
+
+
+def test_sync_of_recent_post_schedules_follow_up(
+    db: Session, integration: Integration
+) -> None:
+    def sync_fn(session: Session, integ: Integration, _token: str) -> None:
+        account = create_fake_account(session, integ)
+        crud.upsert_post(
+            session=session,
+            platform_account_id=account.id,
+            post_in=PostUpsert(
+                external_id="just-posted",
+                published_at=datetime.now(UTC) - timedelta(minutes=5),
+                content_type=ContentType.post,
+            ),
+        )
+
+    with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: sync_fn}):
+        assert _run(db, integration.id)["status"] == "ok"
+
+    db.refresh(integration)
+    assert integration.next_sync_at is not None
+    expected = datetime.now(UTC) + timedelta(minutes=settings.SYNC_MIN_INTERVAL_MINUTES)
+    assert abs(integration.next_sync_at - expected) < timedelta(minutes=1)
+
+
+def test_sync_without_recent_posts_schedules_no_follow_up(
+    db: Session, integration: Integration
+) -> None:
+    integration.next_sync_at = datetime.now(UTC)
+    crud.save(db, integration)
+    with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: MagicMock()}):
+        assert _run(db, integration.id)["status"] == "ok"
+
+    db.refresh(integration)
+    assert integration.next_sync_at is None
 
 
 def test_successful_sync_clears_previous_error(
@@ -215,3 +256,38 @@ def test_nightly_sync_skips_unavailable_platforms(
     enqueued = {call.args[0] for call in task.delay.call_args_list}
     assert str(twitter.id) in enqueued
     assert str(linkedin.id) not in enqueued
+
+
+def test_due_follow_up_syncs_are_enqueued_once(db: Session) -> None:
+    workspace = create_random_workspace(db, create_random_user(db))
+    now = datetime.now(UTC)
+    due = create_fake_integration(
+        db, workspace, platform=Platform.twitter, external_account_id="due"
+    )
+    later = create_fake_integration(
+        db, workspace, platform=Platform.twitter, external_account_id="later"
+    )
+    expired = create_fake_integration(
+        db, workspace, platform=Platform.twitter, external_account_id="expired"
+    )
+    due.next_sync_at = now - timedelta(minutes=1)
+    later.next_sync_at = now + timedelta(hours=1)
+    expired.next_sync_at = now - timedelta(minutes=1)
+    expired.status = IntegrationStatus.expired
+    for integ in (due, later, expired):
+        crud.save(db, integ)
+
+    with (
+        patch("app.worker.tasks.sync.Session") as session_cls,
+        patch("app.worker.tasks.sync.sync_integration") as task,
+    ):
+        session_cls.return_value.__enter__.return_value = db
+        sync_due_integrations.run()
+        sync_due_integrations.run()
+
+    enqueued = [call.args[0] for call in task.delay.call_args_list]
+    assert enqueued.count(str(due.id)) == 1
+    assert str(later.id) not in enqueued
+    assert str(expired.id) not in enqueued
+    db.refresh(due)
+    assert due.next_sync_at is None

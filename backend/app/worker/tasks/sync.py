@@ -2,8 +2,11 @@
 Sync tasks — fetch fresh metrics from the connected platforms.
 
 `sync_integration` syncs one integration and records the outcome on it
-(active / error / expired). `sync_all_active_integrations` runs nightly and
-enqueues one `sync_integration` per integration.
+(active / error / expired), then schedules a follow-up sync while its recent
+posts are getting engagement (see app.services.sync_schedule).
+`sync_all_active_integrations` runs nightly and enqueues one `sync_integration`
+per integration; `sync_due_integrations` runs every few minutes and enqueues
+the due follow-up syncs.
 """
 
 import logging
@@ -18,7 +21,9 @@ from app.core.db import engine
 from app.integrations.oauth import registry
 from app.integrations.platforms import SYNC_FUNCTIONS
 from app.integrations.tokens import TokenExpiredError, ensure_fresh_token
+from app.models.common import get_datetime_utc
 from app.models.integration import Integration, IntegrationStatus
+from app.services import sync_schedule
 from app.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -86,8 +91,15 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
             )
             raise self.retry(exc=exc)
 
+        next_sync_at = sync_schedule.schedule_next_sync(
+            session, integration, get_datetime_utc()
+        )
         crud.mark_integration_synced(session=session, integration=integration)
-        logger.info("sync_integration: OK for %s", integration_id)
+        logger.info(
+            "sync_integration: OK for %s, next follow-up sync: %s",
+            integration_id,
+            next_sync_at,
+        )
         return {"status": "ok", "integration_id": integration_id}
 
 
@@ -110,4 +122,26 @@ def sync_all_active_integrations() -> dict[str, Any]:
         sync_integration.delay(str(integration_id))
 
     logger.info("sync_all_active_integrations: enqueued %d tasks", len(integration_ids))
+    return {"enqueued": len(integration_ids)}
+
+
+@celery_app.task(name="app.worker.tasks.sync.sync_due_integrations")
+def sync_due_integrations() -> dict[str, Any]:
+    """Enqueue the follow-up syncs that are due."""
+    with Session(engine) as session:
+        integration_ids = [
+            integration.id
+            for integration in crud.claim_due_integrations(
+                session=session,
+                now=get_datetime_utc(),
+                statuses=SYNCABLE_STATUSES,
+                platforms=registry.available_platforms(),
+            )
+        ]
+
+    for integration_id in integration_ids:
+        sync_integration.delay(str(integration_id))
+
+    if integration_ids:
+        logger.info("sync_due_integrations: enqueued %d tasks", len(integration_ids))
     return {"enqueued": len(integration_ids)}

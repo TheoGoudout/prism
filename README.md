@@ -31,7 +31,10 @@
 - **Nightly sync**: a Celery worker pulls each account's daily metrics
   (followers, reach, views or impressions, engagements) and per-post metrics
   into a normalised schema. A sync also runs right after you connect an
-  account, and you can trigger one manually.
+  account, and you can trigger one manually. While a recent post is getting
+  engagement, its account is synced again within the hour, then less and less
+  often as the post quiets down, until it goes a couple of days without new
+  interactions.
 - **Token lifecycle**: OAuth tokens are encrypted at rest and refreshed
   before they expire. Accounts that can no longer be refreshed are marked
   *expired*, with a one-click **Reconnect**.

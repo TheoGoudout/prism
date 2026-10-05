@@ -144,6 +144,14 @@ class Post(PostContent, ContentMetrics, table=True):
         default=None, sa_column=Column(JSON, nullable=True)
     )
 
+    # When a sync last saw the post gain SYNC_MIN_NEW_ENGAGEMENTS engagements
+    # (its publication, until then), and its engagements at that time: they
+    # decide how soon the integration is synced again.
+    last_engaged_at: datetime | None = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
+    )
+    engagements_at_last_engaged: int | None = None
+
     synced_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_column=Column(SADateTime(timezone=True), nullable=True),

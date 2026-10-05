@@ -1,6 +1,7 @@
 """
 Celery application: a worker runs the sync and analysis tasks, and Beat
-schedules the nightly sync and checks for due analysis schedules. Task results
+schedules the nightly sync and checks for due follow-up syncs and analysis
+schedules. Task results
 are not stored: the tasks record their outcome on the Integration or
 PerformanceAnalysis row instead.
 """
@@ -33,6 +34,12 @@ celery_app.conf.update(
         "nightly-sync-all": {
             "task": "app.worker.tasks.sync.sync_all_active_integrations",
             "schedule": crontab(hour=2, minute=0),  # UTC
+        },
+        # Follow-up syncs of integrations with recent posts (see
+        # app.services.sync_schedule) start at most 5 minutes late
+        "sync-due-integrations": {
+            "task": "app.worker.tasks.sync.sync_due_integrations",
+            "schedule": crontab(minute="*/5"),
         },
         # Schedules run on the hour in their own time zone; checking every
         # 5 minutes starts them at most 5 minutes late

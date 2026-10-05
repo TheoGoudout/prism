@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
+from app.core.config import settings
 from app.crud.common import save
+from app.models.common import get_datetime_utc
 from app.models.integration import PlatformAccount
 from app.models.metrics import (
     ContentMetrics,
@@ -38,6 +40,23 @@ def _apply(row: MetricSnapshot | Post, data: dict[str, Any]) -> None:
     for key, value in data.items():
         if value is not None or key in ("raw_data", "text"):
             setattr(row, key, value)
+
+
+def _track_engagement(post: Post) -> None:
+    """
+    Record a new interaction when the post gained at least
+    SYNC_MIN_NEW_ENGAGEMENTS engagements since the last one. Gains add up
+    across syncs, so frequent syncs each seeing a few still count.
+    """
+    if post.engagements is None:
+        return
+    if post.engagements_at_last_engaged is None:
+        post.engagements_at_last_engaged = post.engagements
+        return
+    gained = post.engagements - post.engagements_at_last_engaged
+    if gained >= settings.SYNC_MIN_NEW_ENGAGEMENTS:
+        post.last_engaged_at = get_datetime_utc()
+        post.engagements_at_last_engaged = post.engagements
 
 
 def upsert_metric_snapshot(
@@ -80,9 +99,16 @@ def upsert_post(
         )
     ).first()
     if post is None:
-        post = Post(platform_account_id=platform_account_id, **data)
+        # Publication is the post's first interaction
+        post = Post(
+            platform_account_id=platform_account_id,
+            last_engaged_at=post_in.published_at,
+            engagements_at_last_engaged=post_in.engagements,
+            **data,
+        )
     else:
         _apply(post, data)
+        _track_engagement(post)
     return save(session, post)
 
 

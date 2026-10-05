@@ -12,6 +12,7 @@ from app.crud.common import (
     save,
 )
 from app.crud.integration import (
+    claim_due_integrations,
     get_access_token,
     get_accounts_for_workspace,
     get_integration,
@@ -55,6 +56,7 @@ from app.crud.workspace import (
 __all__ = [
     "add_member",
     "authenticate",
+    "claim_due_integrations",
     "count_owners",
     "create_user",
     "create_workspace",
