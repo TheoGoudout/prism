@@ -35,6 +35,7 @@ from app.crud.metrics import (
     upsert_metric_snapshot,
     upsert_post,
 )
+from app.crud.migration import get_migrations, has_unfinished_migration
 from app.crud.user import (
     authenticate,
     create_user,
@@ -71,6 +72,7 @@ __all__ = [
     "get_member",
     "get_members",
     "get_memberships_for_user",
+    "get_migrations",
     "get_posts",
     "get_posts_by_ids",
     "get_refresh_token",
@@ -82,6 +84,7 @@ __all__ = [
     "get_user_by_email_case_insensitive",
     "get_workspace",
     "has_unfinished_analysis",
+    "has_unfinished_migration",
     "mark_integration_error",
     "mark_integration_expired",
     "mark_integration_synced",

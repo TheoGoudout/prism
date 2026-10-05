@@ -8,8 +8,15 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-from app.imports import sources as f
-from app.imports.reading import (
+from app.integrations.common import engagement_total
+from app.migrate.files import formats as f
+from app.migrate.files.formats import (
+    FORMATS,
+    SourceFormat,
+    detect_format,
+    normalise_header,
+)
+from app.migrate.files.reading import (
     HEADER_SEARCH_ROWS,
     ImportFileError,
     candidate_tables,
@@ -18,11 +25,9 @@ from app.imports.reading import (
     parse_count,
     parse_datetime,
 )
-from app.imports.sources import SOURCES, SourceFormat, detect_source, normalise_header
-from app.integrations.common import engagement_total
-from app.models.imports import ImportKind, ImportSource
 from app.models.integration import Platform
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
+from app.models.migration import DataKind, ExportFormat
 
 MAX_ROWS = 50_000
 # Errors described in the result; the others are only counted
@@ -44,8 +49,8 @@ _TWEET_URL = re.compile(r"(?:twitter|x)\.com/[^/]+/status(?:es)?/(\d+)")
 
 @dataclass
 class ParsedFile:
-    source: ImportSource
-    kind: ImportKind
+    export_format: ExportFormat
+    kind: DataKind
     rows_read: int = 0
     skipped_other_networks: int = 0
     rejected: int = 0
@@ -60,25 +65,25 @@ class ParsedFile:
 
 
 def parse_export(
-    data: bytes, *, platform: Platform, source: ImportSource | None = None
+    data: bytes, *, platform: Platform, export_format: ExportFormat | None = None
 ) -> ParsedFile:
     """
-    Read an export of ``platform``'s data. ``source`` is the tool it comes
+    Read an export of ``platform``'s data. ``export_format`` is the tool it comes
     from; it is detected from the headers when not given.
 
     Raises ImportFileError when no header row with a date and metrics is found.
     """
-    table, header_index, columns = _find_header(decode(data), source)
+    table, header_index, columns = _find_header(decode(data), export_format)
     headers = table[header_index]
-    source = source or detect_source(headers)
-    fmt = SOURCES[source]
+    export_format = export_format or detect_format(headers)
+    fmt = FORMATS[export_format]
     if not columns:
         columns = _map_columns(headers, fmt)
 
     kind = (
-        ImportKind.posts
+        DataKind.posts
         if any(name in columns for name in f.POST_FIELDS)
-        else ImportKind.daily_metrics
+        else DataKind.daily_metrics
     )
     rows = [
         (header_index + 2 + offset, row)
@@ -88,7 +93,7 @@ def parse_export(
     if len(rows) > MAX_ROWS:
         raise ImportFileError(f"The file has more than {MAX_ROWS:,} rows")
 
-    parsed = ParsedFile(source=source, kind=kind, rows_read=len(rows))
+    parsed = ParsedFile(export_format=export_format, kind=kind, rows_read=len(rows))
     _check_single_profile(rows, columns, platform)
 
     dates = [_cell(row, columns, f.DATE) for _, row in rows]
@@ -104,7 +109,7 @@ def parse_export(
             parsed.skipped_other_networks += 1
             continue
         try:
-            if kind is ImportKind.posts:
+            if kind is DataKind.posts:
                 parsed.posts.append(_post(row, columns, platform, day_first))
             else:
                 parsed.snapshots.append(_snapshot(row, columns, day_first))
@@ -155,7 +160,7 @@ def _is_usable(columns: dict[str, int]) -> bool:
 
 
 def _find_header(
-    text: str, source: ImportSource | None
+    text: str, export_format: ExportFormat | None
 ) -> tuple[list[list[str]], int, dict[str, int]]:
     """
     The table and its header row: among the first rows, with any delimiter,
@@ -164,7 +169,7 @@ def _find_header(
     best: tuple[int, list[list[str]], int, dict[str, int]] | None = None
     for table in candidate_tables(text):
         for index, row in enumerate(table[:HEADER_SEARCH_ROWS]):
-            fmt = SOURCES[source or detect_source(row)]
+            fmt = FORMATS[export_format or detect_format(row)]
             columns = _map_columns(row, fmt)
             if _is_usable(columns) and (best is None or len(columns) > best[0]):
                 best = (len(columns), table, index, columns)
@@ -281,7 +286,7 @@ def _post(
         external_id=_external_id(
             _cell(row, columns, f.POST_ID), permalink, published_at.isoformat(), text
         ),
-        content_type=_content_type(_cell(row, columns, f.CONTENT_TYPE), platform),
+        content_type=guess_content_type(_cell(row, columns, f.CONTENT_TYPE), platform),
         text=text,
         media_url=media_url[:2048] if media_url else None,
         permalink=permalink[:2048] if permalink else None,
@@ -310,7 +315,8 @@ def _external_id(
     return "import-" + hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
-def _content_type(value: str, platform: Platform) -> ContentType:
+def guess_content_type(value: str, platform: Platform) -> ContentType:
+    """The content type a tool's "type" value (e.g. "Reel", "VIDEO") names."""
     kind = value.lower()
     for keyword, content_type in (
         ("reel", ContentType.reel),

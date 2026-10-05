@@ -2,15 +2,17 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.imports.parser import parse_export
-from app.imports.reading import ImportFileError
-from app.models.imports import ImportKind, ImportSource
+from app.migrate.files.parser import ParsedFile, parse_export
+from app.migrate.files.reading import ImportFileError
 from app.models.integration import Platform
 from app.models.metrics import ContentType
+from app.models.migration import DataKind, ExportFormat
 
 
-def _parse(text: str, platform: Platform, source: ImportSource | None = None):  # type: ignore[no-untyped-def]
-    return parse_export(text.encode(), platform=platform, source=source)
+def _parse(
+    text: str, platform: Platform, export_format: ExportFormat | None = None
+) -> ParsedFile:
+    return parse_export(text.encode(), platform=platform, export_format=export_format)
 
 
 HOOTSUITE_POSTS = """\
@@ -24,8 +26,8 @@ Date (GMT),Post ID,Post Message,Post Permalink,Post Type,Social Network,Impressi
 
 def test_hootsuite_posts() -> None:
     parsed = _parse(HOOTSUITE_POSTS, Platform.facebook)
-    assert parsed.source is ImportSource.hootsuite
-    assert parsed.kind is ImportKind.posts
+    assert parsed.export_format is ExportFormat.hootsuite
+    assert parsed.kind is DataKind.posts
     assert parsed.rows_read == 2
     assert parsed.skipped_other_networks == 1
     assert parsed.rejected == 0
@@ -51,7 +53,7 @@ Date,Post ID,Network,Post Type,Content Type,Profile,Sent by,Link,Post,Impression
 
 def test_sprout_social_posts() -> None:
     parsed = _parse(SPROUT_POSTS, Platform.instagram)
-    assert parsed.source is ImportSource.sprout_social
+    assert parsed.export_format is ExportFormat.sprout_social
     [post] = parsed.posts
     assert post.external_id == "17890000000000001"
     assert post.text == "New collection"
@@ -72,8 +74,8 @@ Date,Profile,Network,Audience,Net Audience Growth,Audience Gained,Audience Lost,
 
 def test_sprout_social_profile_metrics() -> None:
     parsed = _parse(SPROUT_PROFILE, Platform.linkedin)
-    assert parsed.source is ImportSource.sprout_social
-    assert parsed.kind is ImportKind.daily_metrics
+    assert parsed.export_format is ExportFormat.sprout_social
+    assert parsed.kind is DataKind.daily_metrics
     first, second = parsed.snapshots
     assert first.date == date(2024, 3, 1)
     assert first.followers_count == 10_000
@@ -95,7 +97,7 @@ Date,Update,Service,Service Link,Type,Impressions,Reach,Engagements,Likes,Commen
 
 def test_buffer_posts() -> None:
     parsed = _parse(BUFFER_POSTS, Platform.twitter)
-    assert parsed.source is ImportSource.buffer
+    assert parsed.export_format is ExportFormat.buffer
     [post] = parsed.posts
     # The tweet ID is read from the link, so the post merges with the synced one
     assert post.external_id == "1775000000000000000"
@@ -112,8 +114,8 @@ Date;Followers;Gained followers;Lost followers;Posts;Impressions;Reach;Interacti
 
 def test_metricool_daily_metrics() -> None:
     parsed = _parse(METRICOOL_ACCOUNT, Platform.instagram)
-    assert parsed.source is ImportSource.metricool
-    assert parsed.kind is ImportKind.daily_metrics
+    assert parsed.export_format is ExportFormat.metricool
+    assert parsed.kind is DataKind.daily_metrics
     first, second = parsed.snapshots
     assert first.date == date(2024, 4, 1)  # day first
     assert second.date == date(2024, 4, 13)
@@ -131,7 +133,7 @@ Posted At,Caption,Media Type,Post URL,Impressions,Reach,Likes,Comments,Saves,Sha
 
 def test_later_posts() -> None:
     parsed = _parse(LATER_POSTS, Platform.tiktok)
-    assert parsed.source is ImportSource.later
+    assert parsed.export_format is ExportFormat.later
     [post] = parsed.posts
     assert post.text == "Our new cafe"
     assert post.content_type is ContentType.video
@@ -148,7 +150,7 @@ Publishing date,Publishing time,Message,Link,Impressions,Reach,Reactions,Comment
 
 def test_agorapulse_posts() -> None:
     parsed = _parse(AGORAPULSE_POSTS, Platform.facebook)
-    assert parsed.source is ImportSource.agorapulse
+    assert parsed.export_format is ExportFormat.agorapulse
     [post] = parsed.posts
     assert post.published_at == datetime(2024, 4, 5, 17, 45, tzinfo=UTC)
     assert post.likes == 30
@@ -156,8 +158,8 @@ def test_agorapulse_posts() -> None:
 
 
 def test_explicit_source_overrides_detection() -> None:
-    parsed = _parse(AGORAPULSE_POSTS, Platform.facebook, ImportSource.hootsuite)
-    assert parsed.source is ImportSource.hootsuite
+    parsed = _parse(AGORAPULSE_POSTS, Platform.facebook, ExportFormat.hootsuite)
+    assert parsed.export_format is ExportFormat.hootsuite
     # Hootsuite reads numeric dates month first
     assert parsed.posts[0].published_at.month == 5
 
@@ -165,7 +167,7 @@ def test_explicit_source_overrides_detection() -> None:
 def test_generic_csv_and_stable_ids() -> None:
     text = "date,text,likes,comments\n2024-01-01,Hello,3,1\n2024-01-01,Hello,3,1\n"
     parsed = _parse(text, Platform.linkedin)
-    assert parsed.source is ImportSource.csv
+    assert parsed.export_format is ExportFormat.csv
     first, second = parsed.posts
     assert first.external_id == second.external_id
 

@@ -3,14 +3,14 @@ How each tool names its export columns.
 
 Every column is matched on its normalised header (lowercase, punctuation
 collapsed to spaces), so "Date (GMT)" and "date gmt" are the same column. A
-source's own aliases are tried before the common ones, which cover the names
+tool's own aliases are tried before the common ones, which cover the names
 most tools share ("Impressions", "Likes", …).
 """
 
 import re
 from dataclasses import dataclass, field
 
-from app.models.imports import ImportSource
+from app.models.migration import ExportFormat
 
 # Canonical fields a column can map onto
 DATE = "date"
@@ -160,8 +160,8 @@ class SourceFormat:
         return self.aliases.get(name, ()) + COMMON_ALIASES.get(name, ())
 
 
-SOURCES: dict[ImportSource, SourceFormat] = {
-    ImportSource.hootsuite: SourceFormat(
+FORMATS: dict[ExportFormat, SourceFormat] = {
+    ExportFormat.hootsuite: SourceFormat(
         label="Hootsuite",
         signatures=("post permalink", "post message", "date gmt", "social network"),
         aliases={
@@ -169,7 +169,7 @@ SOURCES: dict[ImportSource, SourceFormat] = {
             FOLLOWERS_COUNT: ("followers", "page followers"),
         },
     ),
-    ImportSource.sprout_social: SourceFormat(
+    ExportFormat.sprout_social: SourceFormat(
         label="Sprout Social",
         signatures=(
             "sent by",
@@ -184,37 +184,37 @@ SOURCES: dict[ImportSource, SourceFormat] = {
             FOLLOWERS_LOST: ("audience lost", "followers lost"),
         },
     ),
-    ImportSource.buffer: SourceFormat(
+    ExportFormat.buffer: SourceFormat(
         label="Buffer",
         signatures=("service link", "update", "sent at", "service"),
         aliases={TEXT: ("update", "post text", "text"), PERMALINK: ("service link",)},
     ),
-    ImportSource.metricool: SourceFormat(
+    ExportFormat.metricool: SourceFormat(
         label="Metricool",
         signatures=("interactions", "gained followers", "lost followers", "saved"),
         aliases={ENGAGEMENTS: ("interactions",)},
         day_first=True,
     ),
-    ImportSource.later: SourceFormat(
+    ExportFormat.later: SourceFormat(
         label="Later",
         signatures=("caption", "media type", "posted at"),
         aliases={TEXT: ("caption",)},
     ),
-    ImportSource.agorapulse: SourceFormat(
+    ExportFormat.agorapulse: SourceFormat(
         label="Agorapulse",
         signatures=("publishing date", "publishing time"),
         day_first=True,
     ),
-    ImportSource.csv: SourceFormat(label="CSV file"),
+    ExportFormat.csv: SourceFormat(label="CSV file"),
 }
 
 
-def detect_source(headers: list[str]) -> ImportSource:
+def detect_format(headers: list[str]) -> ExportFormat:
     """The tool whose signature headers the file has the most of."""
     present = {normalise_header(h) for h in headers}
-    best, best_score = ImportSource.csv, 0
-    for source, fmt in SOURCES.items():
+    best, best_score = ExportFormat.csv, 0
+    for export_format, fmt in FORMATS.items():
         score = len(present.intersection(fmt.signatures))
         if score > best_score:
-            best, best_score = source, score
+            best, best_score = export_format, score
     return best

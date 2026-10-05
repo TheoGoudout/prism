@@ -2,7 +2,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.imports.reading import day_first_order, decode, parse_count, parse_datetime
+from app.migrate.files.reading import (
+    day_first_order,
+    decode,
+    parse_count,
+    parse_datetime,
+)
 
 
 @pytest.mark.parametrize(
