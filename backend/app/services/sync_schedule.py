@@ -4,7 +4,8 @@ When to sync an integration again, on top of the nightly sync.
 A post gets most of its engagement in its first hours, so the integration is
 synced again soon after a post is published, then less and less often: the
 time to the next sync is the time since its posts' latest interaction (the
-publication of a post, or a sync seeing it gain SYNC_MIN_NEW_ENGAGEMENTS),
+publication of a post, or a sync seeing its engagements grow by
+SYNC_MIN_ENGAGEMENT_GROWTH, at least SYNC_MIN_NEW_ENGAGEMENTS),
 kept between SYNC_MIN_INTERVAL_MINUTES and SYNC_MAX_INTERVAL_HOURS. A post
 that keeps gaining engagement therefore keeps the syncs frequent, and a quiet
 one spaces them out. Follow-up syncs stop after SYNC_QUIET_DAYS without any

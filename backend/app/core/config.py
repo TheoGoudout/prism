@@ -118,8 +118,11 @@ class Settings(BaseSettings):
     # again soon after one of its posts is published or gains engagement,
     # less and less often while its posts stay quiet. See
     # app.services.sync_schedule.
-    # Engagements a post must gain to count as a new interaction
-    SYNC_MIN_NEW_ENGAGEMENTS: int = 5
+    # A post has a new interaction when its engagements grow by this share
+    # since the last one, so the bar scales with the account's audience...
+    SYNC_MIN_ENGAGEMENT_GROWTH: float = 0.1
+    # ...but never below this many engagements, so a lone like doesn't count
+    SYNC_MIN_NEW_ENGAGEMENTS: int = 3
     # Stop the follow-up syncs after this long without any interaction
     SYNC_QUIET_DAYS: int = 2
     # Only posts published this recently are followed

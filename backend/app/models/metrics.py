@@ -144,7 +144,8 @@ class Post(PostContent, ContentMetrics, table=True):
         default=None, sa_column=Column(JSON, nullable=True)
     )
 
-    # When a sync last saw the post gain SYNC_MIN_NEW_ENGAGEMENTS engagements
+    # When a sync last saw the post's engagements grow enough (see
+    # app.crud.metrics._track_engagement)
     # (its publication, until then), and its engagements at that time: they
     # decide how soon the integration is synced again.
     last_engaged_at: datetime | None = Field(

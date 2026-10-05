@@ -1,5 +1,6 @@
 """Storage for synced metrics: daily account snapshots and per-post metrics."""
 
+import math
 import uuid
 from collections.abc import Sequence
 from datetime import date
@@ -44,17 +45,23 @@ def _apply(row: MetricSnapshot | Post, data: dict[str, Any]) -> None:
 
 def _track_engagement(post: Post) -> None:
     """
-    Record a new interaction when the post gained at least
-    SYNC_MIN_NEW_ENGAGEMENTS engagements since the last one. Gains add up
-    across syncs, so frequent syncs each seeing a few still count.
+    Record a new interaction when the post's engagements grew by
+    SYNC_MIN_ENGAGEMENT_GROWTH (at least SYNC_MIN_NEW_ENGAGEMENTS) since the
+    last one: relative growth puts a popular account's post and a small one's
+    on the same footing. Gains add up across syncs, so frequent syncs each
+    seeing a few still count.
     """
     if post.engagements is None:
         return
     if post.engagements_at_last_engaged is None:
         post.engagements_at_last_engaged = post.engagements
         return
-    gained = post.engagements - post.engagements_at_last_engaged
-    if gained >= settings.SYNC_MIN_NEW_ENGAGEMENTS:
+    baseline = post.engagements_at_last_engaged
+    needed = max(
+        settings.SYNC_MIN_NEW_ENGAGEMENTS,
+        math.ceil(baseline * settings.SYNC_MIN_ENGAGEMENT_GROWTH),
+    )
+    if post.engagements - baseline >= needed:
         post.last_engaged_at = get_datetime_utc()
         post.engagements_at_last_engaged = post.engagements
 

@@ -235,6 +235,7 @@ def test_new_post_is_engaged_at_publication(db: Session) -> None:
 def test_post_gaining_enough_engagements_is_engaged_now(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(settings, "SYNC_MIN_ENGAGEMENT_GROWTH", 0.1)
     monkeypatch.setattr(settings, "SYNC_MIN_NEW_ENGAGEMENTS", 5)
     account = _make_account(db)
     _upsert_engagements(db, account.id, 10)
@@ -246,6 +247,33 @@ def test_post_gaining_enough_engagements_is_engaged_now(
     assert post.last_engaged_at is not None
     assert datetime.now(UTC) - post.last_engaged_at < timedelta(minutes=1)
     assert post.engagements_at_last_engaged == 15
+
+
+@pytest.mark.parametrize(
+    ("baseline", "not_enough", "enough"),
+    [
+        (10, 14, 15),  # small post: the floor applies
+        (10_000, 10_999, 11_000),  # popular post: 10% growth
+    ],
+)
+def test_interaction_threshold_scales_with_the_post(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    baseline: int,
+    not_enough: int,
+    enough: int,
+) -> None:
+    monkeypatch.setattr(settings, "SYNC_MIN_ENGAGEMENT_GROWTH", 0.1)
+    monkeypatch.setattr(settings, "SYNC_MIN_NEW_ENGAGEMENTS", 5)
+    account = _make_account(db)
+    published_at = datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+    _upsert_engagements(db, account.id, baseline)
+
+    post = _upsert_engagements(db, account.id, not_enough)
+    assert post.last_engaged_at == published_at
+    post = _upsert_engagements(db, account.id, enough)
+    assert post.last_engaged_at != published_at
+    assert post.engagements_at_last_engaged == enough
 
 
 def test_post_without_engagements_starts_counting_once_reported(
