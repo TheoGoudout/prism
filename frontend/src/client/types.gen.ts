@@ -142,6 +142,7 @@ export type IntegrationPublic = {
     last_synced_at?: (string | null);
     sync_error?: (string | null);
     created_at?: (string | null);
+    accounts?: Array<PlatformAccountPublic>;
 };
 
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'disconnected';
@@ -214,6 +215,24 @@ export type PeriodAnalysis = {
 export type verdict = 'strong' | 'average' | 'weak';
 
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
+
+export type PlatformAccountPublic = {
+    id: string;
+    integration_id: string;
+    platform: Platform;
+    external_id: string;
+    name: string;
+    avatar_url?: (string | null);
+    account_type?: (string | null);
+    is_active: boolean;
+};
+
+/**
+ * Show (True) or hide (False) the account in the workspace's dashboards.
+ */
+export type PlatformAccountUpdate = {
+    is_active: boolean;
+};
 
 export type PlatformAnalysis = {
     platform: string;
@@ -583,6 +602,15 @@ export type IntegrationsTriggerSyncData = {
 };
 
 export type IntegrationsTriggerSyncResponse = (unknown);
+
+export type IntegrationsUpdateAccountData = {
+    accountId: string;
+    integrationId: string;
+    requestBody: PlatformAccountUpdate;
+    workspaceId: string;
+};
+
+export type IntegrationsUpdateAccountResponse = (PlatformAccountPublic);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;
