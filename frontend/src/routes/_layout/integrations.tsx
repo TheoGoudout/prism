@@ -7,6 +7,8 @@ import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { ConnectionGuides } from "@/components/Integrations/ConnectionGuides"
 import { ConnectPlatformMenu } from "@/components/Integrations/ConnectPlatformMenu"
 import { IntegrationRow } from "@/components/Integrations/IntegrationRow"
+import { MigrateMenu } from "@/components/Migration/MigrateMenu"
+import { MigrationRuns } from "@/components/Migration/MigrationRuns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -98,11 +100,16 @@ function IntegrationsPage() {
           <h1 className="text-2xl font-semibold">Integrations</h1>
           <p className="mt-1 text-sm text-muted-foreground">{workspace.name}</p>
         </div>
-        {editable && available && (
-          <ConnectPlatformMenu
-            available={available}
-            connected={new Set(integrations.map((i) => i.platform))}
-          />
+        {editable && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {integrations.length > 0 && <MigrateMenu />}
+            {available && (
+              <ConnectPlatformMenu
+                available={available}
+                connected={new Set(integrations.map((i) => i.platform))}
+              />
+            )}
+          </div>
         )}
       </div>
 
@@ -148,6 +155,8 @@ function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+
+      <MigrationRuns />
 
       {available && (
         <ConnectionGuides available={available} editable={editable} />

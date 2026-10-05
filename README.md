@@ -35,6 +35,12 @@
 - **Token lifecycle**: OAuth tokens are encrypted at rest and refreshed
   before they expire. Accounts that can no longer be refreshed are marked
   *expired*, with a one-click **Reconnect**.
+- **Migrate from another tool**: bring your history over from *Integrations
+  → Migrate from…*. Connect **Sprout Social** or **Metricool** with an API
+  token and Prism fetches every profile's posts and daily metrics in the
+  background, matching each profile to your connected account. From any other
+  tool (Hootsuite, Buffer, Later, Agorapulse…), upload a CSV export instead.
+  Migrated data only fills in: it never overwrites what Prism synced.
 - **Dashboards**: KPI totals, daily time series, per-platform breakdown and
   top posts for any date range.
 - **Post performance**: for each platform that publishes posts, the latest

@@ -95,7 +95,29 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+export type Body_migrate_upload_export = {
+    platform_account_id: string;
+    /**
+     * A CSV export
+     */
+    file: string;
+    /**
+     * The tool the file comes from; detected if omitted
+     */
+    export_format?: (ExportFormat | null);
+};
+
 export type ContentType = 'post' | 'reel' | 'story' | 'video' | 'tweet' | 'article' | 'short';
+
+/**
+ * What a file holds: one row per post, or one row per day for the account.
+ */
+export type DataKind = 'posts' | 'daily_metrics';
+
+/**
+ * The tool a CSV was exported from; each names its columns its own way.
+ */
+export type ExportFormat = 'hootsuite' | 'sprout_social' | 'buffer' | 'metricool' | 'later' | 'agorapulse' | 'csv';
 
 /**
  * Something that worked, or didn't.
@@ -190,6 +212,32 @@ export type MetricTotals = {
     engagement_rate?: (number | null);
 };
 
+export type MigrationCreate = {
+    credentials: SourceCredentials;
+    profiles: Array<ProfileMapping>;
+    date_from: string;
+};
+
+export type MigrationPublic = {
+    id: string;
+    workspace_id: string;
+    source: MigrationSource;
+    status: MigrationStatus;
+    date_from: string;
+    date_to: string;
+    profiles: Array<ProfileProgress>;
+    error?: (string | null);
+    created_at?: (string | null);
+    completed_at?: (string | null);
+};
+
+/**
+ * The tools Prism can migrate from through their API.
+ */
+export type MigrationSource = 'sprout_social' | 'metricool';
+
+export type MigrationStatus = 'pending' | 'running' | 'completed' | 'failed';
+
 export type NewPassword = {
     token: string;
     new_password: string;
@@ -214,6 +262,17 @@ export type PeriodAnalysis = {
 export type verdict = 'strong' | 'average' | 'weak';
 
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
+
+/**
+ * An account (page, profile, property) history can be migrated into.
+ */
+export type PlatformAccountPublic = {
+    id: string;
+    integration_id: string;
+    platform: Platform;
+    name: string;
+    account_type?: (string | null);
+};
 
 export type PlatformAnalysis = {
     platform: string;
@@ -328,6 +387,25 @@ export type PrivateUserCreate = {
     is_verified?: boolean;
 };
 
+export type ProfileMapping = {
+    remote_profile_id: string;
+    platform_account_id: string;
+};
+
+/**
+ * What was migrated for one profile.
+ */
+export type ProfileProgress = {
+    remote_profile_id: string;
+    name: string;
+    platform: Platform;
+    platform_account_id: string;
+    done?: boolean;
+    posts?: number;
+    days?: number;
+    errors?: Array<(string)>;
+};
+
 export type Recommendation = {
     title: string;
     detail: string;
@@ -335,6 +413,18 @@ export type Recommendation = {
 };
 
 export type priority = 'high' | 'medium' | 'low';
+
+/**
+ * A profile in the source tool, e.g. a Facebook page in a Metricool brand.
+ */
+export type RemoteProfile = {
+    id: string;
+    name: string;
+    network: string;
+    platform?: (Platform | null);
+    native_id?: (string | null);
+    suggested_account_id?: (string | null);
+};
 
 export type ReportResponse = {
     report: string;
@@ -368,6 +458,17 @@ export type ScheduleSettings = {
     email_recipients?: Array<(string)>;
 };
 
+/**
+ * Access to the source tool's API. Sprout Social: an API token. Metricool:
+ * the user token (X-Mc-Auth) and the user ID, and optionally the ID of one
+ * brand (blogId) when the account requires it.
+ */
+export type SourceCredentials = {
+    api_token: string;
+    user_id?: (string | null);
+    blog_id?: (string | null);
+};
+
 export type TimeSeriesPoint = {
     date: string;
     exposures?: number;
@@ -396,6 +497,23 @@ export type TopicAnalysis = {
 export type UpdatePassword = {
     current_password: string;
     new_password: string;
+};
+
+/**
+ * What an uploaded export held, and what was stored.
+ */
+export type UploadResult = {
+    format: ExportFormat;
+    kind: DataKind;
+    platform_account_id: string;
+    rows_read: number;
+    created: number;
+    updated: number;
+    skipped_other_networks: number;
+    rejected: number;
+    errors: Array<(string)>;
+    date_from?: (string | null);
+    date_to?: (string | null);
 };
 
 export type UserCreate = {
@@ -647,6 +765,41 @@ export type MetricsGetPostPerformanceData = {
 };
 
 export type MetricsGetPostPerformanceResponse = (Array<PostPerformanceReport>);
+
+export type MigrateListMigrationAccountsData = {
+    workspaceId: string;
+};
+
+export type MigrateListMigrationAccountsResponse = (Array<PlatformAccountPublic>);
+
+export type MigrateUploadExportData = {
+    formData: Body_migrate_upload_export;
+    workspaceId: string;
+};
+
+export type MigrateUploadExportResponse = (UploadResult);
+
+export type MigrateListMigrationsData = {
+    workspaceId: string;
+};
+
+export type MigrateListMigrationsResponse = (Array<MigrationPublic>);
+
+export type MigrateListSourceProfilesData = {
+    requestBody: SourceCredentials;
+    source: MigrationSource;
+    workspaceId: string;
+};
+
+export type MigrateListSourceProfilesResponse = (Array<RemoteProfile>);
+
+export type MigrateStartMigrationData = {
+    requestBody: MigrationCreate;
+    source: MigrationSource;
+    workspaceId: string;
+};
+
+export type MigrateStartMigrationResponse = (MigrationPublic);
 
 export type PrivateCreateUserData = {
     requestBody: PrivateUserCreate;
