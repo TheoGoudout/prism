@@ -6,6 +6,7 @@ from app.api.routes import (
     integrations,
     login,
     metrics,
+    migrate,
     oauth,
     private,
     users,
@@ -24,6 +25,7 @@ api_router.include_router(oauth.router)
 api_router.include_router(metrics.router)
 api_router.include_router(ai.router)
 api_router.include_router(analyses.router)
+api_router.include_router(migrate.router)
 
 
 if settings.ENVIRONMENT == "local":

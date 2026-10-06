@@ -11,6 +11,7 @@ from app.main import app
 from app.models.analysis import AnalysisSchedule, PerformanceAnalysis
 from app.models.integration import Integration, PlatformAccount
 from app.models.metrics import MetricSnapshot, Post
+from app.models.migration import Migration
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from tests.utils.user import authentication_token_from_email
@@ -33,6 +34,7 @@ def db() -> Generator[Session]:
         init_db(session)
         yield session
         # Clean up in dependency order (children before parents)
+        session.execute(delete(Migration))
         session.execute(delete(PerformanceAnalysis))
         session.execute(delete(AnalysisSchedule))
         session.execute(delete(Post))

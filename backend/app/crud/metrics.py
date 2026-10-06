@@ -172,3 +172,93 @@ def get_posts_by_ids(
         .where(PlatformAccount.workspace_id == workspace_id)
     )
     return session.exec(statement).all()
+
+
+def merge_imported_snapshots(
+    *,
+    session: Session,
+    platform_account_id: uuid.UUID,
+    snapshots: Sequence[MetricSnapshotUpsert],
+    source: str,
+) -> tuple[int, int]:
+    """
+    Store daily snapshots imported from a file, in one transaction. Returns
+    how many were created and updated.
+    """
+    by_date = {s.date: s for s in snapshots}  # a repeated day: the last row wins
+    existing = session.exec(
+        select(MetricSnapshot).where(
+            MetricSnapshot.platform_account_id == platform_account_id,
+            col(MetricSnapshot.date).in_(by_date),
+        )
+    ).all()
+    return _merge_imported(
+        session,
+        MetricSnapshot,
+        platform_account_id,
+        {row.date: row for row in existing},
+        by_date,
+        source,
+    )
+
+
+def merge_imported_posts(
+    *,
+    session: Session,
+    platform_account_id: uuid.UUID,
+    posts: Sequence[PostUpsert],
+    source: str,
+) -> tuple[int, int]:
+    """
+    Store posts imported from a file, in one transaction; a post the sync
+    already stored (same external ID) is completed. Returns how many were
+    created and updated.
+    """
+    by_id = {p.external_id: p for p in posts}
+    existing = session.exec(
+        select(Post).where(
+            Post.platform_account_id == platform_account_id,
+            col(Post.external_id).in_(by_id),
+        )
+    ).all()
+    return _merge_imported(
+        session,
+        Post,
+        platform_account_id,
+        {row.external_id: row for row in existing},
+        by_id,
+        source,
+    )
+
+
+def _merge_imported[RowT: (MetricSnapshot, Post)](
+    session: Session,
+    model: type[RowT],
+    platform_account_id: uuid.UUID,
+    existing: dict[Any, RowT],
+    incoming: dict[Any, MetricSnapshotUpsert] | dict[Any, PostUpsert],
+    source: str,
+) -> tuple[int, int]:
+    """
+    Unlike a sync, an import only fills in: a value the file doesn't have
+    never erases one already stored.
+    """
+    created = 0
+    for key, item in incoming.items():
+        data = {
+            name: value
+            for name, value in item.model_dump(exclude={"raw_data"}).items()
+            if value is not None
+        }
+        row = existing.get(key)
+        if row is None:
+            row = model(platform_account_id=platform_account_id, **data)
+            created += 1
+        else:
+            for name, value in data.items():
+                setattr(row, name, value)
+        row.raw_data = {**(row.raw_data or {}), "imported_from": source}
+        row.engagement_rate = _engagement_rate(row)
+        session.add(row)
+    session.commit()
+    return created, len(incoming) - created

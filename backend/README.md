@@ -19,6 +19,9 @@ app/
 │   ├── platforms/       # one sync module per platform
 │   ├── meta.py          # Graph API helpers shared by Facebook and Instagram
 │   └── tokens.py        # refresh tokens before they expire
+├── migrate/             # migrating history from other tools
+│   ├── files/           # CSV exports: reading, each tool's column names, parsing
+│   └── sources/         # API migrations: Sprout Social, Metricool
 ├── worker/              # Celery app, sync tasks, nightly and follow-up schedules
 ├── ai/                  # LLM factory, prompts, insights and report chains
 ├── core/                # settings, database, security, token encryption
@@ -37,6 +40,7 @@ Everything under `/api/v1`:
 | `/workspaces/{id}/integrations` | Connected accounts: list, connect, sync, disconnect |
 | `/workspaces/{id}/metrics` | `summary`, `timeseries` and top `posts`, filtered by `platform`, `date_from`, `date_to` |
 | `/workspaces/{id}/ai` | `insights` and `report`, same filters |
+| `/workspaces/{id}/migrate` | Migrate history from another tool: through its API (`{source}/profiles`, `{source}`, `runs`) or a CSV export (`upload`) |
 | `/oauth/callback/{platform}` | Where providers redirect after authorization |
 
 Workspace routes check membership from the path: non-members get a 404, and

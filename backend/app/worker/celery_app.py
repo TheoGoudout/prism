@@ -17,7 +17,11 @@ from app.core.config import settings
 celery_app = Celery(
     "prism",
     broker=settings.REDIS_URL,
-    include=["app.worker.tasks.sync", "app.worker.tasks.analysis"],
+    include=[
+        "app.worker.tasks.sync",
+        "app.worker.tasks.analysis",
+        "app.worker.tasks.migration",
+    ],
 )
 
 celery_app.conf.update(
