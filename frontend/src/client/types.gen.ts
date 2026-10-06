@@ -304,9 +304,12 @@ export type PostPerformance = {
 };
 
 /**
- * One platform's latest posts, compared with its own post history.
+ * One account's latest posts, compared with its own post history: a popular
+ * account's posts and a small one's aren't comparable, even on one platform.
  */
 export type PostPerformanceReport = {
+    platform_account_id: string;
+    account_name: string;
     platform: Platform;
     history_from: string;
     history_to: string;
@@ -316,28 +319,6 @@ export type PostPerformanceReport = {
     };
     posts: Array<PostPerformance>;
     history: Array<PostHistoryPoint>;
-};
-
-export type PostPublic = {
-    impressions?: (number | null);
-    reach?: (number | null);
-    views?: (number | null);
-    engagements?: (number | null);
-    likes?: (number | null);
-    comments?: (number | null);
-    shares?: (number | null);
-    clicks?: (number | null);
-    saves?: (number | null);
-    external_id: string;
-    content_type: ContentType;
-    text?: (string | null);
-    media_url?: (string | null);
-    permalink?: (string | null);
-    id: string;
-    platform_account_id: string;
-    platform: Platform;
-    published_at: string;
-    engagement_rate?: (number | null);
 };
 
 export type PrivateUserCreate = {
@@ -411,6 +392,32 @@ export type TopicAnalysis = {
     summary: string;
     post_ids?: Array<(string)>;
 };
+
+export type TopPost = {
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    clicks?: (number | null);
+    saves?: (number | null);
+    external_id: string;
+    content_type: ContentType;
+    text?: (string | null);
+    media_url?: (string | null);
+    permalink?: (string | null);
+    id: string;
+    platform_account_id: string;
+    platform: Platform;
+    published_at: string;
+    engagement_rate?: (number | null);
+    account_name: string;
+    account_percentile?: (number | null);
+};
+
+export type TopPostRanking = 'engagements' | 'account';
 
 export type UpdatePassword = {
     current_password: string;
@@ -662,10 +669,11 @@ export type MetricsGetTopPostsData = {
     dateTo?: (string | null);
     limit?: number;
     platform?: (Platform | null);
+    ranking?: TopPostRanking;
     workspaceId: string;
 };
 
-export type MetricsGetTopPostsResponse = (Array<PostPublic>);
+export type MetricsGetTopPostsResponse = (Array<TopPost>);
 
 export type MetricsGetPostPerformanceData = {
     historyDays?: number;

@@ -64,6 +64,12 @@ class Integration(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
     )
     sync_error: str | None = Field(default=None, max_length=1024)
+    # A follow-up sync on top of the nightly one, while recent posts are
+    # getting engagement (see app.services.sync_schedule); None if none is due
+    next_sync_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),
+    )
 
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,

@@ -7,8 +7,10 @@ from sqlmodel import Session
 from app import crud
 from app.models.analysis import AnalysisFrequency, AnalysisKind, AnalysisSchedule
 from app.models.integration import Platform
-from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
+from app.models.metrics import ContentType, MetricSnapshotUpsert, Post, PostUpsert
 from app.services.analysis import (
+    PROMPT_LIMITS,
+    PromptLimits,
     _months,
     advance,
     build_prompt,
@@ -125,9 +127,12 @@ def test_build_prompt(db: Session) -> None:
     assert "  impressions: 300" in variables["previous_totals_text"]
     assert "engagements" not in variables["previous_totals_text"]
     assert "exposures:" in variables["metric_definitions"]
-    assert "[instagram] posts=2; median engagements=50" in variables["benchmarks_text"]
     assert (
-        "P1 [instagram · reel] published Thu 2026-09-10 18:00 UTC"
+        "[instagram · Test Account] posts=2; median engagements=50"
+        in variables["benchmarks_text"]
+    )
+    assert (
+        "P1 [instagram · Test Account · reel] published Thu 2026-09-10 18:00 UTC"
         in (variables["posts_text"])
     )
     assert "engagement rate=9.00%" in variables["posts_text"]
@@ -135,6 +140,56 @@ def test_build_prompt(db: Session) -> None:
     assert variables["post_count"] == 2
 
     assert variables["monthly_text"] == ""
+
+
+def test_build_prompt_selects_each_accounts_best_posts(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = create_random_workspace(db, create_random_user(db))
+    big = create_fake_account(
+        db,
+        create_fake_integration(db, workspace, platform=Platform.instagram),
+        external_id="big",
+        name="Big",
+    )
+    small = create_fake_account(
+        db,
+        create_fake_integration(db, workspace, platform=Platform.twitter),
+        external_id="small",
+        name="Small",
+    )
+    for account, engagements in (
+        (big, (1000, 2000, 3000, 4000)),
+        (small, (1, 2, 3, 4)),
+    ):
+        for i, value in enumerate(engagements):
+            crud.upsert_post(
+                session=db,
+                platform_account_id=account.id,
+                post_in=PostUpsert(
+                    external_id=f"{account.name}-{i}",
+                    content_type=ContentType.post,
+                    published_at=datetime(2026, 9, 10, 9 + i, tzinfo=UTC),
+                    engagements=value,
+                ),
+            )
+    monkeypatch.setitem(
+        PROMPT_LIMITS,
+        AnalysisKind.standard,
+        PromptLimits(max_posts=4, text_chars=280),
+    )
+
+    query = MetricsQuery(workspace.id, None, date(2026, 9, 8), date(2026, 9, 14))
+    variables, refs = build_prompt(db, workspace_name="Acme", query=query)
+
+    # The small account's best posts make it in despite fewer engagements
+    selected = [db.get(Post, post_id) for post_id in refs.values()]
+    assert sorted(p.engagements or 0 for p in selected if p) == [3, 4, 3000, 4000]
+    assert variables["post_count"] == 4
+    assert variables["posts_note"] == " of 8: each account's most engaging"
+    # Benchmarks cover every post of the period, per account
+    assert "[instagram · Big] posts=4" in variables["benchmarks_text"]
+    assert "[twitter · Small] posts=4" in variables["benchmarks_text"]
 
 
 def test_months() -> None:

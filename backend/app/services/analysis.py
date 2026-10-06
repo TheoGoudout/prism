@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PromptLimits:
-    """How many posts are sent to the model (most engaging first), and how
-    much of each post's text: enough for a thorough review while keeping the
+    """How many posts are sent to the model (see _select_posts), and how much
+    of each post's text: enough for a thorough review while keeping the
     prompt a reasonable size."""
 
     max_posts: int
@@ -70,7 +70,7 @@ def _format_rate(rate: float | None) -> str:
     return f"{rate:.2%}" if rate is not None else "n/a"
 
 
-def _post_line(ref: str, post: Post, platform: str, text_chars: int) -> str:
+def _post_line(ref: str, post: Post, account: str, text_chars: int) -> str:
     metrics = [
         f"{name}={value:,}"
         for name in (
@@ -89,7 +89,7 @@ def _post_line(ref: str, post: Post, platform: str, text_chars: int) -> str:
     text = " ".join((post.text or "(no text)").split())[:text_chars]
     published = post.published_at.astimezone(UTC)
     return (
-        f"  {ref} [{platform} · {post.content_type.value}] "
+        f"  {ref} [{account} · {post.content_type.value}] "
         f"published {published:%a %Y-%m-%d %H:%M} UTC\n"
         f"     metrics: {', '.join(metrics) or 'none reported'}; "
         f"engagement rate={_format_rate(post.engagement_rate)}\n"
@@ -97,22 +97,52 @@ def _post_line(ref: str, post: Post, platform: str, text_chars: int) -> str:
     )
 
 
-def _benchmarks(posts: Sequence[Post], platforms: dict[uuid.UUID, str]) -> str:
-    """Per platform: post count, median engagements and engagement rate."""
-    by_platform: dict[str, list[Post]] = defaultdict(list)
+def _account_labels(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
+    """{account id: "platform · account name"} for the workspace's accounts."""
+    accounts = crud.get_accounts_for_workspace(
+        session=session, workspace_id=query.workspace_id, platform=query.platform
+    )
+    return {a.id: f"{a.platform.value} · {a.name}" for a in accounts}
+
+
+def _select_posts(posts: Sequence[Post], max_posts: int) -> list[Post]:
+    """
+    The posts to send to the model, best first: each account's posts ranked by
+    engagements, then the same top share of every account's posts. Ranking
+    across accounts by engagements alone would fill the prompt with a popular
+    account's posts and leave out a small account's best ones.
+    """
+    by_account: dict[uuid.UUID, list[Post]] = defaultdict(list)
     for post in posts:
-        by_platform[platforms[post.platform_account_id]].append(post)
+        by_account[post.platform_account_id].append(post)
+
+    ranked: list[tuple[float, int, Post]] = []
+    for account_posts in by_account.values():
+        account_posts.sort(key=lambda p: (p.engagements is None, -(p.engagements or 0)))
+        ranked.extend(
+            ((rank + 0.5) / len(account_posts), -(post.engagements or 0), post)
+            for rank, post in enumerate(account_posts)
+        )
+    ranked.sort(key=lambda r: r[:2])
+    return [post for *_, post in ranked[:max_posts]]
+
+
+def _benchmarks(posts: Sequence[Post], accounts: dict[uuid.UUID, str]) -> str:
+    """Per account: post count, median engagements and engagement rate."""
+    by_account: dict[str, list[Post]] = defaultdict(list)
+    for post in posts:
+        by_account[accounts[post.platform_account_id]].append(post)
 
     lines = []
-    for platform, platform_posts in sorted(by_platform.items()):
+    for account, account_posts in sorted(by_account.items()):
         engagements = [
-            p.engagements for p in platform_posts if p.engagements is not None
+            p.engagements for p in account_posts if p.engagements is not None
         ]
         rates = [
-            p.engagement_rate for p in platform_posts if p.engagement_rate is not None
+            p.engagement_rate for p in account_posts if p.engagement_rate is not None
         ]
         lines.append(
-            f"  [{platform}] posts={len(platform_posts)}"
+            f"  [{account}] posts={len(account_posts)}"
             f"; median engagements="
             f"{f'{statistics.median(engagements):,.0f}' if engagements else 'n/a'}"
             f"; median engagement rate="
@@ -176,14 +206,14 @@ def build_prompt(
         summary=metrics_service.summarize(session, previous),
     )
 
-    platforms = metrics_service.account_platforms(session, query)
-    posts = crud.get_posts(
+    accounts = _account_labels(session, query)
+    all_posts = crud.get_posts_for_accounts(
         session=session,
-        platform_account_ids=list(platforms),
+        platform_account_ids=list(accounts),
         start_date=query.date_from,
         end_date=query.date_to,
-        limit=limits.max_posts,
     )
+    posts = _select_posts(all_posts, limits.max_posts)
     refs = {f"P{i}": post for i, post in enumerate(posts, 1)}
 
     variables.update(
@@ -191,15 +221,13 @@ def build_prompt(
         previous_date_to=previous.date_to.isoformat(),
         previous_totals_text=previous_variables["totals_text"],
         previous_platforms_text=previous_variables["platforms_text"],
-        benchmarks_text=_benchmarks(posts, platforms),
+        benchmarks_text=_benchmarks(all_posts, accounts),
         post_count=len(posts),
-        posts_note=f", the {limits.max_posts} most engaging"
-        if len(posts) == limits.max_posts
+        posts_note=f" of {len(all_posts)}: each account's most engaging"
+        if len(posts) < len(all_posts)
         else "",
         posts_text="\n".join(
-            _post_line(
-                ref, post, platforms[post.platform_account_id], limits.text_chars
-            )
+            _post_line(ref, post, accounts[post.platform_account_id], limits.text_chars)
             for ref, post in refs.items()
         )
         or "  (no posts)",

@@ -91,6 +91,32 @@ def update_integration_tokens(
     return save(session, integration)
 
 
+def claim_due_integrations(
+    *,
+    session: Session,
+    now: datetime,
+    statuses: Sequence[IntegrationStatus],
+    platforms: Sequence[Platform],
+) -> Sequence[Integration]:
+    """
+    Integrations whose follow-up sync is due, with it cleared so that two
+    overlapping scheduler runs can't both enqueue it. The sync schedules the
+    next one.
+    """
+    integrations = session.exec(
+        select(Integration)
+        .where(col(Integration.next_sync_at) <= now)
+        .where(col(Integration.status).in_(statuses))
+        .where(col(Integration.platform).in_(platforms))
+        .with_for_update(skip_locked=True)
+    ).all()
+    for integration in integrations:
+        integration.next_sync_at = None
+        session.add(integration)
+    session.commit()
+    return integrations
+
+
 def mark_integration_synced(
     *, session: Session, integration: Integration
 ) -> Integration:

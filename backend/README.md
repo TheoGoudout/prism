@@ -19,7 +19,7 @@ app/
 │   ├── platforms/       # one sync module per platform
 │   ├── meta.py          # Graph API helpers shared by Facebook and Instagram
 │   └── tokens.py        # refresh tokens before they expire
-├── worker/              # Celery app, sync tasks, nightly schedule
+├── worker/              # Celery app, sync tasks, nightly and follow-up schedules
 ├── ai/                  # LLM factory, prompts, insights and report chains
 ├── core/                # settings, database, security, token encryption
 └── alembic/             # migrations

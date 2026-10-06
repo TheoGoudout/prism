@@ -584,6 +584,71 @@ def test_posts_limit(client: TestClient, db: Session) -> None:
     assert len(r.json()) == 3
 
 
+def test_posts_ranked_relative_to_each_account(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    big = create_fake_account(
+        db, create_fake_integration(db, ws, platform=Platform.instagram), "big"
+    )
+    small = create_fake_account(
+        db,
+        create_fake_integration(
+            db, ws, platform=Platform.instagram, external_account_id="ig-2"
+        ),
+        "small",
+        name="Small",
+    )
+    # The big account's hit is its usual; the small account's is exceptional
+    for i in range(9):
+        _add_dated_post(
+            db, big.id, external_id=f"big-{i}", days_ago=10 + i, engagements=1000
+        )
+        _add_dated_post(
+            db, small.id, external_id=f"small-{i}", days_ago=10 + i, engagements=5
+        )
+    _add_dated_post(db, big.id, external_id="big-hit", days_ago=1, engagements=1000)
+    _add_dated_post(db, small.id, external_id="small-hit", days_ago=1, engagements=80)
+
+    params = {"date_from": str(TODAY - timedelta(days=2)), "date_to": str(TODAY)}
+    r = client.get(_url(ws, "posts"), headers=headers, params=params)
+    assert [p["external_id"] for p in r.json()] == ["big-hit", "small-hit"]
+
+    r = client.get(
+        _url(ws, "posts"), headers=headers, params={**params, "ranking": "account"}
+    )
+    body = r.json()
+    assert [p["external_id"] for p in body] == ["small-hit", "big-hit"]
+    assert body[0]["account_name"] == "Small"
+    assert body[0]["account_percentile"] == 95.0
+    assert body[1]["account_percentile"] == 50.0
+
+
+def test_posts_of_accounts_too_small_to_rank_come_last(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    ranked = create_fake_account(
+        db, create_fake_integration(db, ws, platform=Platform.twitter), "ranked"
+    )
+    new = create_fake_account(
+        db,
+        create_fake_integration(
+            db, ws, platform=Platform.twitter, external_account_id="tw-2"
+        ),
+        "new",
+    )
+    for i in range(5):
+        _add_dated_post(db, ranked.id, external_id=f"r-{i}", days_ago=i, engagements=i)
+    _add_dated_post(db, new.id, external_id="n-0", days_ago=0, engagements=500)
+
+    r = client.get(_url(ws, "posts"), headers=headers, params={"ranking": "account"})
+    body = r.json()
+    assert body[0]["external_id"] == "r-4"
+    assert body[-1]["external_id"] == "n-0"
+    assert body[-1]["account_percentile"] is None
+
+
 # ---------------------------------------------------------------------------
 # /posts/performance
 # ---------------------------------------------------------------------------
@@ -655,6 +720,8 @@ def test_post_performance_benchmarks_and_ranks(client: TestClient, db: Session) 
     assert r.status_code == 200
     [report] = r.json()
     assert report["platform"] == "twitter"
+    assert report["platform_account_id"] == str(account.id)
+    assert report["account_name"] == account.name
     assert report["history_size"] == 21
     assert len(report["history"]) == 21
     # History is oldest first, for plotting
@@ -704,6 +771,31 @@ def test_post_performance_benchmarks_each_platform_separately(
         params={"platform": "instagram"},
     )
     assert [report["platform"] for report in r.json()] == ["instagram"]
+
+
+def test_post_performance_benchmarks_each_account_separately(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    # One Facebook login exposing a big Page and a small one
+    integration = create_fake_integration(db, ws, platform=Platform.facebook)
+    big = create_fake_account(db, integration, external_id="big", name="Big Page")
+    small = create_fake_account(db, integration, external_id="small", name="a page")
+
+    for i in range(5):
+        _add_dated_post(db, big.id, external_id=f"b-{i}", days_ago=i, engagements=1000)
+        _add_dated_post(db, small.id, external_id=f"s-{i}", days_ago=i, engagements=i)
+
+    r = client.get(_url(ws, "posts/performance"), headers=headers)
+    assert r.status_code == 200
+    reports = r.json()
+    # By platform, then account name
+    assert [r["account_name"] for r in reports] == ["a page", "Big Page"]
+    assert reports[0]["benchmarks"]["engagements"]["p95"] < 5
+    assert reports[1]["benchmarks"]["engagements"]["p5"] == 1000
+    # The small Page's best post ranks top of its own posts
+    assert reports[0]["posts"][-1]["percentile_ranks"]["engagements"] == 90.0
 
 
 def test_post_performance_history_window(client: TestClient, db: Session) -> None:

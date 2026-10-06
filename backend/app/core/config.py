@@ -114,6 +114,23 @@ class Settings(BaseSettings):
     # Redis — used as Celery broker and result backend
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Follow-up syncs. On top of the nightly sync, an integration is synced
+    # again soon after one of its posts is published or gains engagement,
+    # less and less often while its posts stay quiet. See
+    # app.services.sync_schedule.
+    # A post has a new interaction when its engagements grow by this share
+    # since the last one, so the bar scales with the account's audience...
+    SYNC_MIN_ENGAGEMENT_GROWTH: float = 0.1
+    # ...but never below this many engagements, so a lone like doesn't count
+    SYNC_MIN_NEW_ENGAGEMENTS: int = 3
+    # Stop the follow-up syncs after this long without any interaction
+    SYNC_QUIET_DAYS: int = 2
+    # Only posts published this recently are followed
+    SYNC_FOLLOW_POST_DAYS: int = 7
+    # Bounds of the time between two follow-up syncs
+    SYNC_MIN_INTERVAL_MINUTES: int = 30
+    SYNC_MAX_INTERVAL_HOURS: int = 12
+
     # AI / LangChain — set AI_PROVIDER to the desired backend
     # LangSmith tracing is enabled by setting LANGCHAIN_TRACING_V2=true and
     # LANGCHAIN_API_KEY in the environment (LangChain reads these automatically).
