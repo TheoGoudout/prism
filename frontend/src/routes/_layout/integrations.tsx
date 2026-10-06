@@ -7,7 +7,9 @@ import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { ConnectionGuides } from "@/components/Integrations/ConnectionGuides"
 import { ConnectPlatformMenu } from "@/components/Integrations/ConnectPlatformMenu"
 import { IntegrationRow } from "@/components/Integrations/IntegrationRow"
+import { useMigrateDialogs } from "@/components/Migration/MigrateDialogs"
 import { MigrateMenu } from "@/components/Migration/MigrateMenu"
+import { MigrationGuides } from "@/components/Migration/MigrationGuides"
 import { MigrationRuns } from "@/components/Migration/MigrationRuns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -92,6 +94,7 @@ function IntegrationsPage() {
   const integrations = data ?? []
   const { data: available } = useAvailablePlatforms()
   const editable = canManage(workspace)
+  const migrate = useMigrateDialogs()
 
   return (
     <div className="space-y-6">
@@ -102,7 +105,12 @@ function IntegrationsPage() {
         </div>
         {editable && (
           <div className="flex flex-wrap justify-end gap-2">
-            {integrations.length > 0 && <MigrateMenu />}
+            {integrations.length > 0 && (
+              <MigrateMenu
+                openSource={migrate.openSource}
+                openUpload={migrate.openUpload}
+              />
+            )}
             {available && (
               <ConnectPlatformMenu
                 available={available}
@@ -161,6 +169,15 @@ function IntegrationsPage() {
       {available && (
         <ConnectionGuides available={available} editable={editable} />
       )}
+
+      {integrations.length > 0 && (
+        <MigrationGuides
+          editable={editable}
+          openSource={migrate.openSource}
+          openUpload={migrate.openUpload}
+        />
+      )}
+      {migrate.dialogs}
     </div>
   )
 }

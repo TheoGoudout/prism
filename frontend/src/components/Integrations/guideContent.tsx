@@ -33,7 +33,7 @@ export interface ConnectionGuide {
   /** "Something went wrong" tips. */
   troubleshooting: ReactNode[]
   /** The platform's own help page for the prerequisites. */
-  helpLink: { label: string; href: string }
+  helpLink?: { label: string; href: string }
 }
 
 /** A screenshot of a platform's own screen. */

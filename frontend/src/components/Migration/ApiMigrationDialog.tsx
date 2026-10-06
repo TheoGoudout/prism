@@ -1,6 +1,6 @@
 import { format, subYears } from "date-fns"
-import { ArrowLeft, ArrowRightLeft, Search } from "lucide-react"
-import { useState } from "react"
+import { ArrowLeft, ArrowRightLeft, ExternalLink, Search } from "lucide-react"
+import { type ReactNode, useState } from "react"
 
 import type {
   MigrationSource,
@@ -125,9 +125,22 @@ export function ApiMigrationDialog({
               if (canSearch) findProfiles()
             }}
           >
-            <p className="text-sm text-muted-foreground">{info.help}</p>
+            <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-muted-foreground">
+              {info.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="text-muted-foreground">{info.requirement}</span>
+              <ExternalAnchor href={info.appUrl}>
+                Open {info.label}
+              </ExternalAnchor>
+              <ExternalAnchor href={info.docs.href}>
+                {info.docs.label}
+              </ExternalAnchor>
+            </p>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="migration-token">{info.tokenLabel}</Label>
+              <Label htmlFor="migration-token">API token</Label>
               <PasswordInput
                 id="migration-token"
                 value={token}
@@ -305,5 +318,25 @@ function ProfileRow({
         </span>
       )}
     </li>
+  )
+}
+
+function ExternalAnchor({
+  href,
+  children,
+}: {
+  href: string
+  children: ReactNode
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+    >
+      {children}
+      <ExternalLink className="size-3.5" />
+    </a>
   )
 }
