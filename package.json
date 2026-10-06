@@ -2,7 +2,8 @@
   "name": "prism",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "landing"
   ],
   "overrides": {
     "@types/react": "^19.2.7",

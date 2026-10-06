@@ -159,6 +159,7 @@ const PYPROJECT_VERSION = /^version = "(.+)"$/m
 const UVLOCK_APP_VERSION = /(\[\[package\]\]\nname = "app"\nversion = )"([^"]*)"/
 /** bun.lock records each workspace's version; `bun ci` refuses a stale one. */
 const BUNLOCK_FRONTEND_VERSION = /("frontend": \{\n\s*"name": "frontend",\n\s*"version": )"([^"]*)"/
+const BUNLOCK_LANDING_VERSION = /("landing": \{\n\s*"name": "landing",\n\s*"version": )"([^"]*)"/
 /**
  * The generated client carries the API's OpenAPI version. It is regenerated
  * from the backend, so this is the value regeneration would write: setting it
@@ -190,6 +191,19 @@ const TARGETS = [
     path: "bun.lock",
     read: () => matchText("bun.lock", BUNLOCK_FRONTEND_VERSION, 2),
     write: (v) => editText("bun.lock", BUNLOCK_FRONTEND_VERSION, `$1"${v}"`),
+  },
+  {
+    path: "landing/package.json",
+    read: () => readJson("landing/package.json").version,
+    write: (v) =>
+      editJson("landing/package.json", (j) => {
+        j.version = v
+      }),
+  },
+  {
+    path: "bun.lock (landing)",
+    read: () => matchText("bun.lock", BUNLOCK_LANDING_VERSION, 2),
+    write: (v) => editText("bun.lock", BUNLOCK_LANDING_VERSION, `$1"${v}"`),
   },
   {
     path: "frontend/src/client/core/OpenAPI.ts",

@@ -1,7 +1,9 @@
 # Prism — Visual Identity
 
-The graphical chart for the web app. The tokens it describes live in
-`frontend/src/index.css`; this document says what they are for.
+The graphical chart for the web app and the landing page. The tokens it
+describes live in `frontend/src/index.css` (mirrored as CSS variables at the top
+of `landing/index.html` and `landing/privacy.html`); this document says what
+they are for.
 
 ## Who it is for, and how it should feel
 
@@ -113,7 +115,8 @@ ring so X's near-black stays visible.
 
 Headings track `-0.015em`. Every table uses tabular figures so numbers line
 up. Fonts are bundled from `@fontsource-variable/*` and served from our own
-domain: no Google Fonts and no third-party font CDN.
+domain: no Google Fonts and no third-party font CDN. The landing page
+self-hosts the same files in `landing/fonts/`.
 
 ## Shape and depth
 

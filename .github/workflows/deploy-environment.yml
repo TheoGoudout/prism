@@ -1,8 +1,8 @@
 name: Deploy an environment
 
-# One environment's rollout: the backend to Coolify, then the frontend to
-# Cloudflare — the API upgraded before the client that calls it, and a backend
-# that failed to deploy holding the frontend back.
+# One environment's rollout: the backend to Coolify, then the frontend and
+# landing to Cloudflare — the API upgraded before the client that calls it, and
+# a backend that failed to deploy holding the frontend back.
 #
 # The environment is the only thing that changes between staging and
 # production. release.yml calls this once per environment a release targets —
@@ -30,7 +30,7 @@ on:
         default: true
         type: boolean
       cloudflare:
-        description: "Deploy the frontend"
+        description: "Deploy the frontend and landing"
         required: false
         default: true
         type: boolean
@@ -67,7 +67,7 @@ jobs:
       COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
 
   cloudflare:
-    name: Cloudflare (frontend)
+    name: Cloudflare (frontend + landing)
     needs: coolify
     # `always()` lets a *skipped* backend (a frontend-only redeploy) through; a
     # backend that failed or was cancelled still holds the frontend back.

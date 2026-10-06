@@ -8,8 +8,8 @@
 # asserts both about the API; this is the same assertion for the static sites.
 #
 # PROJECT, ENVIRONMENT and HAS_CLOUDFLARE come from the calling step's env;
-# APP_URL, when set, is the environment's APP_URL variable and replaces the
-# default host below.
+# APP_URL and LANDING_URL, when set, are the environment's variables of the same
+# name and replace the frontend's and the landing page's default host below.
 set -euo pipefail
 
 if [ "$HAS_CLOUDFLARE" != "true" ]; then
@@ -17,13 +17,21 @@ if [ "$HAS_CLOUDFLARE" != "true" ]; then
   exit 0
 fi
 
-if [ "$PROJECT" = "frontend" ] && [ -n "${APP_URL:-}" ]; then
-  HOST=${APP_URL#https://}
+case "$PROJECT" in
+  frontend) OVERRIDE=${APP_URL:-} ;;
+  landing) OVERRIDE=${LANDING_URL:-} ;;
+  *) OVERRIDE="" ;;
+esac
+
+if [ -n "$OVERRIDE" ]; then
+  HOST=${OVERRIDE#https://}
   HOST=${HOST%/}
 else
   case "${PROJECT}/${ENVIRONMENT}" in
     frontend/production) HOST="app.prism.ai" ;;
     frontend/staging) HOST="app.staging.prism.ai" ;;
+    landing/production) HOST="prism.ai" ;;
+    landing/staging) HOST="staging.prism.ai" ;;
     *)
       echo "::error::No hostname known for ${PROJECT} in ${ENVIRONMENT}."
       exit 1

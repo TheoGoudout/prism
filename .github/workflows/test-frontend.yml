@@ -1,8 +1,9 @@
 name: Test Frontend
 
-# What the Cloudflare deploy does, short of uploading, for each environment:
-# type-check and build the bundle, check it targets that environment's API, then
-# have wrangler validate frontend/wrangler.jsonc and bundle the Worker. A broken deploy config fails here, on the pull request,
+# What the Cloudflare deploy does, short of uploading, for each project
+# (frontend, landing) and environment: build it, check it targets that
+# environment's URL, then have wrangler validate the project's wrangler.jsonc
+# and bundle the Worker. A broken deploy config fails here, on the pull request,
 # instead of in the middle of a release.
 
 on:
@@ -41,6 +42,8 @@ jobs:
           filters: |
             changed:
               - frontend/**
+              - landing/**
+              - scripts/build-landing.mjs
               - package.json
               - bun.lock
               - .bun-version
@@ -48,7 +51,7 @@ jobs:
               - .github/scripts/shared/check-the-build-targets-its-environment.sh
 
   build:
-    name: Build and dry-run the deploy (${{ matrix.environment }})
+    name: Build and dry-run ${{ matrix.project }} (${{ matrix.environment }})
     needs: changes
     if: needs.changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
@@ -58,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [frontend]
+        project: [frontend, landing]
         environment: [dev, staging, production]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,6 +73,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Lint
+        if: matrix.project == 'frontend'
         run: bunx biome ci --files-ignore-unknown=true --no-errors-on-unmatched
         working-directory: frontend
       - name: Build

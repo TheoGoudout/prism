@@ -1,17 +1,17 @@
 name: Deploy to Cloudflare Workers
 
-# Builds `frontend/` and deploys it to Cloudflare Workers static assets
-# (frontend/wrangler.jsonc). The backend and database go to Coolify instead, via
+# Builds the two static projects — `frontend/` and `landing/` — and deploys them
+# to Cloudflare Workers static assets (each project's wrangler.jsonc). The backend and database go to Coolify instead, via
 # `deploy-coolify.yml`; both callers below run that first so the API is upgraded
 # before the frontend that calls it (see deployment.md).
 #
-#   called by deploy-environment.yml -> staging    (app.staging.prism.ai)
-#                                    -> production (app.prism.ai)
+#   called by deploy-environment.yml -> staging    (staging.prism.ai, app.staging.prism.ai)
+#                                    -> production (prism.ai, app.prism.ai)
 #   called by rollback.yml           -> either, at an older tag
 #   workflow_dispatch                -> either, on demand
 #
-# Dev (app.dev.prism.ai) is deployed by Cloudflare Workers Builds from master,
-# with the `dev` environment in frontend/wrangler.jsonc.
+# Dev (dev.prism.ai, app.dev.prism.ai) is deployed by Cloudflare Workers Builds
+# from master, with the `dev` environment in each wrangler.jsonc.
 
 on:
   workflow_call:
@@ -80,10 +80,13 @@ jobs:
     permissions:
       contents: read
     strategy:
+      # A partial deploy is better than none — the landing page and the app are
+      # independent Workers.
       fail-fast: false
       matrix:
         project:
           - frontend
+          - landing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -118,9 +121,10 @@ jobs:
         env:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
-          # Optional, per GitHub Environment: override the API URL the
-          # committed .env.<environment> names.
+          # Optional, per GitHub Environment: override the API URL (frontend)
+          # and the app URL (landing) the committed .env.<environment> names.
           API_URL: ${{ vars.API_URL }}
+          APP_URL: ${{ vars.APP_URL }}
         run: .ci/.github/scripts/deploy-cloudflare/build-the-project.sh
 
       # Refuses an empty or placeholder URL before anything is uploaded: a
@@ -131,6 +135,7 @@ jobs:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
           API_URL: ${{ vars.API_URL }}
+          APP_URL: ${{ vars.APP_URL }}
         run: .ci/.github/scripts/shared/check-the-build-targets-its-environment.sh
 
       - name: Deploy ${{ matrix.project }} to Cloudflare
@@ -147,6 +152,8 @@ jobs:
           PROJECT: ${{ matrix.project }}
           ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
           HAS_CLOUDFLARE: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-          # Optional, per GitHub Environment: the frontend's public URL.
+          # Optional, per GitHub Environment: the frontend's and the landing
+          # page's public URLs.
           APP_URL: ${{ vars.APP_URL }}
+          LANDING_URL: ${{ vars.LANDING_URL }}
         run: .ci/.github/scripts/deploy-cloudflare/verify-the-deployed-site.sh
