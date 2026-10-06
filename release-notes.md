@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.6 (2026-10-06)
+
+### Features
+
+* Let users choose the Facebook Pages the dashboards show. PR [#70](https://github.com/TheoGoudout/prism/pull/70) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.5 (2026-10-04)
 
 ### Fixes
