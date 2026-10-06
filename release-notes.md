@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.9 (2026-10-06)
+
+### Features
+
+* Add Mailchimp, Klaviyo and Brevo integrations. PR [#73](https://github.com/TheoGoudout/prism/pull/73) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.8 (2026-10-06)
 
 ### Features
