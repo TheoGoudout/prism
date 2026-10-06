@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.8 (2026-10-06)
+
+### Features
+
+* Migrate history from Sprout Social, Metricool and CSV exports. PR [#72](https://github.com/TheoGoudout/prism/pull/72) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.7 (2026-10-06)
 
 ### Features
