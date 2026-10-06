@@ -19,6 +19,8 @@ from app.models.integration import (
     IntegrationPublic,
     OAuthConnectResponse,
     Platform,
+    PlatformAccountPublic,
+    PlatformAccountUpdate,
 )
 from app.models.workspace import WorkspaceMember
 from app.worker.tasks import sync as sync_tasks
@@ -108,3 +110,27 @@ def trigger_sync(
     integration = _get_integration(session, member, integration_id)
     _require_available(integration.platform)
     sync_tasks.sync_integration.delay(str(integration.id))
+
+
+@router.patch(
+    "/{integration_id}/accounts/{account_id}", response_model=PlatformAccountPublic
+)
+def update_account(
+    session: SessionDep,
+    member: CurrentMember,
+    integration_id: uuid.UUID,
+    account_id: uuid.UUID,
+    account_in: PlatformAccountUpdate,
+) -> Any:
+    """
+    Show or hide one of the integration's accounts (e.g. a Facebook Page) in
+    the workspace's dashboards. Hidden accounts keep syncing.
+    """
+    require_manager(member, "choose the accounts shown")
+    integration = _get_integration(session, member, integration_id)
+    account = crud.get_platform_account(session=session, account_id=account_id)
+    if account is None or account.integration_id != integration.id:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return crud.set_platform_account_active(
+        session=session, account=account, is_active=account_in.is_active
+    )

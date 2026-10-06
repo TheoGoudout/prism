@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
-import type { IntegrationPublic, Platform } from "@/client"
+import type {
+  IntegrationPublic,
+  Platform,
+  PlatformAccountPublic,
+} from "@/client"
 import { IntegrationsService } from "@/client"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
@@ -60,6 +64,39 @@ export function useDeleteIntegration(integration: IntegrationPublic) {
     onError: showApiError,
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  })
+}
+
+/**
+ * Show or hide one of the integration's accounts (e.g. a Facebook Page) in
+ * the workspace's dashboards.
+ */
+export function useSetAccountShown(integration: IntegrationPublic) {
+  const queryClient = useQueryClient()
+  const { showApiError } = useCustomToast()
+  return useMutation({
+    mutationFn: ({
+      account,
+      shown,
+    }: {
+      account: PlatformAccountPublic
+      shown: boolean
+    }) =>
+      IntegrationsService.updateAccount({
+        workspaceId: integration.workspace_id,
+        integrationId: integration.id,
+        accountId: account.id,
+        requestBody: { is_active: shown },
+      }),
+    onError: showApiError,
+    // Stays pending until the integrations are refetched, so the checkboxes
+    // don't flick back to their previous state
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+        // The dashboards now cover other accounts
+        queryClient.invalidateQueries({ queryKey: ["metrics"] }),
+      ]),
   })
 }
 

@@ -78,7 +78,9 @@ class Integration(SQLModel, table=True):
 
     workspace: Workspace | None = Relationship(back_populates="integrations")
     accounts: list[PlatformAccount] = Relationship(
-        back_populates="integration", cascade_delete=True
+        back_populates="integration",
+        cascade_delete=True,
+        sa_relationship_kwargs={"order_by": "PlatformAccount.name"},
     )
 
 
@@ -103,6 +105,8 @@ class PlatformAccount(SQLModel, table=True):
     avatar_url: str | None = Field(default=None, max_length=2048)
     # e.g. "page", "profile", "business_account", "property"
     account_type: str | None = Field(default=None, max_length=64)
+    # Whether the dashboards show this account. New accounts are shown; users
+    # can hide some, e.g. the Facebook Pages a workspace isn't about.
     is_active: bool = Field(default=True)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
@@ -124,6 +128,23 @@ class PlatformAccount(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class PlatformAccountPublic(SQLModel):
+    id: uuid.UUID
+    integration_id: uuid.UUID
+    platform: Platform
+    external_id: str
+    name: str
+    avatar_url: str | None = None
+    account_type: str | None = None
+    is_active: bool
+
+
+class PlatformAccountUpdate(SQLModel):
+    """Show (True) or hide (False) the account in the workspace's dashboards."""
+
+    is_active: bool
+
+
 class IntegrationPublic(SQLModel):
     """Safe representation — never includes raw or encrypted tokens."""
 
@@ -137,6 +158,8 @@ class IntegrationPublic(SQLModel):
     last_synced_at: datetime | None = None
     sync_error: str | None = None
     created_at: datetime | None = None
+    # The pages / profiles / properties found by its syncs, shown or not
+    accounts: list[PlatformAccountPublic] = []
 
 
 class IntegrationCreate(SQLModel):

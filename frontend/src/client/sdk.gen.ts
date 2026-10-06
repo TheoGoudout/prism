@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, IntegrationsUpdateAccountData, IntegrationsUpdateAccountResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -340,6 +340,35 @@ export class IntegrationsService {
                 integration_id: data.integrationId,
                 workspace_id: data.workspaceId
             },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Account
+     * Show or hide one of the integration's accounts (e.g. a Facebook Page) in
+     * the workspace's dashboards. Hidden accounts keep syncing.
+     * @param data The data for the request.
+     * @param data.integrationId
+     * @param data.accountId
+     * @param data.workspaceId
+     * @param data.requestBody
+     * @returns PlatformAccountPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateAccount(data: IntegrationsUpdateAccountData): CancelablePromise<IntegrationsUpdateAccountResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/{integration_id}/accounts/{account_id}',
+            path: {
+                integration_id: data.integrationId,
+                account_id: data.accountId,
+                workspace_id: data.workspaceId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: 'Validation Error'
             }

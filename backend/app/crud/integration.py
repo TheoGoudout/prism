@@ -173,7 +173,10 @@ def get_refresh_token(integration: Integration) -> str | None:
 def get_accounts_for_workspace(
     *, session: Session, workspace_id: uuid.UUID, platform: Platform | None = None
 ) -> Sequence[PlatformAccount]:
-    """Active accounts of a workspace, optionally for a single platform."""
+    """
+    Active accounts of a workspace — those shown in its dashboards —
+    optionally for a single platform.
+    """
     statement = select(PlatformAccount).where(
         PlatformAccount.workspace_id == workspace_id,
         PlatformAccount.is_active == True,  # noqa: E712
@@ -192,7 +195,10 @@ def upsert_platform_account(
     avatar_url: str | None = None,
     account_type: str | None = None,
 ) -> PlatformAccount:
-    """Create the account found during a sync, or refresh its details."""
+    """
+    Create the account found during a sync, or refresh its details. A new
+    account is active; an existing one keeps the user's choice.
+    """
     account = session.exec(
         select(PlatformAccount).where(
             PlatformAccount.integration_id == integration.id,
@@ -208,5 +214,18 @@ def upsert_platform_account(
     account.name = name
     account.avatar_url = avatar_url
     account.account_type = account_type
-    account.is_active = True
+    return save(session, account)
+
+
+def get_platform_account(
+    *, session: Session, account_id: uuid.UUID
+) -> PlatformAccount | None:
+    return session.get(PlatformAccount, account_id)
+
+
+def set_platform_account_active(
+    *, session: Session, account: PlatformAccount, is_active: bool
+) -> PlatformAccount:
+    """Show or hide the account in the workspace's dashboards."""
+    account.is_active = is_active
     return save(session, account)

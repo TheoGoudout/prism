@@ -78,6 +78,22 @@ def _add_post(
 # ---------------------------------------------------------------------------
 
 
+def test_summary_leaves_out_hidden_accounts(client: TestClient, db: Session) -> None:
+    """A Page the user chose not to show doesn't count in the dashboards."""
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+    shown = create_fake_account(db, integration, external_id="page-shown")
+    hidden = create_fake_account(db, integration, external_id="page-hidden")
+    _add_snapshot(db, shown.id, impressions=100)
+    _add_snapshot(db, hidden.id, impressions=900)
+    crud.set_platform_account_active(session=db, account=hidden, is_active=False)
+
+    r = client.get(_url(ws, "summary"), headers=headers)
+    assert r.status_code == 200
+    assert r.json()["totals"]["impressions"] == 100
+
+
 def test_summary_non_member_returns_404(client: TestClient, db: Session) -> None:
     owner, _ = create_user_with_headers(client, db)
     outsider, outsider_headers = create_user_with_headers(client, db)
