@@ -21,6 +21,7 @@ class ContentType(StrEnum):
     tweet = "tweet"
     article = "article"
     short = "short"
+    email = "email"  # a newsletter / email campaign
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +33,10 @@ class ContentType(StrEnum):
 # engagements is the same sum everywhere: likes + comments + shares + saves
 # (see app.integrations.common.engagement_total). Clicks are counted apart.
 # Google Analytics, which has no likes or shares, reports engaged sessions.
+# Mailing platforms report each email campaign as a post: recipients are its
+# impressions, unique opens its views and unique clicks its engagements (so the
+# engagement rate is the click-to-open rate); a mailing list's subscribers are
+# its followers.
 # ---------------------------------------------------------------------------
 
 

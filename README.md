@@ -28,6 +28,12 @@
   - LinkedIn Company Pages
   - TikTok
   - Google Analytics 4
+- **Mailing platforms**: Mailchimp and Klaviyo via OAuth 2.0, Brevo with an
+  API key the user pastes in. Each sent email campaign shows up as a post:
+  emails delivered as impressions, unique opens as views, unique clicks as
+  engagements (so the engagement rate is the click-to-open rate). Mailing
+  lists (Mailchimp audiences, Brevo lists) are accounts whose subscribers are
+  their followers.
 - **Nightly sync**: a Celery worker pulls each account's daily metrics
   (followers, reach, views or impressions, engagements) and per-post metrics
   into a normalised schema. A sync also runs right after you connect an
@@ -81,6 +87,7 @@ backend/app/
 ├── api/routes/          # REST endpoints; workspace data lives under /workspaces/{id}/…
 ├── integrations/
 │   ├── oauth/           # one OAuth provider per platform + registry
+│   ├── apikey/          # platforms connected with an API key (Brevo)
 │   ├── platforms/       # one sync module per platform
 │   └── tokens.py        # refresh-before-expiry logic
 ├── services/metrics.py  # metrics aggregation shared by dashboards and AI
@@ -145,7 +152,7 @@ and the git hooks, the [backend](backend/README.md) and
 | `AI_PROVIDER` (`openai` \| `anthropic` \| `google`), `AI_MODEL`, and the matching `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` | AI insights and reports |
 | `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY` | Optional LangSmith tracing |
 
-Platform credentials are optional. Set only the ones you use: a platform is
+Platform credentials are optional (Brevo needs none). Set only the ones you use: a platform is
 available only once both its variables are set. The others are hidden from the
 *Connect platform* menu and the connection guides, can't be connected, and
 their existing integrations are skipped by the sync. On startup, the API and
@@ -160,11 +167,14 @@ the worker log which platform integrations are activated and which are not
 | LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | Requires the Community Management API product |
 | TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | |
 | Google Analytics | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | |
+| Mailchimp | `MAILCHIMP_CLIENT_ID`, `MAILCHIMP_CLIENT_SECRET` | Register an app under *Account → Extras → Registered apps* |
+| Klaviyo | `KLAVIYO_CLIENT_ID`, `KLAVIYO_CLIENT_SECRET` | OAuth 2.0 with PKCE; the app needs the `accounts:read`, `campaigns:read`, `lists:read` and `metrics:read` scopes |
+| Brevo | none | Always available: each workspace connects with its own Brevo API key |
 
 In each provider's developer console, register the redirect URI
 `{API_BASE_URL}/api/v1/oauth/callback/{platform}`. The `{platform}` value is
-one of `facebook`, `instagram`, `twitter`, `linkedin`, `tiktok` or
-`google_analytics`. For Instagram, that is the Meta app's *Instagram → API
+one of `facebook`, `instagram`, `twitter`, `linkedin`, `tiktok`,
+`google_analytics`, `mailchimp` or `klaviyo`. For Instagram, that is the Meta app's *Instagram → API
 setup with Instagram login → Set up Instagram business login* settings, apart
 from the Facebook Login ones.
 

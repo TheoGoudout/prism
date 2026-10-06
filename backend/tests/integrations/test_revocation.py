@@ -88,6 +88,19 @@ def test_revoke_access_revokes_unshared_grant(client: TestClient, db: Session) -
     assert post.call_args.kwargs["data"] == {"token": "fake-refresh-token"}
 
 
+def test_revoke_access_skips_api_key_platform(client: TestClient, db: Session) -> None:
+    """Only the user can delete their API key on the platform."""
+    user, _ = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(
+        db, ws, platform=Platform.brevo, external_account_id=_unique()
+    )
+    with patch("httpx.post") as post, patch("httpx.delete") as delete:
+        assert not revoke_access(db, integration)
+    post.assert_not_called()
+    delete.assert_not_called()
+
+
 def test_revoke_access_skips_unavailable_platform(
     client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

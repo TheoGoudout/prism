@@ -21,9 +21,11 @@ from app.integrations.oauth.google_analytics import google_analytics_provider
 from app.integrations.oauth.instagram import instagram_provider
 from app.integrations.oauth.registry import (
     available_platforms,
+    get_api_key_provider,
     get_provider,
     is_available,
     log_availability,
+    uses_api_key,
 )
 from app.integrations.oauth.tiktok import tiktok_provider
 from app.integrations.oauth.twitter import twitter_provider
@@ -122,8 +124,21 @@ def test_state_decode_expired_raises() -> None:
 
 def test_all_platforms_registered() -> None:
     for platform in Platform:
-        provider = get_provider(platform)
+        provider = (
+            get_api_key_provider(platform)
+            if uses_api_key(platform)
+            else get_provider(platform)
+        )
         assert provider.PLATFORM == platform
+
+
+def test_api_key_platform_has_no_oauth_provider() -> None:
+    assert uses_api_key(Platform.brevo)
+    assert not uses_api_key(Platform.mailchimp)
+    with pytest.raises(ValueError):
+        get_provider(Platform.brevo)
+    with pytest.raises(ValueError):
+        get_api_key_provider(Platform.mailchimp)
 
 
 def test_get_provider_unknown_raises() -> None:
@@ -178,7 +193,8 @@ def test_log_availability(
         "(missing TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET)"
     ) in messages
     assert "Platform integration activated: tiktok" not in messages
-    assert messages[-1].startswith("5 of 6 platform integrations activated: ")
+    assert "Platform integration activated: brevo (API key)" in messages
+    assert messages[-1].startswith("8 of 9 platform integrations activated: ")
 
 
 # ---------------------------------------------------------------------------

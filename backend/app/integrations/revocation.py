@@ -57,6 +57,8 @@ def revoke_access(session: Session, integration: Integration) -> bool:
     shared. Best effort: failures are logged, never raised, so they can't
     block a disconnect. Returns whether access was revoked.
     """
+    if registry.uses_api_key(integration.platform):
+        return False  # only the user can delete their API key
     access_token = crud.get_access_token(integration)
     if not access_token:
         return False

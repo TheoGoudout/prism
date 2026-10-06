@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, IntegrationsUpdateAccountData, IntegrationsUpdateAccountResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, MigrateListMigrationAccountsData, MigrateListMigrationAccountsResponse, MigrateUploadExportData, MigrateUploadExportResponse, MigrateListMigrationsData, MigrateListMigrationsResponse, MigrateListSourceProfilesData, MigrateListSourceProfilesResponse, MigrateStartMigrationData, MigrateStartMigrationResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsConnectWithApiKeyData, IntegrationsConnectWithApiKeyResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, IntegrationsUpdateAccountData, IntegrationsUpdateAccountResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, MigrateListMigrationAccountsData, MigrateListMigrationAccountsResponse, MigrateUploadExportData, MigrateUploadExportResponse, MigrateListMigrationsData, MigrateListMigrationsResponse, MigrateListSourceProfilesData, MigrateListSourceProfilesResponse, MigrateStartMigrationData, MigrateStartMigrationResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -293,6 +293,34 @@ export class IntegrationsService {
                 platform: data.platform,
                 workspace_id: data.workspaceId
             },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Connect With Api Key
+     * Connect a platform that is authorized with an API key (e.g. Brevo): the
+     * key is checked with the platform, then stored encrypted. Connecting the
+     * same account again replaces its key.
+     * @param data The data for the request.
+     * @param data.platform
+     * @param data.workspaceId
+     * @param data.requestBody
+     * @returns IntegrationPublic Successful Response
+     * @throws ApiError
+     */
+    public static connectWithApiKey(data: IntegrationsConnectWithApiKeyData): CancelablePromise<IntegrationsConnectWithApiKeyResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/connect/{platform}/api-key',
+            path: {
+                platform: data.platform,
+                workspace_id: data.workspaceId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: 'Validation Error'
             }

@@ -5,13 +5,11 @@ import type { IntegrationPublic } from "@/client"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
-import {
-  useConnectPlatform,
-  useDeleteIntegration,
-} from "@/hooks/useIntegrations"
+import { useDeleteIntegration } from "@/hooks/useIntegrations"
 import { formatRelative } from "@/lib/format"
 import { needsReconnect, platformLabel } from "@/lib/platforms"
 import { AccountSelector } from "./AccountSelector"
+import { usePlatformConnector } from "./ApiKeyConnectDialog"
 import { IntegrationStatusBadge } from "./IntegrationStatusBadge"
 import { PlatformIcon } from "./PlatformIcon"
 import { SyncButton } from "./SyncButton"
@@ -24,7 +22,11 @@ interface IntegrationRowProps {
 
 export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
   const label = platformLabel(integration.platform)
-  const { connect, pending: reconnecting } = useConnectPlatform()
+  const {
+    connect,
+    pending: reconnecting,
+    dialog: apiKeyDialog,
+  } = usePlatformConnector()
   const remove = useDeleteIntegration(integration)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -104,6 +106,7 @@ export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
             })
           }
         />
+        {apiKeyDialog}
       </TableCell>
     </TableRow>
   )

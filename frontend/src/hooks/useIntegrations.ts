@@ -125,3 +125,23 @@ export function useConnectPlatform() {
 
   return { connect, pending }
 }
+
+/** Connect a platform authorized with an API key (e.g. Brevo). */
+export function useConnectWithApiKey(platform: Platform) {
+  const workspace = useCurrentWorkspace()
+  const queryClient = useQueryClient()
+  const { showSuccessToast, showApiError } = useCustomToast()
+  return useMutation({
+    mutationFn: (apiKey: string) =>
+      IntegrationsService.connectWithApiKey({
+        platform,
+        workspaceId: workspace.id,
+        requestBody: { api_key: apiKey },
+      }),
+    onSuccess: () =>
+      showSuccessToast("Platform connected. The first sync has started."),
+    onError: showApiError,
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  })
+}

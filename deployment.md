@@ -255,6 +255,8 @@ the defaults below. Set the AI key to enable the performance analyses.
 | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn |
 | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | TikTok |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Analytics 4 |
+| `MAILCHIMP_CLIENT_ID`, `MAILCHIMP_CLIENT_SECRET` | Mailchimp |
+| `KLAVIYO_CLIENT_ID`, `KLAVIYO_CLIENT_SECRET` | Klaviyo |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_SSL`, `EMAILS_FROM_EMAIL` | Email (password resets, scheduled reports). Disabled while `SMTP_HOST` is empty. |
 | `BACKEND_CORS_ORIGINS` | Extra comma-separated CORS origins |
 | `SENTRY_DSN` | Sentry error tracking |

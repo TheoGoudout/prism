@@ -2,12 +2,15 @@ import uuid
 from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app import crud
 from app.core.config import settings
+from app.integrations.apikey.base import InvalidApiKeyError
+from app.integrations.oauth.base import AccountInfo
 from app.models.integration import Platform, PlatformAccount
 from app.models.workspace import Workspace, WorkspaceRole
 from tests.utils.integration import create_fake_account, create_fake_integration
@@ -43,7 +46,16 @@ def test_list_available_platforms(
 
     r = client.get(_url(ws, "platforms"), headers=viewer_headers)
     assert r.status_code == 200
-    assert r.json() == ["facebook", "instagram", "linkedin", "tiktok"]
+    assert r.json() == [
+        "facebook",
+        "instagram",
+        "linkedin",
+        "tiktok",
+        "mailchimp",
+        "klaviyo",
+        # Connected with an API key: always available
+        "brevo",
+    ]
 
 
 def test_list_available_platforms_non_member_returns_404(
@@ -55,6 +67,151 @@ def test_list_available_platforms_non_member_returns_404(
 
     r = client.get(_url(ws, "platforms"), headers=outsider_headers)
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Connecting with an API key
+# ---------------------------------------------------------------------------
+
+BREVO_ACCOUNT = "app.integrations.apikey.brevo.brevo_provider.get_account_info"
+
+
+def _brevo_account(external_id: str = "org-1") -> AccountInfo:
+    return AccountInfo(external_id=external_id, name="Acme", avatar_url=None)
+
+
+def test_connect_with_api_key(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    with (
+        patch(BREVO_ACCOUNT, return_value=_brevo_account()) as account_info,
+        patch("app.worker.tasks.sync.sync_integration") as mock_task,
+    ):
+        r = client.post(
+            _url(ws, "connect/brevo/api-key"),
+            headers=headers,
+            json={"api_key": "  xkeysib-secret  "},
+        )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["platform"] == "brevo"
+    assert body["status"] == "active"
+    assert body["external_account_name"] == "Acme"
+    assert "xkeysib-secret" not in r.text
+    account_info.assert_called_once_with("xkeysib-secret")
+    mock_task.delay.assert_called_once_with(body["id"])
+
+    integration = crud.get_integration(session=db, integration_id=uuid.UUID(body["id"]))
+    assert integration is not None
+    assert crud.get_access_token(integration) == "xkeysib-secret"
+    assert integration.token_expires_at is None
+
+
+def test_connect_with_api_key_again_replaces_the_key(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    ids = []
+    for key in ("first-key", "second-key"):
+        with (
+            patch(BREVO_ACCOUNT, return_value=_brevo_account()),
+            patch("app.worker.tasks.sync.sync_integration"),
+        ):
+            r = client.post(
+                _url(ws, "connect/brevo/api-key"),
+                headers=headers,
+                json={"api_key": key},
+            )
+        assert r.status_code == 200
+        ids.append(r.json()["id"])
+
+    assert ids[0] == ids[1]
+    db.expunge_all()
+    integration = crud.get_integration(session=db, integration_id=uuid.UUID(ids[0]))
+    assert integration is not None
+    assert crud.get_access_token(integration) == "second-key"
+
+
+def test_connect_with_rejected_api_key(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    with patch(BREVO_ACCOUNT, side_effect=InvalidApiKeyError("rejected")):
+        r = client.post(
+            _url(ws, "connect/brevo/api-key"), headers=headers, json={"api_key": "bad"}
+        )
+
+    assert r.status_code == 400
+    assert "rejected" in r.json()["detail"]
+    assert client.get(_url(ws), headers=headers).json() == []
+
+
+def test_connect_with_api_key_platform_unreachable(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    with patch(BREVO_ACCOUNT, side_effect=httpx.ConnectError("down")):
+        r = client.post(
+            _url(ws, "connect/brevo/api-key"), headers=headers, json={"api_key": "k"}
+        )
+
+    assert r.status_code == 502
+
+
+def test_connect_with_api_key_empty_key_rejected(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    r = client.post(
+        _url(ws, "connect/brevo/api-key"), headers=headers, json={"api_key": ""}
+    )
+    assert r.status_code == 422
+
+
+def test_connect_oauth_platform_with_api_key_rejected(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    r = client.post(
+        _url(ws, "connect/mailchimp/api-key"), headers=headers, json={"api_key": "k"}
+    )
+    assert r.status_code == 400
+
+
+def test_connect_api_key_platform_with_oauth_rejected(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    r = client.get(_url(ws, "connect/brevo"), headers=headers)
+    assert r.status_code == 400
+
+
+def test_connect_with_api_key_viewer_forbidden(client: TestClient, db: Session) -> None:
+    owner, _ = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+    add_member(db, ws, viewer, WorkspaceRole.viewer)
+
+    with patch(BREVO_ACCOUNT) as account_info:
+        r = client.post(
+            _url(ws, "connect/brevo/api-key"),
+            headers=viewer_headers,
+            json={"api_key": "k"},
+        )
+    assert r.status_code == 403
+    account_info.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
