@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.7 (2026-10-06)
+
+### Features
+
+* Sync active posts more often, and compare posts with their own account. PR [#71](https://github.com/TheoGoudout/prism/pull/71) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.6 (2026-10-06)
 
 ### Features
