@@ -1,5 +1,6 @@
 """Storage for synced metrics: daily account snapshots and per-post metrics."""
 
+import math
 import uuid
 from collections.abc import Sequence
 from datetime import date
@@ -8,7 +9,9 @@ from typing import Any
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
+from app.core.config import settings
 from app.crud.common import save
+from app.models.common import get_datetime_utc
 from app.models.integration import PlatformAccount
 from app.models.metrics import (
     ContentMetrics,
@@ -38,6 +41,29 @@ def _apply(row: MetricSnapshot | Post, data: dict[str, Any]) -> None:
     for key, value in data.items():
         if value is not None or key in ("raw_data", "text"):
             setattr(row, key, value)
+
+
+def _track_engagement(post: Post) -> None:
+    """
+    Record a new interaction when the post's engagements grew by
+    SYNC_MIN_ENGAGEMENT_GROWTH (at least SYNC_MIN_NEW_ENGAGEMENTS) since the
+    last one: relative growth puts a popular account's post and a small one's
+    on the same footing. Gains add up across syncs, so frequent syncs each
+    seeing a few still count.
+    """
+    if post.engagements is None:
+        return
+    if post.engagements_at_last_engaged is None:
+        post.engagements_at_last_engaged = post.engagements
+        return
+    baseline = post.engagements_at_last_engaged
+    needed = max(
+        settings.SYNC_MIN_NEW_ENGAGEMENTS,
+        math.ceil(baseline * settings.SYNC_MIN_ENGAGEMENT_GROWTH),
+    )
+    if post.engagements - baseline >= needed:
+        post.last_engaged_at = get_datetime_utc()
+        post.engagements_at_last_engaged = post.engagements
 
 
 def upsert_metric_snapshot(
@@ -80,9 +106,16 @@ def upsert_post(
         )
     ).first()
     if post is None:
-        post = Post(platform_account_id=platform_account_id, **data)
+        # Publication is the post's first interaction
+        post = Post(
+            platform_account_id=platform_account_id,
+            last_engaged_at=post_in.published_at,
+            engagements_at_last_engaged=post_in.engagements,
+            **data,
+        )
     else:
         _apply(post, data)
+        _track_engagement(post)
     return save(session, post)
 
 
@@ -122,51 +155,6 @@ def get_posts_for_accounts(
         .where(func.date(Post.published_at) >= start_date)
         .where(func.date(Post.published_at) <= end_date)
         .order_by(col(Post.published_at))
-    )
-    return session.exec(statement).all()
-
-
-def get_top_posts(
-    *,
-    session: Session,
-    platform_account_ids: Sequence[uuid.UUID],
-    start_date: date,
-    end_date: date,
-    limit: int = 10,
-) -> Sequence[Post]:
-    """Most-engaging posts published by the accounts over a date range."""
-    if not platform_account_ids:
-        return []
-    statement = (
-        select(Post)
-        .where(col(Post.platform_account_id).in_(platform_account_ids))
-        .where(func.date(Post.published_at) >= start_date)
-        .where(func.date(Post.published_at) <= end_date)
-        .where(col(Post.engagements).is_not(None))
-        .order_by(col(Post.engagements).desc())
-        .limit(limit)
-    )
-    return session.exec(statement).all()
-
-
-def get_posts(
-    *,
-    session: Session,
-    platform_account_ids: Sequence[uuid.UUID],
-    start_date: date,
-    end_date: date,
-    limit: int,
-) -> Sequence[Post]:
-    """Posts published by the accounts over a date range, most engaging first."""
-    if not platform_account_ids:
-        return []
-    statement = (
-        select(Post)
-        .where(col(Post.platform_account_id).in_(platform_account_ids))
-        .where(func.date(Post.published_at) >= start_date)
-        .where(func.date(Post.published_at) <= end_date)
-        .order_by(col(Post.engagements).desc().nulls_last(), col(Post.published_at))
-        .limit(limit)
     )
     return session.exec(statement).all()
 

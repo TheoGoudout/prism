@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { useState } from "react"
 
-import type { Platform } from "@/client"
+import type { Platform, TopPostRanking } from "@/client"
 import { FollowersTable } from "@/components/Analytics/FollowersTable"
 import { InsightsPanel } from "@/components/Analytics/InsightsPanel"
 import { MetricsTable } from "@/components/Analytics/MetricsTable"
@@ -14,6 +15,7 @@ import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { PostLabel } from "@/components/Posts/PostLabel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
   useFollowers,
@@ -127,7 +129,8 @@ function AnalyticsPage() {
 
   const summary = useMetricsSummary(range)
   const timeseries = useMetricsTimeseries(range)
-  const posts = useTopPosts(range)
+  const [ranking, setRanking] = useState<TopPostRanking>("engagements")
+  const posts = useTopPosts(range, ranking)
   const followers = useFollowers(range)
   const compareSummary = useMetricsSummary(compareRange)
   const compareTimeseries = useMetricsTimeseries(compareRange)
@@ -303,8 +306,17 @@ function AnalyticsPage() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Top posts</CardTitle>
+          <Tabs
+            value={ranking}
+            onValueChange={(value) => setRanking(value as TopPostRanking)}
+          >
+            <TabsList>
+              <TabsTrigger value="engagements">Most engagements</TabsTrigger>
+              <TabsTrigger value="account">Best for their account</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {posts.isLoading ? (
@@ -323,6 +335,7 @@ function AnalyticsPage() {
                 "Likes",
                 "Comments",
                 "Shares",
+                "Vs account",
               ]}
               rows={posts.data.map((post) => ({
                 key: post.id,
@@ -334,9 +347,20 @@ function AnalyticsPage() {
                   post.likes,
                   post.comments,
                   post.shares,
+                  post.account_percentile == null
+                    ? "–"
+                    : `P${Math.round(post.account_percentile)}`,
                 ],
               }))}
             />
+          )}
+          {!!posts.data?.length && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Vs account ranks a post's engagements among its own account's
+              posts of the past year: P90 beats 90% of them. Ranking by it puts
+              each account on the same footing, whatever the size of its
+              audience.
+            </p>
           )}
         </CardContent>
       </Card>

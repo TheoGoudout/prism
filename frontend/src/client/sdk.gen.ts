@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, MigrateListMigrationAccountsData, MigrateListMigrationAccountsResponse, MigrateUploadExportData, MigrateUploadExportResponse, MigrateListMigrationsData, MigrateListMigrationsResponse, MigrateListSourceProfilesData, MigrateListSourceProfilesResponse, MigrateStartMigrationData, MigrateStartMigrationResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
+import type { AiGenerateInsightsData, AiGenerateInsightsResponse, AiGenerateReportData, AiGenerateReportResponse, AnalysesListAnalysesData, AnalysesListAnalysesResponse, AnalysesCreateAnalysisData, AnalysesCreateAnalysisResponse, AnalysesReadAnalysisData, AnalysesReadAnalysisResponse, AnalysesDeleteAnalysisData, AnalysesDeleteAnalysisResponse, AnalysesEmailAnalysisData, AnalysesEmailAnalysisResponse, AnalysesReadScheduleData, AnalysesReadScheduleResponse, AnalysesUpdateScheduleData, AnalysesUpdateScheduleResponse, IntegrationsListIntegrationsData, IntegrationsListIntegrationsResponse, IntegrationsListAvailablePlatformsData, IntegrationsListAvailablePlatformsResponse, IntegrationsConnectData, IntegrationsConnectResponse, IntegrationsDeleteIntegrationData, IntegrationsDeleteIntegrationResponse, IntegrationsTriggerSyncData, IntegrationsTriggerSyncResponse, IntegrationsUpdateAccountData, IntegrationsUpdateAccountResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, MetricsGetSummaryData, MetricsGetSummaryResponse, MetricsGetTimeseriesData, MetricsGetTimeseriesResponse, MetricsGetFollowersData, MetricsGetFollowersResponse, MetricsGetTopPostsData, MetricsGetTopPostsResponse, MetricsGetPostPerformanceData, MetricsGetPostPerformanceResponse, MigrateListMigrationAccountsData, MigrateListMigrationAccountsResponse, MigrateUploadExportData, MigrateUploadExportResponse, MigrateListMigrationsData, MigrateListMigrationsResponse, MigrateListSourceProfilesData, MigrateListSourceProfilesResponse, MigrateStartMigrationData, MigrateStartMigrationResponse, PrivateCreateUserData, PrivateCreateUserResponse, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsHealthCheckResponse, WorkspacesListWorkspacesResponse, WorkspacesCreateWorkspaceData, WorkspacesCreateWorkspaceResponse, WorkspacesUpdateWorkspaceData, WorkspacesUpdateWorkspaceResponse, WorkspacesDeleteWorkspaceData, WorkspacesDeleteWorkspaceResponse, WorkspacesListMembersData, WorkspacesListMembersResponse, WorkspacesAddMemberData, WorkspacesAddMemberResponse, WorkspacesUpdateMemberData, WorkspacesUpdateMemberResponse, WorkspacesRemoveMemberData, WorkspacesRemoveMemberResponse } from './types.gen';
 
 export class AiService {
     /**
@@ -345,6 +345,35 @@ export class IntegrationsService {
             }
         });
     }
+    
+    /**
+     * Update Account
+     * Show or hide one of the integration's accounts (e.g. a Facebook Page) in
+     * the workspace's dashboards. Hidden accounts keep syncing.
+     * @param data The data for the request.
+     * @param data.integrationId
+     * @param data.accountId
+     * @param data.workspaceId
+     * @param data.requestBody
+     * @returns PlatformAccountPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateAccount(data: IntegrationsUpdateAccountData): CancelablePromise<IntegrationsUpdateAccountResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/workspaces/{workspace_id}/integrations/{integration_id}/accounts/{account_id}',
+            path: {
+                integration_id: data.integrationId,
+                account_id: data.accountId,
+                workspace_id: data.workspaceId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
 }
 
 export class LoginService {
@@ -500,14 +529,16 @@ export class MetricsService {
     
     /**
      * Get Top Posts
-     * Top-performing posts (by engagements) published in the date range.
+     * Top-performing posts published in the date range: by engagements, or
+     * (`ranking=account`) relative to each account's posts of the past year.
      * @param data The data for the request.
      * @param data.workspaceId
      * @param data.limit
+     * @param data.ranking
      * @param data.platform
      * @param data.dateFrom
      * @param data.dateTo
-     * @returns PostPublic Successful Response
+     * @returns TopPost Successful Response
      * @throws ApiError
      */
     public static getTopPosts(data: MetricsGetTopPostsData): CancelablePromise<MetricsGetTopPostsResponse> {
@@ -519,6 +550,7 @@ export class MetricsService {
             },
             query: {
                 limit: data.limit,
+                ranking: data.ranking,
                 platform: data.platform,
                 date_from: data.dateFrom,
                 date_to: data.dateTo
@@ -531,7 +563,7 @@ export class MetricsService {
     
     /**
      * Get Post Performance
-     * Per platform that has posts: the latest `limit` posts, each metric ranked
+     * Per account that has posts: the latest `limit` posts, each metric ranked
      * against the posts of the last `history_days`, with the P5 / median / P95
      * of that history as benchmarks.
      * @param data The data for the request.

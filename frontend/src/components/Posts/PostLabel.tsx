@@ -1,4 +1,4 @@
-import type { PostPublic } from "@/client"
+import type { TopPost } from "@/client"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { Badge } from "@/components/ui/badge"
 
@@ -10,7 +10,10 @@ export function PostLabel({
   post,
   showPlatform = false,
 }: {
-  post: PostPublic
+  post: Pick<
+    TopPost,
+    "text" | "external_id" | "platform" | "content_type" | "permalink"
+  >
   showPlatform?: boolean
 }) {
   const text = post.text?.slice(0, 80) ?? post.external_id

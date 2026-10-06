@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useIntegrations"
 import { formatRelative } from "@/lib/format"
 import { needsReconnect, platformLabel } from "@/lib/platforms"
+import { AccountSelector } from "./AccountSelector"
 import { IntegrationStatusBadge } from "./IntegrationStatusBadge"
 import { PlatformIcon } from "./PlatformIcon"
 import { SyncButton } from "./SyncButton"
@@ -36,7 +37,10 @@ export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
         </span>
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
-        {integration.external_account_name}
+        <div className="flex flex-col items-start gap-0.5">
+          {integration.external_account_name}
+          <AccountSelector integration={integration} editable={editable} />
+        </div>
       </TableCell>
       <TableCell>
         <IntegrationStatusBadge status={integration.status} />

@@ -22,7 +22,7 @@ app/
 ├── migrate/             # migrating history from other tools
 │   ├── files/           # CSV exports: reading, each tool's column names, parsing
 │   └── sources/         # API migrations: Sprout Social, Metricool
-├── worker/              # Celery app, sync tasks, nightly schedule
+├── worker/              # Celery app, sync tasks, nightly and follow-up schedules
 ├── ai/                  # LLM factory, prompts, insights and report chains
 ├── core/                # settings, database, security, token encryption
 └── alembic/             # migrations

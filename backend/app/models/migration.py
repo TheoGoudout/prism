@@ -60,16 +60,6 @@ class UploadResult(SQLModel):
     date_to: date_type | None = None
 
 
-class PlatformAccountPublic(SQLModel):
-    """An account (page, profile, property) history can be migrated into."""
-
-    id: uuid.UUID
-    integration_id: uuid.UUID
-    platform: Platform
-    name: str
-    account_type: str | None = None
-
-
 # ---------------------------------------------------------------------------
 # API migrations
 # ---------------------------------------------------------------------------

@@ -1,9 +1,11 @@
 """Tests for MetricSnapshot and Post CRUD helpers."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.crud import metrics as mcrud
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
 from tests.utils.integration import create_fake_account, create_fake_integration
@@ -170,36 +172,81 @@ def test_upsert_post_updates_existing(db: Session) -> None:
     assert updated.likes == 250
 
 
-def test_get_top_posts(db: Session) -> None:
+# ---------------------------------------------------------------------------
+# Post interactions (for follow-up syncs)
+# ---------------------------------------------------------------------------
+
+
+def _upsert_engagements(db: Session, account_id, engagements: int | None):  # type: ignore[no-untyped-def]
+    return mcrud.upsert_post(
+        session=db,
+        platform_account_id=account_id,
+        post_in=PostUpsert(
+            external_id="post-interactions",
+            published_at=datetime(2024, 9, 1, 12, 0, tzinfo=UTC),
+            content_type=ContentType.post,
+            engagements=engagements,
+        ),
+    )
+
+
+def test_new_post_is_engaged_at_publication(db: Session) -> None:
     account = _make_account(db)
-    for i, eng in enumerate([10, 500, 50, 200, 1]):
-        mcrud.upsert_post(
-            session=db,
-            platform_account_id=account.id,
-            post_in=PostUpsert(
-                external_id=f"top-{i}",
-                published_at=datetime(2024, 7, 1, tzinfo=UTC),
-                content_type=ContentType.post,
-                engagements=eng,
-            ),
-        )
-    top = mcrud.get_top_posts(
-        session=db,
-        platform_account_ids=[account.id],
-        start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 31),
-        limit=3,
-    )
-    assert len(top) == 3
-    assert top[0].engagements == 500
-    assert top[1].engagements == 200
+    post = _upsert_engagements(db, account.id, 3)
+    assert post.last_engaged_at == datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+    assert post.engagements_at_last_engaged == 3
 
 
-def test_get_top_posts_empty_accounts(db: Session) -> None:
-    result = mcrud.get_top_posts(
-        session=db,
-        platform_account_ids=[],
-        start_date=date(2024, 1, 1),
-        end_date=date(2024, 1, 31),
-    )
-    assert list(result) == []
+def test_post_gaining_enough_engagements_is_engaged_now(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "SYNC_MIN_ENGAGEMENT_GROWTH", 0.1)
+    monkeypatch.setattr(settings, "SYNC_MIN_NEW_ENGAGEMENTS", 5)
+    account = _make_account(db)
+    _upsert_engagements(db, account.id, 10)
+
+    # Gains below the threshold add up across syncs
+    post = _upsert_engagements(db, account.id, 13)
+    assert post.last_engaged_at == datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+    post = _upsert_engagements(db, account.id, 15)
+    assert post.last_engaged_at is not None
+    assert datetime.now(UTC) - post.last_engaged_at < timedelta(minutes=1)
+    assert post.engagements_at_last_engaged == 15
+
+
+@pytest.mark.parametrize(
+    ("baseline", "not_enough", "enough"),
+    [
+        (10, 14, 15),  # small post: the floor applies
+        (10_000, 10_999, 11_000),  # popular post: 10% growth
+    ],
+)
+def test_interaction_threshold_scales_with_the_post(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    baseline: int,
+    not_enough: int,
+    enough: int,
+) -> None:
+    monkeypatch.setattr(settings, "SYNC_MIN_ENGAGEMENT_GROWTH", 0.1)
+    monkeypatch.setattr(settings, "SYNC_MIN_NEW_ENGAGEMENTS", 5)
+    account = _make_account(db)
+    published_at = datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+    _upsert_engagements(db, account.id, baseline)
+
+    post = _upsert_engagements(db, account.id, not_enough)
+    assert post.last_engaged_at == published_at
+    post = _upsert_engagements(db, account.id, enough)
+    assert post.last_engaged_at != published_at
+    assert post.engagements_at_last_engaged == enough
+
+
+def test_post_without_engagements_starts_counting_once_reported(
+    db: Session,
+) -> None:
+    account = _make_account(db)
+    _upsert_engagements(db, account.id, None)
+    post = _upsert_engagements(db, account.id, 40)
+    # The first reported count is a baseline, not a gain
+    assert post.last_engaged_at == datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+    assert post.engagements_at_last_engaged == 40

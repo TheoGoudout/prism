@@ -164,6 +164,7 @@ export type IntegrationPublic = {
     last_synced_at?: (string | null);
     sync_error?: (string | null);
     created_at?: (string | null);
+    accounts?: Array<PlatformAccountPublic>;
 };
 
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'disconnected';
@@ -263,15 +264,22 @@ export type verdict = 'strong' | 'average' | 'weak';
 
 export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
 
-/**
- * An account (page, profile, property) history can be migrated into.
- */
 export type PlatformAccountPublic = {
     id: string;
     integration_id: string;
     platform: Platform;
+    external_id: string;
     name: string;
+    avatar_url?: (string | null);
     account_type?: (string | null);
+    is_active: boolean;
+};
+
+/**
+ * Show (True) or hide (False) the account in the workspace's dashboards.
+ */
+export type PlatformAccountUpdate = {
+    is_active: boolean;
 };
 
 export type PlatformAnalysis = {
@@ -344,9 +352,12 @@ export type PostPerformance = {
 };
 
 /**
- * One platform's latest posts, compared with its own post history.
+ * One account's latest posts, compared with its own post history: a popular
+ * account's posts and a small one's aren't comparable, even on one platform.
  */
 export type PostPerformanceReport = {
+    platform_account_id: string;
+    account_name: string;
     platform: Platform;
     history_from: string;
     history_to: string;
@@ -356,28 +367,6 @@ export type PostPerformanceReport = {
     };
     posts: Array<PostPerformance>;
     history: Array<PostHistoryPoint>;
-};
-
-export type PostPublic = {
-    impressions?: (number | null);
-    reach?: (number | null);
-    views?: (number | null);
-    engagements?: (number | null);
-    likes?: (number | null);
-    comments?: (number | null);
-    shares?: (number | null);
-    clicks?: (number | null);
-    saves?: (number | null);
-    external_id: string;
-    content_type: ContentType;
-    text?: (string | null);
-    media_url?: (string | null);
-    permalink?: (string | null);
-    id: string;
-    platform_account_id: string;
-    platform: Platform;
-    published_at: string;
-    engagement_rate?: (number | null);
 };
 
 export type PrivateUserCreate = {
@@ -493,6 +482,32 @@ export type TopicAnalysis = {
     summary: string;
     post_ids?: Array<(string)>;
 };
+
+export type TopPost = {
+    impressions?: (number | null);
+    reach?: (number | null);
+    views?: (number | null);
+    engagements?: (number | null);
+    likes?: (number | null);
+    comments?: (number | null);
+    shares?: (number | null);
+    clicks?: (number | null);
+    saves?: (number | null);
+    external_id: string;
+    content_type: ContentType;
+    text?: (string | null);
+    media_url?: (string | null);
+    permalink?: (string | null);
+    id: string;
+    platform_account_id: string;
+    platform: Platform;
+    published_at: string;
+    engagement_rate?: (number | null);
+    account_name: string;
+    account_percentile?: (number | null);
+};
+
+export type TopPostRanking = 'engagements' | 'account';
 
 export type UpdatePassword = {
     current_password: string;
@@ -702,6 +717,15 @@ export type IntegrationsTriggerSyncData = {
 
 export type IntegrationsTriggerSyncResponse = (unknown);
 
+export type IntegrationsUpdateAccountData = {
+    accountId: string;
+    integrationId: string;
+    requestBody: PlatformAccountUpdate;
+    workspaceId: string;
+};
+
+export type IntegrationsUpdateAccountResponse = (PlatformAccountPublic);
+
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;
 };
@@ -752,10 +776,11 @@ export type MetricsGetTopPostsData = {
     dateTo?: (string | null);
     limit?: number;
     platform?: (Platform | null);
+    ranking?: TopPostRanking;
     workspaceId: string;
 };
 
-export type MetricsGetTopPostsResponse = (Array<PostPublic>);
+export type MetricsGetTopPostsResponse = (Array<TopPost>);
 
 export type MetricsGetPostPerformanceData = {
     historyDays?: number;

@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from sqlmodel import Session
 
 from app import crud
-from app.models.integration import Platform
+from app.models.integration import Platform, PlatformAccount
 from app.models.metrics import (
     FollowersPoint,
     MetricBenchmark,
@@ -30,6 +30,8 @@ from app.models.metrics import (
     PostPerformanceReport,
     PostPublic,
     TimeSeriesPoint,
+    TopPost,
+    TopPostRanking,
 )
 
 DEFAULT_RANGE_DAYS = 30
@@ -339,23 +341,98 @@ def followers_timeseries(
 
 
 def top_posts(
-    session: Session, query: MetricsQuery, limit: int = 10
-) -> list[PostPublic]:
-    """The workspace's most-engaging posts published in the range."""
-    account_platform = account_platforms(session, query)
-    posts = crud.get_top_posts(
-        session=session,
-        platform_account_ids=list(account_platform),
-        start_date=query.date_from,
-        end_date=query.date_to,
-        limit=limit,
-    )
-    return [
-        PostPublic.model_validate(
-            post, update={"platform": account_platform[post.platform_account_id]}
+    session: Session,
+    query: MetricsQuery,
+    limit: int = 10,
+    ranking: TopPostRanking = TopPostRanking.engagements,
+) -> list[TopPost]:
+    """
+    The workspace's best posts published in the range: those with the most
+    engagements, or those that did best relative to their own account's posts
+    of the past year, so a small account's hit isn't buried under a popular
+    account's average post. Posts of accounts with too few posts to rank
+    against come after the ranked ones.
+    """
+    accounts = {
+        a.id: a
+        for a in crud.get_accounts_for_workspace(
+            session=session, workspace_id=query.workspace_id, platform=query.platform
         )
-        for post in posts
+    }
+    posts = [
+        post
+        for post in crud.get_posts_for_accounts(
+            session=session,
+            platform_account_ids=list(accounts),
+            start_date=query.date_from,
+            end_date=query.date_to,
+        )
+        if post.engagements is not None
     ]
+    history_from = min(
+        query.date_from,
+        query.date_to - timedelta(days=DEFAULT_POST_HISTORY_DAYS - 1),
+    )
+    percentiles = account_percentiles(
+        crud.get_posts_for_accounts(
+            session=session,
+            platform_account_ids=list(accounts),
+            start_date=history_from,
+            end_date=query.date_to,
+        )
+    )
+
+    def engagements(post: Post) -> int:
+        return post.engagements or 0
+
+    if ranking == TopPostRanking.account:
+        posts.sort(
+            key=lambda p: (
+                p.id not in percentiles,
+                -percentiles.get(p.id, 0),
+                -engagements(p),
+            )
+        )
+    else:
+        posts.sort(key=lambda p: -engagements(p))
+
+    return [
+        _top_post(post, accounts[post.platform_account_id], percentiles.get(post.id))
+        for post in posts[:limit]
+    ]
+
+
+def _top_post(
+    post: Post, account: PlatformAccount, percentile: float | None
+) -> TopPost:
+    return TopPost.model_validate(
+        post,
+        update={
+            "platform": account.platform,
+            "account_name": account.name,
+            "account_percentile": percentile,
+        },
+    )
+
+
+def account_percentiles(posts: Sequence[Post]) -> dict[uuid.UUID, float]:
+    """
+    {post id: percentile rank (0–100) of its engagements among its account's
+    posts}, for accounts with enough posts reporting engagements to rank.
+    """
+    by_account: dict[uuid.UUID, list[Post]] = defaultdict(list)
+    for post in posts:
+        if post.engagements is not None:
+            by_account[post.platform_account_id].append(post)
+
+    ranks: dict[uuid.UUID, float] = {}
+    for account_posts in by_account.values():
+        if len(account_posts) < MIN_BENCHMARK_SAMPLE:
+            continue
+        values = sorted(p.engagements or 0 for p in account_posts)
+        for post in account_posts:
+            ranks[post.id] = _percentile_rank(values, post.engagements or 0)
+    return ranks
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +457,7 @@ def _percentile_rank(sorted_values: Sequence[float], value: float) -> float:
 
 
 def _performance_report(
-    platform: Platform,
+    account: PlatformAccount,
     history: Sequence[Post],
     *,
     history_from: date,
@@ -410,7 +487,7 @@ def _performance_report(
     posts = [
         PostPerformance(
             **PostPublic.model_validate(
-                post, update={"platform": platform}
+                post, update={"platform": account.platform}
             ).model_dump(),
             percentile_ranks={
                 field: _percentile_rank(values, value)
@@ -421,7 +498,9 @@ def _performance_report(
         for post in reversed(history[-limit:])
     ]
     return PostPerformanceReport(
-        platform=platform,
+        platform_account_id=account.id,
+        account_name=account.name,
+        platform=account.platform,
         history_from=history_from,
         history_to=history_to,
         history_size=len(history),
@@ -439,36 +518,40 @@ def post_performance(
     history_days: int = DEFAULT_POST_HISTORY_DAYS,
 ) -> list[PostPerformanceReport]:
     """
-    Per platform that has posts: the latest posts, with each metric situated
+    Per account that has posts: the latest posts, with each metric situated
     between the worst (P5) and best (P95) posts of the last ``history_days``.
-    Platforms are benchmarked separately since their audiences and metrics
-    aren't comparable.
+    Accounts are benchmarked separately since their audiences and metrics
+    aren't comparable, even on one platform. Reports come in platform order,
+    then by account name.
     """
     accounts = crud.get_accounts_for_workspace(
         session=session, workspace_id=workspace_id, platform=platform
     )
     history_to = date.today()
     history_from = history_to - timedelta(days=history_days - 1)
-    account_platform = {a.id: a.platform for a in accounts}
     posts = crud.get_posts_for_accounts(
         session=session,
-        platform_account_ids=list(account_platform),
+        platform_account_ids=[a.id for a in accounts],
         start_date=history_from,
         end_date=history_to,
     )
 
-    by_platform: dict[Platform, list[Post]] = defaultdict(list)
-    for post in posts:  # oldest first, which each platform's list keeps
-        by_platform[account_platform[post.platform_account_id]].append(post)
+    by_account: dict[uuid.UUID, list[Post]] = defaultdict(list)
+    for post in posts:  # oldest first, which each account's list keeps
+        by_account[post.platform_account_id].append(post)
 
+    platform_order = list(Platform)
     return [
         _performance_report(
-            plat,
-            by_platform[plat],
+            account,
+            by_account[account.id],
             history_from=history_from,
             history_to=history_to,
             limit=limit,
         )
-        for plat in Platform
-        if plat in by_platform
+        for account in sorted(
+            accounts,
+            key=lambda a: (platform_order.index(a.platform), a.name.lower()),
+        )
+        if account.id in by_account
     ]

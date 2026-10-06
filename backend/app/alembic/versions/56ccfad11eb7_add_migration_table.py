@@ -1,7 +1,7 @@
 """Add migration table
 
 Revision ID: 56ccfad11eb7
-Revises: 7b1c2e9d4f30
+Revises: da3aaf3c6996
 Create Date: 2026-10-05 20:41:41.128371
 
 """
@@ -12,7 +12,7 @@ import sqlmodel.sql.sqltypes
 
 # revision identifiers, used by Alembic.
 revision = '56ccfad11eb7'
-down_revision = '7b1c2e9d4f30'
+down_revision = 'da3aaf3c6996'
 branch_labels = None
 depends_on = None
 

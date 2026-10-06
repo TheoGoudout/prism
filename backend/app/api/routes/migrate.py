@@ -13,12 +13,12 @@ from app import crud
 from app.api.deps import CurrentMember, SessionDep, require_manager
 from app.migrate.files.reading import ImportFileError
 from app.migrate.sources import SourceAuthError
+from app.models.integration import PlatformAccountPublic
 from app.models.migration import (
     ExportFormat,
     MigrationCreate,
     MigrationPublic,
     MigrationSource,
-    PlatformAccountPublic,
     RemoteProfile,
     SourceCredentials,
     UploadResult,

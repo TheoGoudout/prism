@@ -31,7 +31,10 @@
 - **Nightly sync**: a Celery worker pulls each account's daily metrics
   (followers, reach, views or impressions, engagements) and per-post metrics
   into a normalised schema. A sync also runs right after you connect an
-  account, and you can trigger one manually.
+  account, and you can trigger one manually. While a recent post is getting
+  engagement, its account is synced again within the hour, then less and less
+  often as the post quiets down, until it goes a couple of days without new
+  interactions.
 - **Token lifecycle**: OAuth tokens are encrypted at rest and refreshed
   before they expire. Accounts that can no longer be refreshed are marked
   *expired*, with a one-click **Reconnect**.
@@ -42,18 +45,19 @@
   tool (Hootsuite, Buffer, Later, Agorapulse…), upload a CSV export instead.
   Migrated data only fills in: it never overwrites what Prism synced.
 - **Dashboards**: KPI totals, daily time series, per-platform breakdown and
-  top posts for any date range.
-- **Post performance**: for each platform that publishes posts, the latest
+  top posts for any date range, by engagements or relative to each account's
+  usual, so a small account's hit isn't buried under a popular account.
+- **Post performance**: for each account that publishes posts, the latest
   posts with every metric (engagements, engagement rate, likes, comments…)
-  ranked against the last 12 months of posts and compared with the best
+  ranked against its own last 12 months of posts and compared with the best
   (P95), median and worst (P5) posts, plus a chart of every post over time.
 - **AI insights and reports** (LangChain): actionable insights and a full
   markdown performance report generated from your metrics. Works with
   OpenAI, Anthropic or Google models.
 - **AI analysis**: a full performance review of every connected platform:
-  each post is analyzed and grouped by topic, each platform judged against
-  the previous period, with what worked, what didn't and prioritized
-  recommendations. Run it on demand, or schedule it weekly, every two weeks
+  each post is analyzed against its own account's posts and grouped by
+  topic, each platform judged against the previous period, with what worked,
+  what didn't and prioritized recommendations. Run it on demand, or schedule it weekly, every two weeks
   or monthly (e.g. every Monday at 8am in your time zone) and have the
   report emailed to your team. Owners and admins can also run a **year in
   review** on demand: a month-by-month breakdown of up to 300 posts (a

@@ -16,8 +16,9 @@ from app.models.metrics import (
     MetricsSummary,
     PlatformFollowers,
     PostPerformanceReport,
-    PostPublic,
     TimeSeriesPoint,
+    TopPost,
+    TopPostRanking,
 )
 from app.services import metrics as metrics_service
 
@@ -42,14 +43,18 @@ def get_followers(session: SessionDep, query: MetricsQueryDep) -> Any:
     return metrics_service.followers_timeseries(session, query)
 
 
-@router.get("/posts", response_model=list[PostPublic])
+@router.get("/posts", response_model=list[TopPost])
 def get_top_posts(
     session: SessionDep,
     query: MetricsQueryDep,
     limit: Annotated[int, Query(ge=1, le=50)] = 10,
+    ranking: TopPostRanking = TopPostRanking.engagements,
 ) -> Any:
-    """Top-performing posts (by engagements) published in the date range."""
-    return metrics_service.top_posts(session, query, limit)
+    """
+    Top-performing posts published in the date range: by engagements, or
+    (`ranking=account`) relative to each account's posts of the past year.
+    """
+    return metrics_service.top_posts(session, query, limit, ranking)
 
 
 @router.get("/posts/performance", response_model=list[PostPerformanceReport])
@@ -63,7 +68,7 @@ def get_post_performance(
     ] = metrics_service.DEFAULT_POST_HISTORY_DAYS,
 ) -> Any:
     """
-    Per platform that has posts: the latest `limit` posts, each metric ranked
+    Per account that has posts: the latest `limit` posts, each metric ranked
     against the posts of the last `history_days`, with the P5 / median / P95
     of that history as benchmarks.
     """

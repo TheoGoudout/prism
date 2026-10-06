@@ -144,6 +144,15 @@ class Post(PostContent, ContentMetrics, table=True):
         default=None, sa_column=Column(JSON, nullable=True)
     )
 
+    # When a sync last saw the post's engagements grow enough (see
+    # app.crud.metrics._track_engagement)
+    # (its publication, until then), and its engagements at that time: they
+    # decide how soon the integration is synced again.
+    last_engaged_at: datetime | None = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
+    )
+    engagements_at_last_engaged: int | None = None
+
     synced_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_column=Column(SADateTime(timezone=True), nullable=True),
@@ -264,6 +273,20 @@ class PostPerformance(PostPublic):
     percentile_ranks: dict[str, float]
 
 
+class TopPostRanking(StrEnum):
+    # The most engagements, whatever the account's audience
+    engagements = "engagements"
+    # The best posts relative to their own account's other posts
+    account = "account"
+
+
+class TopPost(PostPublic):
+    account_name: str
+    # Percentile rank (0–100) of the post's engagements among its account's
+    # posts of the past year; None with too few posts to rank against
+    account_percentile: float | None = None
+
+
 class PostHistoryPoint(ContentMetrics):
     """A post's metrics only, for plotting the history over time."""
 
@@ -273,8 +296,13 @@ class PostHistoryPoint(ContentMetrics):
 
 
 class PostPerformanceReport(SQLModel):
-    """One platform's latest posts, compared with its own post history."""
+    """
+    One account's latest posts, compared with its own post history: a popular
+    account's posts and a small one's aren't comparable, even on one platform.
+    """
 
+    platform_account_id: uuid.UUID
+    account_name: str
     platform: Platform
     history_from: date_type
     history_to: date_type
