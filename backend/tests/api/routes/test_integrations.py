@@ -246,3 +246,118 @@ def test_trigger_sync_viewer_forbidden(client: TestClient, db: Session) -> None:
 
     r = client.post(_url(ws, f"{integration.id}/sync"), headers=viewer_headers)
     assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Choosing the accounts shown (e.g. which Facebook Pages)
+# ---------------------------------------------------------------------------
+
+
+def test_list_integrations_includes_accounts(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+    create_fake_account(db, integration, external_id="p-2", name="Page B")
+    create_fake_account(db, integration, external_id="p-1", name="Page A")
+
+    r = client.get(_url(ws), headers=headers)
+    assert r.status_code == 200
+    accounts = r.json()[0]["accounts"]
+    assert [(a["name"], a["is_active"]) for a in accounts] == [
+        ("Page A", True),
+        ("Page B", True),
+    ]
+
+
+def test_hide_and_show_account(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+    shown = create_fake_account(db, integration, external_id="p-1")
+    hidden = create_fake_account(db, integration, external_id="p-2")
+    url = _url(ws, f"{integration.id}/accounts/{hidden.id}")
+
+    r = client.patch(url, headers=headers, json={"is_active": False})
+    assert r.status_code == 200
+    assert r.json()["is_active"] is False
+    active = crud.get_accounts_for_workspace(session=db, workspace_id=ws.id)
+    assert [a.id for a in active] == [shown.id]
+
+    r = client.patch(url, headers=headers, json={"is_active": True})
+    assert r.status_code == 200
+    active = crud.get_accounts_for_workspace(session=db, workspace_id=ws.id)
+    assert {a.id for a in active} == {shown.id, hidden.id}
+
+
+def test_hidden_account_stays_hidden_after_sync(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+    account = create_fake_account(db, integration)
+    client.patch(
+        _url(ws, f"{integration.id}/accounts/{account.id}"),
+        headers=headers,
+        json={"is_active": False},
+    )
+
+    # A sync finds the account again
+    synced = create_fake_account(db, integration, name="Renamed Page")
+    assert synced.id == account.id
+    assert synced.is_active is False
+
+
+def test_update_account_viewer_forbidden(client: TestClient, db: Session) -> None:
+    owner, _ = create_user_with_headers(client, db)
+    viewer, viewer_headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, owner)
+    add_member(db, ws, viewer, WorkspaceRole.viewer)
+    integration = create_fake_integration(db, ws)
+    account = create_fake_account(db, integration)
+
+    r = client.patch(
+        _url(ws, f"{integration.id}/accounts/{account.id}"),
+        headers=viewer_headers,
+        json={"is_active": False},
+    )
+    assert r.status_code == 403
+    db.refresh(account)
+    assert account.is_active is True
+
+
+def test_update_account_of_another_integration_returns_404(
+    client: TestClient, db: Session
+) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    facebook = create_fake_integration(db, ws)
+    instagram = create_fake_integration(
+        db, ws, platform=Platform.instagram, external_account_id="ig-1"
+    )
+    account = create_fake_account(db, instagram)
+
+    r = client.patch(
+        _url(ws, f"{facebook.id}/accounts/{account.id}"),
+        headers=headers,
+        json={"is_active": False},
+    )
+    assert r.status_code == 404
+
+
+def test_update_account_of_another_workspace_returns_404(
+    client: TestClient, db: Session
+) -> None:
+    user_a, _ = create_user_with_headers(client, db)
+    user_b, headers_b = create_user_with_headers(client, db)
+    ws_a = create_random_workspace(db, user_a)
+    ws_b = create_random_workspace(db, user_b)
+    integration = create_fake_integration(db, ws_a)
+    account = create_fake_account(db, integration)
+
+    r = client.patch(
+        _url(ws_b, f"{integration.id}/accounts/{account.id}"),
+        headers=headers_b,
+        json={"is_active": False},
+    )
+    assert r.status_code == 404
