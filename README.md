@@ -97,6 +97,7 @@ frontend/src/
 ├── routes/              # pages (dashboard, analytics, posts, integrations, settings, admin)
 ├── components/          # UI, including Workspaces/ (onboarding, members)
 └── client/              # generated API client (do not edit by hand)
+landing/                 # static landing page and privacy policy (Cloudflare Workers)
 ```
 
 ## Getting started
@@ -125,6 +126,7 @@ frontend/src/
 
    This starts:
    - the frontend at <http://localhost:5173>
+   - the landing page at <http://localhost:8081>
    - the API at <http://localhost:8000> (interactive docs at `/docs`)
    - Adminer at <http://localhost:8080>
    - MailCatcher at <http://localhost:1080>

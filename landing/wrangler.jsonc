@@ -1,0 +1,38 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "prism-landing",
+  "compatibility_date": "2026-09-01",
+  // Pure static site — no Worker script. The default `html_handling`
+  // ("auto-trailing-slash") serves /privacy from privacy.html, matching the
+  // `try_files $uri $uri.html` rule in landing/nginx.conf.
+  "assets": {
+    "directory": "./dist"
+  },
+  // No `routes` key — the custom domains (prism.ai, staging.prism.ai,
+  // dev.prism.ai) are attached by hand in the Cloudflare dashboard. See the
+  // matching comment in frontend/wrangler.jsonc for why, and deployment.md for
+  // the bindings themselves.
+  "workers_dev": false,
+  "env": {
+    "dev": {
+      "name": "prism-landing-dev",
+      "assets": {
+        "directory": "./dist"
+      }
+    },
+    "staging": {
+      "name": "prism-landing-staging",
+      // Repeated rather than inherited so `deploy --dry-run --env staging`
+      // catches an environment that resolves to no assets.
+      "assets": {
+        "directory": "./dist"
+      }
+    },
+    "production": {
+      "name": "prism-landing",
+      "assets": {
+        "directory": "./dist"
+      }
+    }
+  }
+}

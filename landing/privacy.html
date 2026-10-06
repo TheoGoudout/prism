@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Prism</title>
+  <meta name="description" content="Privacy policy for Prism, the social media analytics app.">
+  <meta name="theme-color" content="#171A3A">
+  <link rel="icon" type="image/svg+xml" href="./assets/prism-icon.svg">
+  <link rel="preload" href="./fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* The app's tokens (frontend/src/index.css), see VISUAL_IDENTITY.md. */
+    :root {
+      --background:       oklch(0.985 0.003 265);
+      --foreground:       oklch(0.21 0.02 270);
+      --muted-foreground: oklch(0.52 0.02 265);
+      --card:             oklch(1 0 0);
+      --border:           oklch(0.925 0.006 265);
+      --primary:          oklch(0.51 0.22 277);
+      --sidebar:          oklch(0.235 0.06 277);
+      --spectrum: linear-gradient(90deg,
+        oklch(0.51 0.22 277), oklch(0.56 0.22 300),
+        oklch(0.62 0.2 350), oklch(0.7 0.17 45));
+      --radius: 0.625rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background:       oklch(0.165 0.01 275);
+        --foreground:       oklch(0.96 0.005 265);
+        --muted-foreground: oklch(0.7 0.015 270);
+        --card:             oklch(0.205 0.012 275);
+        --border:           oklch(1 0 0 / 9%);
+        --primary:          oklch(0.72 0.15 277);
+        --sidebar:          oklch(0.19 0.045 277);
+      }
+    }
+
+    body {
+      font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      font-feature-settings: "cv11";
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--background);
+      color: var(--foreground);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1, h2 {
+      font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: -0.015em;
+    }
+
+    .band { height: 4px; background-image: var(--spectrum); }
+
+    /* ── Header ── */
+    header {
+      background: var(--sidebar);
+      padding: 1rem 1.5rem;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: oklch(0.99 0 0);
+      text-decoration: none;
+    }
+    .logo svg { width: 1.5rem; height: 1.5rem; }
+    .logo span { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.015em; }
+
+    /* ── Content ── */
+    main {
+      flex: 1;
+      padding: 3.5rem 1.5rem 5rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    article {
+      width: 100%;
+      max-width: 42rem;
+    }
+
+    .page-title {
+      font-size: clamp(1.75rem, 5vw, 2.5rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 0.5rem;
+    }
+
+    .last-updated {
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      margin-bottom: 2.5rem;
+    }
+
+    section { margin-bottom: 2.25rem; }
+
+    h2 {
+      font-size: 1.1875rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    p {
+      font-size: 0.9375rem;
+      color: var(--muted-foreground);
+      line-height: 1.75;
+      margin-bottom: 0.875rem;
+    }
+
+    p:last-child { margin-bottom: 0; }
+
+    ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 0.875rem;
+    }
+
+    li {
+      font-size: 0.9375rem;
+      color: var(--muted-foreground);
+      line-height: 1.65;
+      padding-left: 1.25rem;
+      position: relative;
+    }
+
+    li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.6em;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .highlight-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .highlight-box p {
+      margin-bottom: 0;
+      font-size: 0.875rem;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    a:hover { opacity: 0.75; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 1.375rem 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="band" aria-hidden="true"></div>
+
+  <header>
+    <a class="logo" href="/" aria-label="Prism home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M1 18.5 11.5 16" stroke="currentColor" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>
+        <path d="M14 4 25 26H3L14 4Z" fill="#6366f1" fill-opacity=".15" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>
+        <path d="m18.5 15 12-4" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+        <path d="m18.5 16.5 12 0" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+        <path d="m18.5 18 12 4" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Prism</span>
+    </a>
+  </header>
+
+  <main>
+    <article>
+      <h1 class="page-title">Privacy Policy</h1>
+      <p class="last-updated">Last updated: October 2026</p>
+
+      <section>
+        <h2>Overview</h2>
+        <p>Prism is a social media analytics app. This policy covers the Prism web application. We collect only what is needed to provide the service, and we never sell your data to third parties.</p>
+        <div class="highlight-box">
+          <p>Prism is open-source and self-hostable. If you run your own instance, this policy applies only to instances we operate. You are responsible for the data handling of your own server.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Your Account</h2>
+        <p>When you create an account and use Prism, we store:</p>
+        <ul>
+          <li>Your name, email address and a hashed version of your password</li>
+          <li>The workspaces you create or are invited to, and your role in each</li>
+          <li>The analyses you run and the report schedules you set up</li>
+        </ul>
+        <p>Passwords are hashed with a strong one-way algorithm and are never stored or transmitted in plain text.</p>
+      </section>
+
+      <section>
+        <h2>Connected Accounts</h2>
+        <p>When you connect a social media, analytics or mailing account (Facebook, Instagram, Twitter / X, LinkedIn, TikTok, Google Analytics, Mailchimp, Klaviyo or Brevo), you authorize Prism through that platform's own consent screen, or with an API key you provide. Prism then stores:</p>
+        <ul>
+          <li>The access and refresh tokens, or the API key, for that account, encrypted at rest and never returned by the API</li>
+          <li>The account's public profile information, such as its name and handle</li>
+          <li>Daily account metrics, such as followers, reach, views and engagements</li>
+          <li>Your posts and email campaigns, with their metrics, such as likes, comments, opens and clicks</li>
+        </ul>
+        <p>Prism only reads data. It never publishes, edits or deletes anything on your connected accounts, and it does not read private messages. Data obtained from a platform is used only to show you your own analytics and is handled according to that platform's terms for developers.</p>
+        <p>You can disconnect an account at any time from the Integrations page, which deletes its tokens and synced data from Prism and, where the platform allows it, revokes Prism's access there too. You can also revoke Prism's access from the platform's own settings.</p>
+      </section>
+
+      <section>
+        <h2>AI Insights and Reports</h2>
+        <p>When you generate an insight, a report or an analysis, the relevant metrics and post texts of your workspace are sent to an AI provider (OpenAI, Anthropic or Google, depending on the server configuration) to write it. On instances we operate, we use these providers under their standard API terms, which do not allow them to use submitted data to train their models.</p>
+      </section>
+
+      <section>
+        <h2>Emails</h2>
+        <p>We send email for password resets and for the scheduled reports you set up. Reports go only to the recipients a workspace owner or admin chooses.</p>
+      </section>
+
+      <section>
+        <h2>Cookies and Tracking</h2>
+        <p>The web application keeps your sign-in token in your browser's local storage. No advertising, analytics or third-party tracking cookies are used, on the app or on this site, and fonts are served from our own domain.</p>
+      </section>
+
+      <section>
+        <h2>Data Retention and Deletion</h2>
+        <p>Your data is kept for as long as your account exists. You can delete your account at any time from your settings, which permanently deletes your account and the data attached to it. A workspace's data is deleted with the workspace.</p>
+      </section>
+
+      <section>
+        <h2>Contact</h2>
+        <p>If you have questions about this policy or would like to request deletion of your data, you can reach us by opening an issue on the <a href="https://github.com/TheoGoudout/prism" rel="noopener noreferrer">GitHub repository</a>.</p>
+      </section>
+    </article>
+  </main>
+
+  <footer>
+    <p>&copy; <script>document.write(new Date().getFullYear())</script> Prism</p>
+  </footer>
+
+</body>
+</html>

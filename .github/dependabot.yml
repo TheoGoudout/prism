@@ -58,6 +58,7 @@ updates:
     directories:
       - /backend
       - /frontend
+      - /landing
     schedule:
       interval: weekly
     cooldown:

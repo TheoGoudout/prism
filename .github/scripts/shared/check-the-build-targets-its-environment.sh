@@ -8,22 +8,26 @@
 # not_found_handling. That is a green deploy of a site broken only at runtime,
 # so it is caught here, on the pull request.
 #
-#   PROJECT      frontend
+#   PROJECT      frontend | landing
 #   ENVIRONMENT  staging | production
-#   API_URL      optional: the environment's API_URL variable, which the build
-#                used instead of the committed file
+#   API_URL      optional: the environment's API_URL variable, which the
+#                frontend build used instead of the committed file
+#   APP_URL      optional: the environment's APP_URL variable, which the
+#                landing build used instead of the committed file
 set -euo pipefail
 
 case "$PROJECT" in
-  frontend) KEY=VITE_API_URL ;;
+  frontend) KEY=VITE_API_URL OVERRIDE_NAME=API_URL ;;
+  landing) KEY=FRONTEND_URL OVERRIDE_NAME=APP_URL ;;
   *) echo "::error::Unknown project '${PROJECT}'."; exit 1 ;;
 esac
 
 FILE="${PROJECT}/.env.${ENVIRONMENT}"
 URL=$(grep "^${KEY}=" "$FILE" | cut -d= -f2- | tr -d '"' || true)
-if [ -n "${API_URL:-}" ]; then
-  URL=$API_URL
-  FILE="the ${ENVIRONMENT} environment's API_URL variable"
+OVERRIDE=${!OVERRIDE_NAME:-}
+if [ -n "$OVERRIDE" ]; then
+  URL=$OVERRIDE
+  FILE="the ${ENVIRONMENT} environment's ${OVERRIDE_NAME} variable"
 fi
 
 if [ -z "$URL" ] || [[ "$URL" == *CHANGEME* ]] || [[ "$URL" != https://* ]]; then

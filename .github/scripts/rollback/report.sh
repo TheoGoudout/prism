@@ -14,7 +14,7 @@ set -euo pipefail
   echo
   echo "| Surface | Result |"
   echo "| --- | --- |"
-  echo "| Cloudflare (frontend) | ${CLOUDFLARE_RESULT} |"
+  echo "| Cloudflare (frontend + landing) | ${CLOUDFLARE_RESULT} |"
   echo "| Coolify (backend) | ${COOLIFY_RESULT} |"
   echo
   if [ "$CLOUDFLARE_RESULT" = "success" ] && [ "$COOLIFY_RESULT" != "success" ]; then

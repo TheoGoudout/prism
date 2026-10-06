@@ -149,7 +149,7 @@ repos:
         entry: bun scripts/set-version.mjs --check
         language: system
         pass_filenames: false
-        files: ^(backend/pyproject\.toml|uv\.lock|frontend/package\.json|bun\.lock|frontend/src/client/core/OpenAPI\.ts|scripts/set-version\.mjs)$
+        files: ^(backend/pyproject\.toml|uv\.lock|frontend/package\.json|landing/package\.json|bun\.lock|frontend/src/client/core/OpenAPI\.ts|scripts/set-version\.mjs)$
 
       # GitHub Actions security audit. Offline only: the online audits need a
       # token and network round-trips per action, which belongs in CI

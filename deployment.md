@@ -3,7 +3,8 @@
 Prism is deployed in two halves, to three environments, **dev**, **staging**
 and **production**:
 
-- **`frontend/`** is a static site on
+- **`frontend/`** (the app) and **`landing/`** (the landing page and privacy
+  policy) are static sites on
   [Cloudflare Workers](https://developers.cloudflare.com/workers/static-assets/),
   deployed by GitHub Actions.
 - **`backend/`**, the Celery worker and beat scheduler, Postgres and Redis run on
@@ -31,14 +32,16 @@ alone and a pre-release deploys nothing.
 
 | | Production | Staging | Dev | Hosted by |
 |---|---|---|---|---|
+| Landing | `https://prism.ai` (privacy policy at `/privacy`) | `https://staging.prism.ai` | `https://dev.prism.ai` | Cloudflare Workers |
 | Frontend | `https://app.prism.ai` | `https://app.staging.prism.ai` | `https://app.dev.prism.ai` | Cloudflare Workers |
 | API | `https://api.prism.ai` (docs at `/docs`) | `https://api.staging.prism.ai` | `https://api.dev.prism.ai` | Coolify |
 
 Each environment's URLs are written down in the repository, and nowhere else:
 
 1. `frontend/.env.<environment>`: the API URL built into that environment's
-   frontend (`VITE_API_URL`). `test-frontend.yml` builds all three on every
-   pull request and fails if a bundle does not reference its file's URL;
+   frontend (`VITE_API_URL`), and `landing/.env.<environment>`: the app URL its
+   landing page links to (`FRONTEND_URL`). `test-frontend.yml` builds all six
+   on every pull request and fails if a build does not reference its file's URL;
 2. `.github/scripts/deploy-coolify/resolve-ref-commit-and-version.sh` and
    `.github/scripts/deploy-cloudflare/verify-the-deployed-site.sh`: the hosts
    the deploy workflows check once they have deployed;
@@ -66,10 +69,10 @@ and production side by side for a release:
    then waits for its `/api/v1/utils/health-check/` to answer and
    checks `/api/v1/openapi.json` reports the released version (the
    `backend/pyproject.toml` version at the tag).
-3. **Frontend**: once the backend succeeded,
+3. **Frontend and landing**: once the backend succeeded,
    [`deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml) builds the
-   same tag for that environment, deploys it with wrangler and checks the
-   environment's frontend answers 200.
+   same tag for that environment, deploys both Workers with wrangler and checks
+   the environment's frontend and landing page answer 200.
 
 The API is upgraded before the clients that call it, and a backend that failed to
 deploy stops that environment's frontend. Pre-releases reach staging, never
@@ -154,7 +157,8 @@ in [Domains](#domains):
 | Variable | Overrides | Read by |
 |---|---|---|
 | `API_URL` | The API URL, e.g. `https://api.example.com` | the frontend build (instead of `VITE_API_URL` in `frontend/.env.<environment>`) and the backend deploy's health and version check |
-| `APP_URL` | The frontend URL, e.g. `https://app.example.com` | the frontend deploy's reachability check |
+| `APP_URL` | The frontend URL, e.g. `https://app.example.com` | the landing build (instead of `FRONTEND_URL` in `landing/.env.<environment>`) and the frontend deploy's reachability check |
+| `LANDING_URL` | The landing page URL, e.g. `https://example.com` | the landing deploy's reachability check |
 
 Both are build- and check-time only. The backend's own `FRONTEND_HOST` (CORS,
 links in emails) is still set on the Coolify application.
@@ -283,8 +287,8 @@ backend's domain) as the redirect URI in each platform's developer console
 image. `compose.override.yml`, which Coolify never reads, adds their `build:`
 sections back for local development.
 
-There is no reverse proxy (Coolify's handles routing and TLS), no frontend
-(Cloudflare) and no Adminer: use Coolify's terminal on the `db` container, or
+There is no reverse proxy (Coolify's handles routing and TLS), no frontend or
+landing page (Cloudflare) and no Adminer: use Coolify's terminal on the `db` container, or
 its database backups, instead. Every service has a memory cap so the OOM killer,
 if it ever fires, takes the misbehaving container rather than Postgres.
 
@@ -295,7 +299,7 @@ migrations.
 
 ---
 
-## Cloudflare Workers (frontend)
+## Cloudflare Workers (frontend and landing)
 
 ### API token
 
@@ -308,14 +312,18 @@ with a single account-scoped permission:
 | Account | Workers Scripts: Edit | Uploading the Worker and its static assets |
 
 No zone permission is needed, and the token should not carry one. That holds
-only because `frontend/wrangler.jsonc` declares no `routes`, see below.
+only because neither `frontend/wrangler.jsonc` nor `landing/wrangler.jsonc`
+declares `routes`, see below.
 
 ### Custom domain
 
 Each domain is bound by hand, once, in the Cloudflare dashboard: **Workers &
 Pages → prism-frontend → Settings → Domains & Routes → Add → Custom domain →
 `app.prism.ai`**, and the same for **prism-frontend-staging** →
-`app.staging.prism.ai` and **prism-frontend-dev** → `app.dev.prism.ai`. Cloudflare creates the DNS record and certificate. A
+`app.staging.prism.ai` and **prism-frontend-dev** → `app.dev.prism.ai`. The
+landing page is bound the same way: **prism-landing** → `prism.ai`,
+**prism-landing-staging** → `staging.prism.ai` and **prism-landing-dev** →
+`dev.prism.ai`. Cloudflare creates the DNS record and certificate. A
 Worker must exist first, so bind each after its first deploy.
 
 Declaring it in `wrangler.jsonc` instead would make wrangler reconcile the zone's
@@ -340,6 +348,14 @@ The API URL is baked in at build time from `frontend/.env.<environment>`
 (`bun run build:staging` / `build:production` pass Vite the mode). Those files
 hold public values only: anything in a `VITE_*` variable ends up in the bundle.
 
+The landing page is plain HTML with no Worker script.
+[`scripts/build-landing.mjs`](scripts/build-landing.mjs) copies it to
+`landing/dist/`, substituting `${FRONTEND_URL}` (the app its buttons link to)
+from `landing/.env.<environment>`. Locally, `compose.override.yml` serves the
+same files behind Nginx at <http://localhost:8081>, substituting it at
+container startup instead. The privacy policy at `/privacy` is the URL to give
+the platforms' developer consoles, which ask for one.
+
 ### Deploying by hand
 
 ```bash
@@ -349,13 +365,15 @@ cd frontend && bunx wrangler deploy --dry-run --env production   # validate, upl
 cd frontend && bun run deploy:production   # needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
 ```
 
-`.github/workflows/test-frontend.yml` runs the build and the dry run on every
-pull request that touches the frontend.
+The landing page is the same with `landing` in place of `frontend`.
+
+`.github/workflows/test-frontend.yml` runs the builds and the dry runs on every
+pull request that touches either project.
 
 ### Troubleshooting
 
 - **`Authentication error [code: 10000]` on `/zones/<id>/workers/routes`**:
-  something added a `routes` key to `frontend/wrangler.jsonc`. Remove it and
+  something added a `routes` key to a `wrangler.jsonc`. Remove it and
   bind the domain in the dashboard.
 - **The deploy succeeded but the site is unchanged**: the domain is bound to
   another Worker, or not bound at all. Check it in the dashboard.
@@ -421,3 +439,8 @@ builds' preview deployments for non-`master` branches off unless you want them.
 A Worker has to exist before it can be connected: create it with one manual
 deploy first (`bun run --filter frontend build:dev && cd frontend && bun run
 deploy:dev`), then bind `app.dev.prism.ai` to it.
+
+The landing page is a second Worker, `prism-landing-dev`, connected the same
+way with build command `bun install --frozen-lockfile && bun run --filter
+landing build:dev`, deploy command `cd landing && bunx wrangler deploy --env
+dev`, and domain `dev.prism.ai`. Its app URL comes from `landing/.env.dev`.

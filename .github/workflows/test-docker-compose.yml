@@ -6,7 +6,7 @@ name: Test Docker Compose
 #            fed the SERVICE_* variables Coolify would generate. Nothing else
 #            exercises this file before a release reaches it.
 #   dev      `compose.yml` + `compose.override.yml` — the local stack, with the
-#            frontend and Adminer.
+#            frontend, the landing page and Adminer.
 
 on:
   push:
@@ -85,11 +85,13 @@ jobs:
       - name: Build
         run: docker compose build
       - name: Start the stack
-        run: docker compose up -d --wait --wait-timeout 300 backend frontend adminer
+        run: docker compose up -d --wait --wait-timeout 300 backend frontend landing adminer
       - name: Test backend is up
         run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 http://localhost:8000/api/v1/utils/health-check/
       - name: Test frontend is up
         run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 -o /dev/null http://localhost:5173
+      - name: Test landing is up
+        run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 -o /dev/null http://localhost:8081
       - name: Test Adminer is up
         run: curl -fsS --retry 5 --retry-all-errors --retry-delay 3 -o /dev/null http://localhost:8080
       - name: Show the logs

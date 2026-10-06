@@ -18,6 +18,7 @@ docker compose watch
 | URL | Service |
 |-----|---------|
 | <http://localhost:5173> | Frontend |
+| <http://localhost:8081> | Landing page (`landing/`) |
 | <http://localhost:8000/docs> | API and interactive docs |
 | <http://localhost:8080> | Adminer (database admin) |
 | <http://localhost:1080> | MailCatcher: every email the backend sends |

@@ -5,8 +5,8 @@
 #   - maps the values from your .env onto the variables compose.yml takes from
 #     Coolify's magic SERVICE_* variables, which do not exist locally;
 #   - publishes ports and enables live reload;
-#   - adds the services that only exist locally: the frontend (Cloudflare in
-#     production), Adminer, MailCatcher and Playwright.
+#   - adds the services that only exist locally: the frontend and the landing
+#     page (Cloudflare in production), Adminer, MailCatcher and Playwright.
 
 x-local-backend-env: &local-backend-env
   ENVIRONMENT: ${ENVIRONMENT:-local}
@@ -129,6 +129,38 @@ services:
       args:
         - VITE_API_URL=http://localhost:8000
         - NODE_ENV=development
+
+  # Production serves the landing page from Cloudflare Workers
+  # (landing/wrangler.jsonc, built by scripts/build-landing.mjs); locally it is
+  # the same files behind Nginx, with FRONTEND_URL substituted at startup.
+  landing:
+    restart: "no"
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+    build:
+      context: .
+      dockerfile: landing/Dockerfile
+    environment:
+      FRONTEND_URL: ${FRONTEND_HOST:-http://localhost:5173}
+    develop:
+      watch:
+        - path: ./landing/index.html
+          action: sync+restart
+          target: /usr/share/nginx/html/index.html.template
+        - path: ./landing/privacy.html
+          action: sync
+          target: /usr/share/nginx/html/privacy.html
+        - path: ./landing/nginx.conf
+          action: sync+restart
+          target: /etc/nginx/conf.d/default.conf
+        - path: ./landing/docker-entrypoint.sh
+          action: rebuild
 
   playwright:
     build:
