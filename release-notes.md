@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.10 (2026-10-06)
+
+### Features
+
+* Add a landing page. PR [#74](https://github.com/TheoGoudout/prism/pull/74) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.9 (2026-10-06)
 
 ### Features
