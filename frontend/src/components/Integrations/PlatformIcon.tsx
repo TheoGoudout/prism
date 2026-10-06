@@ -9,6 +9,9 @@ const PLATFORM_MARKS: Record<Platform, { color: string; text: string }> = {
   linkedin: { color: "#0a66c2", text: "in" },
   tiktok: { color: "#ff0050", text: "TT" },
   google_analytics: { color: "#e37400", text: "GA" },
+  mailchimp: { color: "#241c15", text: "MC" },
+  klaviyo: { color: "#232426", text: "K" },
+  brevo: { color: "#0b996e", text: "B" },
 }
 
 /** A small tile identifying a platform, in its brand colour. */

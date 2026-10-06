@@ -1,6 +1,8 @@
+import logging
 import uuid
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import crud
@@ -11,11 +13,14 @@ from app.api.deps import (
     require_manager,
 )
 from app.api.routes.oauth import redirect_uri
+from app.integrations.apikey.base import InvalidApiKeyError
 from app.integrations.oauth import registry
 from app.integrations.oauth.base import OAuthState, generate_pkce_pair
 from app.integrations.revocation import revoke_access
 from app.models.integration import (
+    ApiKeyConnect,
     Integration,
+    IntegrationCreate,
     IntegrationPublic,
     OAuthConnectResponse,
     Platform,
@@ -24,6 +29,8 @@ from app.models.integration import (
 )
 from app.models.workspace import WorkspaceMember
 from app.worker.tasks import sync as sync_tasks
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/workspaces/{workspace_id}/integrations", tags=["integrations"]
@@ -72,6 +79,11 @@ def connect(platform: Platform, member: CurrentMember) -> Any:
     """
     require_manager(member, "connect integrations")
     _require_available(platform)
+    if registry.uses_api_key(platform):
+        raise HTTPException(
+            status_code=400,
+            detail=f"The {platform.value} integration is connected with an API key",
+        )
     provider = registry.get_provider(platform)
 
     verifier, challenge = generate_pkce_pair() if provider.USES_PKCE else (None, None)
@@ -85,6 +97,59 @@ def connect(platform: Platform, member: CurrentMember) -> Any:
         redirect_uri=redirect_uri(platform), state=state, code_challenge=challenge
     )
     return OAuthConnectResponse(authorization_url=auth_url)
+
+
+@router.post("/connect/{platform}/api-key", response_model=IntegrationPublic)
+def connect_with_api_key(
+    session: SessionDep,
+    member: CurrentMember,
+    platform: Platform,
+    connect_in: ApiKeyConnect,
+) -> Any:
+    """
+    Connect a platform that is authorized with an API key (e.g. Brevo): the
+    key is checked with the platform, then stored encrypted. Connecting the
+    same account again replaces its key.
+    """
+    require_manager(member, "connect integrations")
+    if not registry.uses_api_key(platform):
+        raise HTTPException(
+            status_code=400,
+            detail=f"The {platform.value} integration is connected with OAuth",
+        )
+    api_key = connect_in.api_key.strip()
+    provider = registry.get_api_key_provider(platform)
+    try:
+        account = provider.get_account_info(api_key)
+    except InvalidApiKeyError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{platform.value.capitalize()} rejected this API key",
+        ) from None
+    except httpx.HTTPError:
+        logger.exception("Could not check the %s API key", platform.value)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not reach {platform.value.capitalize()}, try again",
+        ) from None
+
+    integration = crud.upsert_integration(
+        session=session,
+        integration_in=IntegrationCreate(
+            platform=platform,
+            workspace_id=member.workspace_id,
+            access_token=api_key,
+            external_account_id=account.external_id,
+            external_account_name=account.name,
+            external_account_avatar=account.avatar_url,
+        ),
+    )
+    # Pull data right away rather than waiting for the nightly sync
+    try:
+        sync_tasks.sync_integration.delay(str(integration.id))
+    except Exception:
+        logger.warning("Could not enqueue initial sync for %s", integration.id)
+    return integration
 
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)

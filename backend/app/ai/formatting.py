@@ -10,7 +10,10 @@ from app.services.metrics import MetricsQuery
 # How the cross-platform metrics are defined, for the model's benefit
 METRIC_DEFINITIONS = """\
 - exposures: views, or impressions where a platform only reports impressions
-- engagements: likes + comments + shares + saves (engaged sessions for websites)
+- engagements: likes + comments + shares + saves (engaged sessions for websites,
+  unique clicks for email campaigns)
+- for email campaigns (mailing platforms): impressions are emails delivered,
+  views are unique opens, and followers are a mailing list's subscribers
 - engagement_rate: engagements / exposures
 - reach: unique people per day, summed over the days (not deduplicated)
 - followers_growth: net change in followers over the period

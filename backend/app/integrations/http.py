@@ -41,13 +41,14 @@ def post_json(
     token: str | None = None,
     body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """POST a JSON body (with a Bearer token if given); raise on HTTP errors."""
     resp = httpx.post(
         url,
         json=body,
         params=params,
-        headers=_headers(token, None),
+        headers=_headers(token, headers),
         timeout=_TIMEOUT_SECONDS,
     )
     return _json(resp)

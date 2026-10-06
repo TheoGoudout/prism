@@ -441,4 +441,180 @@ export const CONNECTION_GUIDES: Record<Platform, ConnectionGuide> = {
       href: "https://support.google.com/analytics/answer/9305788",
     },
   },
+
+  mailchimp: {
+    summary:
+      "Connect your Mailchimp audiences: subscribers, and the opens and clicks of every campaign.",
+    beforeYouStart: [
+      <>
+        A Mailchimp login of the account that sends your newsletters (the{" "}
+        <strong>Manager</strong> or <strong>Admin</strong> level is enough).
+      </>,
+      <>About 1 minute.</>,
+    ],
+    steps: [
+      openMenuStep("mailchimp", "Mailchimp"),
+      {
+        title: "Log in to Mailchimp",
+        body: (
+          <>
+            Mailchimp asks you to log in. Use the login of the account that
+            sends your newsletters. If you have several Mailchimp accounts,
+            choose the right one.
+          </>
+        ),
+      },
+      {
+        title: "Allow access",
+        body: (
+          <>
+            Click <strong>Allow</strong>. Prism only reads your audiences and
+            campaign reports; it never sends emails or changes your lists.
+          </>
+        ),
+      },
+      doneStep("mailchimp", "Mailchimp"),
+    ],
+    troubleshooting: [
+      <>
+        <strong>A campaign is missing?</strong> Prism shows campaigns once they
+        are sent, in the audience they were sent to. Campaigns of an audience
+        you deleted are not shown.
+      </>,
+      <>
+        <strong>Too many audiences?</strong> Click the number of audiences under
+        the account name to hide the ones you don't want in your dashboards.
+      </>,
+      RECONNECT_TIP,
+    ],
+    helpLink: {
+      label: "Mailchimp Help: user levels",
+      href: "https://mailchimp.com/help/manage-user-levels-in-your-account/",
+    },
+  },
+
+  klaviyo: {
+    summary:
+      "Connect your Klaviyo account: the deliveries, opens and clicks of every email campaign.",
+    beforeYouStart: [
+      <>
+        A Klaviyo user of the account with at least the <strong>Analyst</strong>{" "}
+        role, and allowed to install apps (an <strong>Owner</strong>,{" "}
+        <strong>Admin</strong> or <strong>Manager</strong> can).
+      </>,
+      <>About 1 minute.</>,
+    ],
+    steps: [
+      openMenuStep("klaviyo", "Klaviyo"),
+      {
+        title: "Log in to Klaviyo",
+        body: (
+          <>
+            Klaviyo asks you to log in. If you manage several Klaviyo accounts,
+            choose the one of your brand.
+          </>
+        ),
+      },
+      {
+        title: "Allow access",
+        body: (
+          <>
+            Klaviyo lists what Prism will be able to read (account, campaigns,
+            lists and metrics). Click <strong>Allow</strong>. Prism never sends
+            emails or changes anything in Klaviyo.
+          </>
+        ),
+      },
+      doneStep("klaviyo", "Klaviyo"),
+    ],
+    troubleshooting: [
+      <>
+        <strong>A campaign is missing?</strong> Prism shows email campaigns once
+        they are sent. Flows (automated emails) and SMS are not included.
+      </>,
+      RECONNECT_TIP,
+    ],
+    helpLink: {
+      label: "Klaviyo Help: user roles",
+      href: "https://help.klaviyo.com/hc/en-us/articles/115005231648",
+    },
+  },
+
+  brevo: {
+    summary:
+      "Connect your Brevo (formerly Sendinblue) contact lists and email campaigns, with an API key.",
+    beforeYouStart: [
+      <>
+        A Brevo login that can create API keys: in Brevo, that is the account
+        owner or a user with the <strong>API keys</strong> permission.
+      </>,
+      <>About 2 minutes.</>,
+    ],
+    steps: [
+      {
+        title: "Choose Brevo in Prism",
+        body: (
+          <>
+            On this page, click the <strong>Connect platform</strong> button
+            (top right), then click <strong>Brevo</strong> in the list. A window
+            opens, asking for an API key.
+          </>
+        ),
+        image: {
+          src: `${SCREENSHOTS}/brevo-menu.png`,
+          alt: 'The "Connect platform" menu open, with Brevo highlighted',
+        },
+      },
+      {
+        title: "Create an API key in Brevo",
+        body: (
+          <>
+            In another tab, log in to Brevo and open the{" "}
+            <strong>API keys</strong> page (the window's{" "}
+            <strong>Open the Brevo API keys</strong> link goes straight there).
+            Click <strong>Generate a new API key</strong>, name it{" "}
+            <strong>Prism</strong> and click <strong>Generate</strong>. Copy the
+            key: Brevo shows it only once.
+          </>
+        ),
+      },
+      {
+        title: "Paste the key in Prism",
+        body: (
+          <>
+            Back in Prism, paste the key in the <strong>API key</strong> box and
+            click <strong>Connect</strong>. Brevo now shows in{" "}
+            <strong>Connected accounts</strong> with the status{" "}
+            <strong>active</strong>. Your first numbers usually appear within a
+            few minutes, and they are refreshed automatically every night.
+          </>
+        ),
+        image: {
+          src: `${SCREENSHOTS}/brevo-connected.png`,
+          alt: 'Brevo listed in Connected accounts with the status "active"',
+        },
+      },
+    ],
+    troubleshooting: [
+      <>
+        <strong>"Brevo rejected this API key"?</strong> Check that you copied
+        the whole key (it starts with <strong>xkeysib-</strong>), not an SMTP
+        key. If your Brevo account restricts API access by IP address, ask the
+        person who set up Prism for the server's address to allow.
+      </>,
+      <>
+        <strong>The status shows expired?</strong> The key was deleted in Brevo.
+        Create a new one, then click <strong>Reconnect</strong> and paste it.
+        Your data is kept.
+      </>,
+      <>
+        <strong>To disconnect Prism for good</strong>, also delete its key in
+        Brevo's <strong>API keys</strong> tab.
+      </>,
+    ],
+    helpLink: {
+      label: "Brevo Help: create an API key",
+      href: "https://help.brevo.com/hc/en-us/articles/209467485",
+    },
+  },
 }

@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     TIKTOK_CLIENT_SECRET: str = ""
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    MAILCHIMP_CLIENT_ID: str = ""
+    MAILCHIMP_CLIENT_SECRET: str = ""
+    KLAVIYO_CLIENT_ID: str = ""
+    KLAVIYO_CLIENT_SECRET: str = ""
 
     # Base URL used to construct OAuth2 redirect URIs
     API_BASE_URL: str = "http://localhost:8000"

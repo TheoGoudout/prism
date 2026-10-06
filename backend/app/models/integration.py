@@ -20,6 +20,9 @@ class Platform(StrEnum):
     linkedin = "linkedin"
     tiktok = "tiktok"
     google_analytics = "google_analytics"
+    mailchimp = "mailchimp"
+    klaviyo = "klaviyo"
+    brevo = "brevo"
 
 
 class IntegrationStatus(StrEnum):
@@ -35,7 +38,10 @@ class IntegrationStatus(StrEnum):
 
 
 class Integration(SQLModel, table=True):
-    """One OAuth connection between a workspace and a social platform."""
+    """
+    One connection between a workspace and a platform: through OAuth, or an
+    API key for the platforms without OAuth (stored as the access token).
+    """
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: uuid.UUID = Field(
@@ -44,7 +50,7 @@ class Integration(SQLModel, table=True):
     platform: Platform
     status: IntegrationStatus = Field(default=IntegrationStatus.active)
 
-    # Encrypted OAuth tokens — never exposed via the API
+    # Encrypted OAuth tokens (or API key) — never exposed via the API
     access_token_encrypted: str | None = Field(default=None)
     refresh_token_encrypted: str | None = Field(default=None)
     token_expires_at: datetime | None = Field(
@@ -173,6 +179,12 @@ class IntegrationCreate(SQLModel):
     external_account_id: str
     external_account_name: str
     external_account_avatar: str | None = None
+
+
+class ApiKeyConnect(SQLModel):
+    """Connect a platform that is authorized with an API key, not OAuth."""
+
+    api_key: str = Field(min_length=1, max_length=512)
 
 
 class OAuthConnectResponse(SQLModel):

@@ -86,6 +86,13 @@ export type AnalyzedPost = {
     engagement_rate?: (number | null);
 };
 
+/**
+ * Connect a platform that is authorized with an API key, not OAuth.
+ */
+export type ApiKeyConnect = {
+    api_key: string;
+};
+
 export type Body_login_login_access_token = {
     grant_type?: (string | null);
     username: string;
@@ -107,7 +114,7 @@ export type Body_migrate_upload_export = {
     export_format?: (ExportFormat | null);
 };
 
-export type ContentType = 'post' | 'reel' | 'story' | 'video' | 'tweet' | 'article' | 'short';
+export type ContentType = 'post' | 'reel' | 'story' | 'video' | 'tweet' | 'article' | 'short' | 'email';
 
 /**
  * What a file holds: one row per post, or one row per day for the account.
@@ -262,7 +269,7 @@ export type PeriodAnalysis = {
 
 export type verdict = 'strong' | 'average' | 'weak';
 
-export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics';
+export type Platform = 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'google_analytics' | 'mailchimp' | 'klaviyo' | 'brevo';
 
 export type PlatformAccountPublic = {
     id: string;
@@ -702,6 +709,14 @@ export type IntegrationsConnectData = {
 };
 
 export type IntegrationsConnectResponse = (OAuthConnectResponse);
+
+export type IntegrationsConnectWithApiKeyData = {
+    platform: Platform;
+    requestBody: ApiKeyConnect;
+    workspaceId: string;
+};
+
+export type IntegrationsConnectWithApiKeyResponse = (IntegrationPublic);
 
 export type IntegrationsDeleteIntegrationData = {
     integrationId: string;

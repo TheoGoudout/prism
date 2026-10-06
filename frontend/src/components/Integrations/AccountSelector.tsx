@@ -19,6 +19,8 @@ const ACCOUNT_NOUNS: Partial<Record<Platform, [string, string]>> = {
   facebook: ["Page", "Pages"],
   linkedin: ["Page", "Pages"],
   google_analytics: ["property", "properties"],
+  mailchimp: ["audience", "audiences"],
+  brevo: ["list", "lists"],
 }
 
 function accountNoun(platform: Platform, count: number) {

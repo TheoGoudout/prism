@@ -187,6 +187,41 @@ test.describe("Integrations", () => {
     await expect(page.getByRole("tab", { name: "Facebook" })).toBeVisible()
   })
 
+  test("Owners connect Brevo by pasting an API key", async ({ page }) => {
+    let sentKey: string | null = null
+    await page.route("**/integrations/connect/brevo/api-key", (route) => {
+      sentKey = route.request().postDataJSON().api_key
+      return route.fulfill({
+        json: {
+          id: "00000000-0000-0000-0000-000000000001",
+          workspace_id: "00000000-0000-0000-0000-000000000002",
+          platform: "brevo",
+          status: "active",
+          external_account_id: "org-1",
+          external_account_name: "Acme",
+          accounts: [],
+        },
+      })
+    })
+    const { email, password } = await newUser()
+    await logInUser(page, email, password)
+
+    await page.goto("/integrations")
+    await page.getByRole("button", { name: "Connect platform" }).click()
+    await page.getByRole("menuitem", { name: "Brevo" }).click()
+
+    const dialog = page.getByRole("dialog", { name: "Connect Brevo" })
+    await expect(dialog).toBeVisible()
+    const connect = dialog.getByRole("button", { name: "Connect" })
+    await expect(connect).toBeDisabled()
+    await dialog.getByLabel("API key").fill("xkeysib-test")
+    await connect.click()
+
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByText("Platform connected")).toBeVisible()
+    expect(sentKey).toBe("xkeysib-test")
+  })
+
   test("Owners are told when no platform is set up", async ({ page }) => {
     await page.route("**/integrations/platforms", (route) =>
       route.fulfill({ json: [] }),
