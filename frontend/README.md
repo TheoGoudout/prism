@@ -29,17 +29,20 @@ src/
 │   ├── Analytics/     # KPI table, trend chart, AI insights
 │   ├── Integrations/  # connect menu, account rows, sync button, platform icons
 │   ├── Workspaces/    # onboarding, workspace settings, members
-│   ├── Common/        # shared building blocks (layouts, KPI cards, …)
+│   ├── Common/        # shared building blocks: form fields, page header,
+│   │                  # auth form, dialogs' cancel button, KPI cards, …
 │   └── ui/            # shadcn/ui primitives
 ├── contexts/      # WorkspaceContext: the selected workspace
 ├── hooks/         # data hooks (useIntegrations, useMetrics, useAuth, …)
-├── lib/           # formatting and platform helpers
+├── lib/           # formatting, dates, validation rules, access token,
+│                  # route helpers, background job polling, platforms
 └── client/        # generated API client (do not edit)
 ```
 
 Pages read the current workspace with `useCurrentWorkspace()` and fetch data
 through the hooks in `hooks/`, which wrap the generated client in TanStack
-Query.
+Query. Forms use the fields of `components/Common/FormFields.tsx` with the
+rules of `lib/validation.ts`; buttons running an action are `LoadingButton`s.
 
 ## API client
 
