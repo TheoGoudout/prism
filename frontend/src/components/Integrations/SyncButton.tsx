@@ -1,7 +1,7 @@
-import { Loader2, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 
 import type { IntegrationPublic } from "@/client"
-import { Button } from "@/components/ui/button"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { useSyncIntegration } from "@/hooks/useIntegrations"
 import { needsReconnect, platformLabel } from "@/lib/platforms"
 
@@ -14,20 +14,16 @@ export function SyncButton({
 }) {
   const sync = useSyncIntegration(integration)
   return (
-    <Button
+    <LoadingButton
       variant="ghost"
       size="icon"
       className={className}
+      icon={RefreshCw}
+      loading={sync.isPending}
       onClick={() => sync.mutate()}
-      disabled={sync.isPending || needsReconnect(integration.status)}
+      disabled={needsReconnect(integration.status)}
       title="Sync now"
       aria-label={`Sync ${platformLabel(integration.platform)} now`}
-    >
-      {sync.isPending ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <RefreshCw className="size-4" />
-      )}
-    </Button>
+    />
   )
 }

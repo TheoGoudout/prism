@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { PageHeader } from "@/components/Common/PageHeader"
 import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
 import UserInformation from "@/components/UserSettings/UserInformation"
@@ -8,6 +9,7 @@ import WorkspaceGeneral from "@/components/Workspaces/WorkspaceGeneral"
 import WorkspaceMembers from "@/components/Workspaces/WorkspaceMembers"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useAuth from "@/hooks/useAuth"
+import { pageHead } from "@/lib/routing"
 
 const userTabs = [
   { value: "my-profile", title: "My profile", component: UserInformation },
@@ -25,13 +27,7 @@ export const Route = createFileRoute("/_layout/settings")({
   validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
     tab: typeof search.tab === "string" ? search.tab : undefined,
   }),
-  head: () => ({
-    meta: [
-      {
-        title: "Settings - Prism",
-      },
-    ],
-  }),
+  head: pageHead("Settings"),
 })
 
 function Settings() {
@@ -55,12 +51,10 @@ function Settings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account and the {workspace.name} workspace
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description={`Manage your account and the ${workspace.name} workspace`}
+      />
 
       <Tabs
         value={activeTab}

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { Link2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 
+import { PageHeader } from "@/components/Common/PageHeader"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { ConnectionGuides } from "@/components/Integrations/ConnectionGuides"
 import { ConnectPlatformMenu } from "@/components/Integrations/ConnectPlatformMenu"
@@ -23,6 +24,7 @@ import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { useAvailablePlatforms, useIntegrations } from "@/hooks/useIntegrations"
+import { pageHead } from "@/lib/routing"
 
 // Set by the backend's OAuth callback when it redirects back here
 interface OAuthResult {
@@ -37,9 +39,7 @@ export const Route = createFileRoute("/_layout/integrations")({
     connected: String(search.connected) === "1" ? "1" : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
   }),
-  head: () => ({
-    meta: [{ title: "Integrations - Prism" }],
-  }),
+  head: pageHead("Integrations"),
 })
 
 // Error codes set by the OAuth callback. Unknown codes (e.g. a provider's own
@@ -98,28 +98,28 @@ function IntegrationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Integrations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{workspace.name}</p>
-        </div>
-        {editable && (
-          <div className="flex flex-wrap justify-end gap-2">
-            {integrations.length > 0 && (
-              <MigrateMenu
-                openSource={migrate.openSource}
-                openUpload={migrate.openUpload}
-              />
-            )}
-            {available && (
-              <ConnectPlatformMenu
-                available={available}
-                connected={new Set(integrations.map((i) => i.platform))}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Integrations"
+        description={workspace.name}
+        actions={
+          editable && (
+            <>
+              {integrations.length > 0 && (
+                <MigrateMenu
+                  openSource={migrate.openSource}
+                  openUpload={migrate.openUpload}
+                />
+              )}
+              {available && (
+                <ConnectPlatformMenu
+                  available={available}
+                  connected={new Set(integrations.map((i) => i.platform))}
+                />
+              )}
+            </>
+          )
+        }
+      />
 
       <Card>
         <CardHeader>

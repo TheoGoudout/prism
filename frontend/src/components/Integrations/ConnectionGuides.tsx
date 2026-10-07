@@ -1,7 +1,6 @@
-import { BookOpen, Loader2, Plug } from "lucide-react"
+import { BookOpen, Plug } from "lucide-react"
 
 import type { Platform } from "@/client"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -9,9 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useConnectPlatform } from "@/hooks/useIntegrations"
 import { PLATFORM_LABELS } from "@/lib/platforms"
+import { usePlatformConnector } from "./ApiKeyConnectDialog"
 import { GuideBody } from "./GuideBody"
 import {
   CONNECTION_GUIDES,
@@ -83,21 +83,24 @@ function Guide({
   editable: boolean
 }) {
   const label = PLATFORM_LABELS[platform]
-  const { connect, pending } = useConnectPlatform()
+  // OAuth, or the API key dialog for the platforms without OAuth (Brevo)
+  const { connect, pending, dialog } = usePlatformConnector()
 
   return (
     <GuideBody
       guide={guide}
       action={
         editable ? (
-          <Button onClick={() => connect(platform)} disabled={pending !== null}>
-            {pending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plug className="size-4" />
-            )}
-            Connect {label} now
-          </Button>
+          <>
+            <LoadingButton
+              icon={Plug}
+              loading={pending !== null}
+              onClick={() => connect(platform)}
+            >
+              Connect {label} now
+            </LoadingButton>
+            {dialog}
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">
             Only workspace owners and admins can connect platforms. Send this

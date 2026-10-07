@@ -11,7 +11,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { NoWorkspace } from "@/components/Workspaces/NoWorkspace"
 import { useWorkspace, WorkspaceProvider } from "@/contexts/WorkspaceContext"
-import { isLoggedIn } from "@/hooks/useAuth"
+import { isLoggedIn } from "@/lib/auth"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,

@@ -1,4 +1,6 @@
-import { format, formatDistanceToNow, subDays } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+
+import { shiftDay, today } from "./comparison"
 
 /** Compact number for dashboards: 1234 → "1.2K"; missing → "—". */
 export function formatCompact(n: number | null | undefined): string {
@@ -40,9 +42,10 @@ export interface DateRange {
 
 /** The last `days` days, today included. */
 export function lastDays(days: number): DateRange {
-  const today = new Date()
-  return {
-    dateFrom: format(subDays(today, days - 1), "yyyy-MM-dd"),
-    dateTo: format(today, "yyyy-MM-dd"),
-  }
+  const dateTo = today()
+  return { dateFrom: shiftDay(dateTo, -(days - 1)), dateTo }
 }
+
+/** "1 post", "3 posts". */
+export const plural = (count: number, noun: string) =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`

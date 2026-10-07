@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { WorkspacesService } from "@/client"
+import { TextField } from "@/components/Common/FormFields"
 import {
   Form,
   FormControl,
@@ -12,7 +13,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import {
   Select,
@@ -65,22 +65,13 @@ export function AddMemberForm() {
         onSubmit={form.handleSubmit((d) => mutation.mutate(d))}
         className="flex flex-col gap-3 sm:flex-row sm:items-end"
       >
-        <FormField
+        <TextField
           control={form.control}
           name="email"
-          render={({ field }) => (
-            <FormItem className="flex-1">
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  placeholder="teammate@example.com"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          label="Email"
+          type="email"
+          placeholder="teammate@example.com"
+          className="flex-1"
         />
         <FormField
           control={form.control}

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { BarChart2, Link2 } from "lucide-react"
-
 import { KpiCards } from "@/components/Common/KpiCards"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { IntegrationStatusBadge } from "@/components/Integrations/IntegrationStatusBadge"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
@@ -15,12 +15,11 @@ import { useIntegrations } from "@/hooks/useIntegrations"
 import { useMetricsSummary } from "@/hooks/useMetrics"
 import { lastDays } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
+import { pageHead } from "@/lib/routing"
 
 export const Route = createFileRoute("/_layout/")({
   component: Dashboard,
-  head: () => ({
-    meta: [{ title: "Dashboard - Prism" }],
-  }),
+  head: pageHead("Dashboard"),
 })
 
 function Dashboard() {
@@ -32,10 +31,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{workspace.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Last 7 days</p>
-      </div>
+      <PageHeader title={workspace.name} description="Last 7 days" />
 
       <KpiCards
         className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"

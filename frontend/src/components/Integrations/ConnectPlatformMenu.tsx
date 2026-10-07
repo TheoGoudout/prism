@@ -1,13 +1,13 @@
-import { Loader2, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import type { Platform } from "@/client"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { PLATFORM_LABELS } from "@/lib/platforms"
 import { usePlatformConnector } from "./ApiKeyConnectDialog"
 import { PlatformIcon } from "./PlatformIcon"
@@ -28,14 +28,9 @@ export function ConnectPlatformMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button disabled={pending !== null}>
-            {pending ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Plus className="mr-2 size-4" />
-            )}
+          <LoadingButton icon={Plus} loading={pending !== null}>
             Connect platform
-          </Button>
+          </LoadingButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {available.length === 0 && (

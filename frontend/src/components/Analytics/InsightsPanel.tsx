@@ -1,17 +1,11 @@
 import { useMutation } from "@tanstack/react-query"
-import {
-  Download,
-  Loader2,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react"
+import { Download, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 
 import type { Insight } from "@/client"
 import { AiService } from "@/client"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { useMetricsParams } from "@/hooks/useMetrics"
 import type { DateRange } from "@/lib/format"
 
@@ -61,32 +55,26 @@ export function InsightsPanel({ range }: { range: DateRange }) {
           AI Insights
         </CardTitle>
         <div className="flex gap-2">
-          <Button
+          <LoadingButton
             variant="outline"
             size="sm"
+            icon={Sparkles}
+            loading={insights.isPending}
+            disabled={busy}
             onClick={() => insights.mutate()}
-            disabled={busy}
           >
-            {insights.isPending ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 size-4" />
-            )}
             Generate insights
-          </Button>
-          <Button
+          </LoadingButton>
+          <LoadingButton
             variant="outline"
             size="sm"
-            onClick={() => report.mutate()}
+            icon={Download}
+            loading={report.isPending}
             disabled={busy}
+            onClick={() => report.mutate()}
           >
-            {report.isPending ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 size-4" />
-            )}
             Download report
-          </Button>
+          </LoadingButton>
         </div>
       </CardHeader>
       <CardContent>

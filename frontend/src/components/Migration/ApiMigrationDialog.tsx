@@ -1,17 +1,18 @@
-import { format, subYears } from "date-fns"
-import { ArrowLeft, ArrowRightLeft, ExternalLink, Search } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { subYears } from "date-fns"
+import { ArrowLeft, ArrowRightLeft, Search } from "lucide-react"
+import { useState } from "react"
 
 import type {
   MigrationSource,
   PlatformAccountPublic,
   RemoteProfile,
 } from "@/client"
+import { CancelButton } from "@/components/Common/CancelButton"
+import { ExternalLink } from "@/components/Common/ExternalLink"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -34,6 +35,8 @@ import {
   useSourceProfiles,
   useStartMigration,
 } from "@/hooks/useMigrations"
+import { toDay } from "@/lib/comparison"
+import { plural } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
 import { SOURCES } from "./sources"
 
@@ -97,7 +100,7 @@ export function ApiMigrationDialog({
           remote_profile_id: remote,
           platform_account_id: account,
         })),
-        date_from: format(subYears(new Date(), Number(years)), "yyyy-MM-dd"),
+        date_from: toDay(subYears(new Date(), Number(years))),
       },
       {
         // The menu mounts a fresh dialog each time it opens
@@ -132,12 +135,10 @@ export function ApiMigrationDialog({
             </ol>
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span className="text-muted-foreground">{info.requirement}</span>
-              <ExternalAnchor href={info.appUrl}>
-                Open {info.label}
-              </ExternalAnchor>
-              <ExternalAnchor href={info.docs.href}>
+              <ExternalLink href={info.appUrl}>Open {info.label}</ExternalLink>
+              <ExternalLink href={info.docs.href}>
                 {info.docs.label}
-              </ExternalAnchor>
+              </ExternalLink>
             </p>
             <div className="flex flex-col gap-2">
               <Label htmlFor="migration-token">API token</Label>
@@ -180,17 +181,13 @@ export function ApiMigrationDialog({
               encrypted while it runs, then deleted.
             </p>
             <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" type="button">
-                  Cancel
-                </Button>
-              </DialogClose>
+              <CancelButton />
               <LoadingButton
+                icon={Search}
                 type="submit"
                 loading={profilesMut.isPending}
                 disabled={!canSearch}
               >
-                <Search />
                 Find profiles
               </LoadingButton>
             </DialogFooter>
@@ -248,15 +245,12 @@ export function ApiMigrationDialog({
                 Back
               </Button>
               <LoadingButton
+                icon={ArrowRightLeft}
                 loading={startMut.isPending}
                 disabled={selected.length === 0}
                 onClick={start}
               >
-                <ArrowRightLeft />
-                Migrate{" "}
-                {selected.length === 1
-                  ? "1 profile"
-                  : `${selected.length} profiles`}
+                Migrate {plural(selected.length, "profile")}
               </LoadingButton>
             </DialogFooter>
           </div>
@@ -318,25 +312,5 @@ function ProfileRow({
         </span>
       )}
     </li>
-  )
-}
-
-function ExternalAnchor({
-  href,
-  children,
-}: {
-  href: string
-  children: ReactNode
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-    >
-      {children}
-      <ExternalLink className="size-3.5" />
-    </a>
   )
 }

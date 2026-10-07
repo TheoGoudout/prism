@@ -1,9 +1,10 @@
-import { Loader2, Plug, Trash2 } from "lucide-react"
+import { Plug, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 import type { IntegrationPublic } from "@/client"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
 import { Button } from "@/components/ui/button"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { useDeleteIntegration } from "@/hooks/useIntegrations"
 import { formatRelative } from "@/lib/format"
@@ -61,19 +62,15 @@ export function IntegrationRow({ integration, editable }: IntegrationRowProps) {
         {editable && (
           <div className="flex items-center justify-end gap-2">
             {needsReconnect(integration.status) && (
-              <Button
+              <LoadingButton
                 variant="outline"
                 size="sm"
+                icon={Plug}
+                loading={reconnecting !== null}
                 onClick={() => connect(integration.platform)}
-                disabled={reconnecting !== null}
               >
-                {reconnecting ? (
-                  <Loader2 className="mr-1 size-4 animate-spin" />
-                ) : (
-                  <Plug className="mr-1 size-4" />
-                )}
                 Reconnect
-              </Button>
+              </LoadingButton>
             )}
             <SyncButton integration={integration} />
             <Button

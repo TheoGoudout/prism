@@ -1,60 +1,35 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  createFileRoute,
-  Link as RouterLink,
-  redirect,
-} from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { AuthLayout } from "@/components/Common/AuthLayout"
+
+import { AuthForm } from "@/components/Common/AuthForm"
+import { PasswordField, TextField } from "@/components/Common/FormFields"
+import useAuth from "@/hooks/useAuth"
+import { pageHead, redirectIfLoggedIn } from "@/lib/routing"
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { LoadingButton } from "@/components/ui/loading-button"
-import { PasswordInput } from "@/components/ui/password-input"
-import useAuth, { isLoggedIn } from "@/hooks/useAuth"
+  confirmPasswordSchema,
+  emailSchema,
+  PASSWORDS_DONT_MATCH,
+  passwordSchema,
+  passwordsMatch,
+} from "@/lib/validation"
 
 const formSchema = z
   .object({
-    email: z.email(),
+    email: emailSchema,
     full_name: z.string().min(1, { message: "Full Name is required" }),
-    password: z
-      .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
-    confirm_password: z
-      .string()
-      .min(1, { message: "Password confirmation is required" }),
+    password: passwordSchema,
+    confirm_password: confirmPasswordSchema,
   })
-  .refine((data) => data.password === data.confirm_password, {
-    message: "The passwords don't match",
-    path: ["confirm_password"],
-  })
+  .refine(passwordsMatch("password"), PASSWORDS_DONT_MATCH)
 
 type FormData = z.infer<typeof formSchema>
 
 export const Route = createFileRoute("/signup")({
   component: SignUp,
-  beforeLoad: async () => {
-    if (isLoggedIn()) {
-      throw redirect({
-        to: "/",
-      })
-    }
-  },
-  head: () => ({
-    meta: [
-      {
-        title: "Sign Up - Prism",
-      },
-    ],
-  }),
+  beforeLoad: redirectIfLoggedIn,
+  head: pageHead("Sign Up"),
 })
 
 function SignUp() {
@@ -71,117 +46,50 @@ function SignUp() {
     },
   })
 
-  const onSubmit = (data: FormData) => {
-    if (signUpMutation.isPending) return
-
-    // exclude confirm_password from submission data
-    const { confirm_password: _confirm_password, ...submitData } = data
-    signUpMutation.mutate(submitData)
-  }
-
   return (
-    <AuthLayout>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">Create an account</h1>
-          </div>
-
-          <div className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="full_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      data-testid="full-name-input"
-                      placeholder="User"
-                      type="text"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      data-testid="email-input"
-                      placeholder="user@example.com"
-                      type="email"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      data-testid="password-input"
-                      placeholder="Password"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="confirm_password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      data-testid="confirm-password-input"
-                      placeholder="Confirm Password"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <LoadingButton
-              type="submit"
-              className="w-full"
-              loading={signUpMutation.isPending}
-            >
-              Sign Up
-            </LoadingButton>
-          </div>
-
-          <div className="text-center text-sm">
-            Already have an account?{" "}
-            <RouterLink to="/login" className="underline underline-offset-4">
-              Log in
-            </RouterLink>
-          </div>
-        </form>
-      </Form>
-    </AuthLayout>
+    <AuthForm
+      title="Create an account"
+      form={form}
+      onSubmit={({ confirm_password: _, ...user }) =>
+        signUpMutation.mutate(user)
+      }
+      submitLabel="Sign Up"
+      loading={signUpMutation.isPending}
+      footer={{
+        text: "Already have an account?",
+        linkLabel: "Log in",
+        to: "/login",
+      }}
+    >
+      <TextField
+        control={form.control}
+        name="full_name"
+        label="Full Name"
+        placeholder="User"
+        data-testid="full-name-input"
+      />
+      <TextField
+        control={form.control}
+        name="email"
+        label="Email"
+        type="email"
+        placeholder="user@example.com"
+        data-testid="email-input"
+      />
+      <PasswordField
+        control={form.control}
+        name="password"
+        label="Password"
+        placeholder="Password"
+        data-testid="password-input"
+      />
+      <PasswordField
+        control={form.control}
+        name="confirm_password"
+        label="Confirm Password"
+        placeholder="Confirm Password"
+        data-testid="confirm-password-input"
+      />
+    </AuthForm>
   )
 }

@@ -1,6 +1,6 @@
 import { Link as RouterLink } from "@tanstack/react-router"
 import { ChevronsUpDown, LogOut, Settings } from "lucide-react"
-
+import type { UserPublic } from "@/client"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
 import { getInitials } from "@/lib/utils"
+import { useCloseMobileSidebar } from "./Main"
 
 interface UserInfoProps {
-  fullName?: string
-  email?: string
+  fullName?: string | null
+  email: string
 }
 
 function UserInfo({ fullName, email }: UserInfoProps) {
@@ -40,20 +41,12 @@ function UserInfo({ fullName, email }: UserInfoProps) {
   )
 }
 
-export function User({ user }: { user: any }) {
+export function User({ user }: { user: UserPublic | null | undefined }) {
   const { logout } = useAuth()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile } = useSidebar()
+  const closeMobileSidebar = useCloseMobileSidebar()
 
   if (!user) return null
-
-  const handleMenuClick = () => {
-    if (isMobile) {
-      setOpenMobile(false)
-    }
-  }
-  const handleLogout = async () => {
-    logout()
-  }
 
   return (
     <SidebarMenu>
@@ -65,7 +58,7 @@ export function User({ user }: { user: any }) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               data-testid="user-menu"
             >
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <UserInfo fullName={user.full_name} email={user.email} />
               <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -76,16 +69,16 @@ export function User({ user }: { user: any }) {
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <UserInfo fullName={user.full_name} email={user.email} />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <RouterLink to="/settings" onClick={handleMenuClick}>
+            <RouterLink to="/settings" onClick={closeMobileSidebar}>
               <DropdownMenuItem>
                 <Settings />
                 User Settings
               </DropdownMenuItem>
             </RouterLink>
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={logout}>
               <LogOut />
               Log Out
             </DropdownMenuItem>

@@ -1,11 +1,10 @@
 import { CircleCheck, Upload } from "lucide-react"
 import { useState } from "react"
-
 import type { ExportFormat, UploadResult } from "@/client"
+import { CancelButton } from "@/components/Common/CancelButton"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useMigrationAccounts, useUploadExport } from "@/hooks/useMigrations"
+import { plural } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
 import { EXPORT_FORMATS } from "./sources"
 
@@ -136,17 +136,13 @@ export function UploadExportDialog({
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" type="button">
-                  Cancel
-                </Button>
-              </DialogClose>
+              <CancelButton />
               <LoadingButton
+                icon={Upload}
                 loading={upload.isPending}
                 disabled={!file || !accountId}
                 onClick={submit}
               >
-                <Upload />
                 Upload
               </LoadingButton>
             </DialogFooter>
@@ -190,6 +186,3 @@ function UploadSummary({ result }: { result: UploadResult }) {
     </div>
   )
 }
-
-const plural = (count: number, noun: string) =>
-  `${count} ${noun}${count === 1 ? "" : "s"}`

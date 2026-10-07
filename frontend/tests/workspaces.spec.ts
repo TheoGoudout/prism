@@ -222,6 +222,19 @@ test.describe("Integrations", () => {
     expect(sentKey).toBe("xkeysib-test")
   })
 
+  test("The Brevo guide opens the API key dialog", async ({ page }) => {
+    const { email, password } = await newUser()
+    await logInUser(page, email, password)
+
+    await page.goto("/integrations")
+    await page.getByRole("tab", { name: "Brevo" }).click()
+    await page.getByRole("button", { name: "Connect Brevo now" }).click()
+
+    await expect(
+      page.getByRole("dialog", { name: "Connect Brevo" }),
+    ).toBeVisible()
+  })
+
   test("Owners are told when no platform is set up", async ({ page }) => {
     await page.route("**/integrations/platforms", (route) =>
       route.fulfill({ json: [] }),

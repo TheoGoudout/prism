@@ -11,6 +11,7 @@ import {
 } from "@/components/Analytics/PeriodControls"
 import { TrendChart } from "@/components/Analytics/TrendChart"
 import { KpiCards, type KpiCardsProps } from "@/components/Common/KpiCards"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import { PostLabel } from "@/components/Posts/PostLabel"
@@ -42,6 +43,7 @@ import {
 } from "@/lib/comparison"
 import { type DateRange, formatPercent } from "@/lib/format"
 import { platformLabel } from "@/lib/platforms"
+import { pageHead } from "@/lib/routing"
 
 /** The periods, in the URL so that a comparison can be shared. */
 interface AnalyticsSearch {
@@ -70,9 +72,7 @@ export const Route = createFileRoute("/_layout/analytics")({
     compareFrom: day(search.compareFrom),
     compareTo: day(search.compareTo),
   }),
-  head: () => ({
-    meta: [{ title: "Analytics - Prism" }],
-  }),
+  head: pageHead("Analytics"),
 })
 
 /** The periods the search params describe; an invalid end is dropped. */
@@ -184,13 +184,15 @@ function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Analytics</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatPeriod(main, now)}
-          {compare && ` vs ${formatPeriod(compare, now)}`} · {workspace.name}
-        </p>
-      </div>
+      <PageHeader
+        title="Analytics"
+        description={
+          <>
+            {formatPeriod(main, now)}
+            {compare && ` vs ${formatPeriod(compare, now)}`} · {workspace.name}
+          </>
+        }
+      />
 
       <PeriodControls
         now={now}

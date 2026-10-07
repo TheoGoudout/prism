@@ -426,3 +426,13 @@ def test_delete_user_without_privileges(
     )
     assert r.status_code == 403
     assert r.json()["detail"] == "The user doesn't have enough privileges"
+
+
+def test_invalid_token_is_unauthorized(client: TestClient) -> None:
+    """401 tells the client to log in again; 403 only means "not allowed"."""
+    r = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers={"Authorization": "Bearer not-a-token"},
+    )
+    assert r.status_code == 401
+    assert r.headers["WWW-Authenticate"] == "Bearer"

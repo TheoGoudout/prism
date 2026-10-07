@@ -1,5 +1,6 @@
-import { ExternalLink } from "lucide-react"
 import { type ReactNode, useState } from "react"
+
+import { ExternalLink } from "@/components/Common/ExternalLink"
 
 import type { ConnectionGuide, GuideStep } from "./guideContent"
 
@@ -41,15 +42,9 @@ export function GuideBody({
           ))}
         </ul>
         {guide.helpLink && (
-          <a
-            href={guide.helpLink.href}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
-          >
+          <ExternalLink href={guide.helpLink.href} className="mt-3 text-sm">
             {guide.helpLink.label}
-            <ExternalLink className="size-3.5" />
-          </a>
+          </ExternalLink>
         )}
       </section>
 

@@ -1,9 +1,8 @@
 import type { ReactNode } from "react"
 
-import { Button } from "@/components/ui/button"
+import { CancelButton } from "@/components/Common/CancelButton"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -39,11 +38,7 @@ export default function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4">
-          <DialogClose asChild>
-            <Button variant="outline" disabled={loading}>
-              Cancel
-            </Button>
-          </DialogClose>
+          <CancelButton disabled={loading} />
           <LoadingButton
             variant="destructive"
             loading={loading}
