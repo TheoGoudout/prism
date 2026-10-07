@@ -1,10 +1,11 @@
-import { formatDistanceToNow } from "date-fns"
 import { ArrowRightLeft, Loader2 } from "lucide-react"
 
 import type { MigrationPublic, MigrationStatus } from "@/client"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { isUnfinished, useMigrations } from "@/hooks/useMigrations"
+import { useMigrations } from "@/hooks/useMigrations"
+import { formatRelative, plural } from "@/lib/format"
+import { isUnfinished } from "@/lib/jobs"
 import { cn } from "@/lib/utils"
 import { sourceLabel } from "./sources"
 
@@ -55,7 +56,7 @@ function MigrationRun({ migration }: { migration: MigrationPublic }) {
         <span className="text-xs text-muted-foreground">
           Since {migration.date_from}
           {migration.created_at &&
-            ` · started ${formatDistanceToNow(new Date(migration.created_at), { addSuffix: true })}`}
+            ` · started ${formatRelative(migration.created_at)}`}
         </span>
       </div>
       {migration.error && (
@@ -73,8 +74,7 @@ function MigrationRun({ migration }: { migration: MigrationPublic }) {
             {errors.length > 0 && (
               <span title={errors.join("\n")}>
                 {" "}
-                ({errors.length} part
-                {errors.length === 1 ? "" : "s"} couldn't be fetched)
+                ({plural(errors.length, "part")} couldn't be fetched)
               </span>
             )}
           </li>

@@ -18,6 +18,7 @@ import { describeSchedule } from "@/components/AiAnalysis/labels"
 import { RunAnalysisDialog } from "@/components/AiAnalysis/RunAnalysisDialog"
 import { ScheduleDialog } from "@/components/AiAnalysis/ScheduleDialog"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,16 +29,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { LoadingButton } from "@/components/ui/loading-button"
 import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import {
-  isUnfinished,
   useAnalyses,
   useAnalysis,
   useAnalysisSchedule,
 } from "@/hooks/useAnalyses"
 import useCustomToast from "@/hooks/useCustomToast"
-import { formatRelative } from "@/lib/format"
+import { formatRelative, plural } from "@/lib/format"
+import { isUnfinished } from "@/lib/jobs"
+import { pageHead } from "@/lib/routing"
 import { cn } from "@/lib/utils"
 
 export const Route = createFileRoute("/_layout/ai-analysis")({
@@ -45,9 +48,7 @@ export const Route = createFileRoute("/_layout/ai-analysis")({
   validateSearch: (search: Record<string, unknown>): { analysis?: string } => ({
     analysis: typeof search.analysis === "string" ? search.analysis : undefined,
   }),
-  head: () => ({
-    meta: [{ title: "AI Analysis - Prism" }],
-  }),
+  head: pageHead("AI Analysis"),
 })
 
 const formatDay = (day: string, withYear = false) =>
@@ -180,25 +181,21 @@ function AnalysisView({
               ? " · emailed"
               : analysis.email_recipients?.length &&
                   isUnfinished(analysis.status)
-                ? ` · will be emailed to ${analysis.email_recipients.length} recipient(s)`
+                ? ` · will be emailed to ${plural(analysis.email_recipients.length, "recipient")}`
                 : ""}
           </p>
         </div>
         <div className="flex gap-2">
           {analysis.status === "completed" && (
-            <Button
+            <LoadingButton
               variant="outline"
               size="sm"
+              icon={Mail}
+              loading={emailMut.isPending}
               onClick={() => emailMut.mutate()}
-              disabled={emailMut.isPending}
             >
-              {emailMut.isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <Mail />
-              )}
               Email me
-            </Button>
+            </LoadingButton>
           )}
           {canManage(workspace) && !isUnfinished(analysis.status) && (
             <Button
@@ -282,35 +279,37 @@ function AiAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+      <PageHeader
+        title={
+          <>
             <Sparkles className="size-6" />
             AI Analysis
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A full performance review of {workspace.name} across every connected
-            platform: each post, each topic, and what to do next.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setScheduleOpen(true)}>
-            <CalendarClock />
-            {schedule.data?.enabled ? "Scheduled" : "Schedule"}
-          </Button>
-          <Button onClick={() => setRunOpen(true)} disabled={running}>
-            {running ? <Loader2 className="animate-spin" /> : <Sparkles />}
-            Run analysis
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        description={`A full performance review of ${workspace.name} across every connected platform: each post, each topic, and what to do next.`}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setScheduleOpen(true)}>
+              <CalendarClock />
+              {schedule.data?.enabled ? "Scheduled" : "Schedule"}
+            </Button>
+            <LoadingButton
+              icon={Sparkles}
+              loading={running}
+              onClick={() => setRunOpen(true)}
+            >
+              Run analysis
+            </LoadingButton>
+          </>
+        }
+      />
 
       {schedule.data?.enabled && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarClock className="size-4" />
           {describeSchedule(schedule.data)}
           {schedule.data.email_enabled &&
-            ` · emailed to ${schedule.data.email_recipients?.length ?? 0} recipient(s)`}
+            ` · emailed to ${plural(schedule.data.email_recipients?.length ?? 0, "recipient")}`}
           {schedule.data.next_run_at &&
             ` · next run ${new Date(schedule.data.next_run_at).toLocaleString()}`}
         </p>

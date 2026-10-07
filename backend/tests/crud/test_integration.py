@@ -1,9 +1,11 @@
 """Unit tests for integration CRUD helpers that aren't reachable via HTTP yet."""
 
+import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from app.crud import integration as icrud
-from app.models.integration import IntegrationCreate, Platform
+from app.models.integration import Integration, IntegrationCreate, Platform
 from tests.utils.integration import create_fake_account, create_fake_integration
 from tests.utils.user import create_random_user
 from tests.utils.workspace import create_random_workspace
@@ -127,6 +129,7 @@ def test_upsert_platform_account_creates(db: Session) -> None:
     account = icrud.upsert_platform_account(
         session=db, integration=integration, external_id="upsert-new", name="New"
     )
+    db.commit()
     assert account.external_id == "upsert-new"
     assert account.name == "New"
     # Ownership comes from the integration
@@ -141,9 +144,11 @@ def test_upsert_platform_account_updates(db: Session) -> None:
     created = icrud.upsert_platform_account(
         session=db, integration=integration, external_id="same", name="Original"
     )
+    db.commit()
     updated = icrud.upsert_platform_account(
         session=db, integration=integration, external_id="same", name="Updated"
     )
+    db.commit()
     assert updated.id == created.id  # same row
     assert updated.name == "Updated"
 
@@ -171,6 +176,7 @@ def test_long_avatar_urls_are_stored(db: Session) -> None:
         name="Long avatar",
         avatar_url=avatar,
     )
+    db.commit()
 
     db.refresh(integration)
     db.refresh(account)
@@ -189,3 +195,20 @@ def test_get_integrations_for_workspace(db: Session) -> None:
         session=db, workspace_id=ws.id
     )
     assert len(all_integrations) == 2
+
+
+def test_an_account_has_one_integration_per_workspace(db: Session) -> None:
+    """The database refuses a second integration of the same account."""
+    ws = _make_workspace(db)
+    integration = create_fake_integration(db, ws)
+    db.add(
+        Integration(
+            workspace_id=ws.id,
+            platform=integration.platform,
+            external_account_id=integration.external_account_id,
+            external_account_name="Duplicate",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()

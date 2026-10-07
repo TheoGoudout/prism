@@ -4,12 +4,11 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Column, Date, UniqueConstraint
-from sqlalchemy import DateTime as SADateTime
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlalchemy.types import JSON
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 from app.models.integration import Platform, PlatformAccount
 
 
@@ -91,21 +90,16 @@ class MetricSnapshot(AccountMetrics, table=True):
     platform_account_id: uuid.UUID = Field(
         foreign_key="platformaccount.id", nullable=False, ondelete="CASCADE", index=True
     )
-    date: date_type = Field(sa_column=Column(Date, nullable=False))
+    date: date_type
 
     # Calculated (stored for fast retrieval): engagements / views (see
     # app.crud.metrics.engagement_rate)
     engagement_rate: float | None = None
 
     # Platform-specific metrics that don't map onto the normalised fields
-    raw_data: dict[str, Any] | None = Field(
-        default=None, sa_column=Column(JSON, nullable=True)
-    )
+    raw_data: dict[str, Any] | None = Field(default=None, sa_type=JSON)
 
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_column=Column(SADateTime(timezone=True), nullable=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
 
     platform_account: PlatformAccount | None = Relationship(
         back_populates="metric_snapshots"
@@ -140,32 +134,20 @@ class Post(PostContent, ContentMetrics, table=True):
     platform_account_id: uuid.UUID = Field(
         foreign_key="platformaccount.id", nullable=False, ondelete="CASCADE", index=True
     )
-    published_at: datetime = Field(
-        sa_column=Column(SADateTime(timezone=True), nullable=False)
-    )
+    published_at: datetime = Field(sa_type=DateTime(timezone=True))
     engagement_rate: float | None = None
 
-    raw_data: dict[str, Any] | None = Field(
-        default=None, sa_column=Column(JSON, nullable=True)
-    )
+    raw_data: dict[str, Any] | None = Field(default=None, sa_type=JSON)
 
     # When a sync last saw the post's engagements grow enough (see
     # app.crud.metrics._track_engagement)
     # (its publication, until then), and its engagements at that time: they
     # decide how soon the integration is synced again.
-    last_engaged_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
+    last_engaged_at: datetime | None = timestamp_field()
     engagements_at_last_engaged: int | None = None
 
-    synced_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_column=Column(SADateTime(timezone=True), nullable=True),
-    )
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_column=Column(SADateTime(timezone=True), nullable=True),
-    )
+    synced_at: datetime | None = timestamp_field(now=True)
+    created_at: datetime | None = timestamp_field(now=True)
 
     platform_account: PlatformAccount | None = Relationship(back_populates="posts")
 

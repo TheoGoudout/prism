@@ -1,11 +1,10 @@
-import { ExternalLink, Plug } from "lucide-react"
-import { type ReactNode, useState } from "react"
-
+import { Plug } from "lucide-react"
+import { useState } from "react"
 import type { Platform } from "@/client"
-import { Button } from "@/components/ui/button"
+import { CancelButton } from "@/components/Common/CancelButton"
+import { ExternalLink } from "@/components/Common/ExternalLink"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -59,9 +58,9 @@ export function ApiKeyConnectDialog({
                   <li key={step}>{step}</li>
                 ))}
               </ol>
-              <ExternalAnchor href={help.keysUrl}>
+              <ExternalLink href={help.keysUrl} className="self-start text-sm">
                 Open the {label} API keys
-              </ExternalAnchor>
+              </ExternalLink>
             </>
           )}
           <div className="flex flex-col gap-2">
@@ -78,17 +77,13 @@ export function ApiKeyConnectDialog({
             To cut Prism off later, delete the key in {label}.
           </p>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline" type="button">
-                Cancel
-              </Button>
-            </DialogClose>
+            <CancelButton />
             <LoadingButton
               type="submit"
+              icon={Plug}
               loading={mutation.isPending}
               disabled={!apiKey.trim()}
             >
-              <Plug />
               Connect
             </LoadingButton>
           </DialogFooter>
@@ -116,24 +111,4 @@ export function usePlatformConnector() {
     />
   )
   return { connect, pending: oauth.pending, dialog }
-}
-
-function ExternalAnchor({
-  href,
-  children,
-}: {
-  href: string
-  children: ReactNode
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1 self-start text-sm text-primary underline-offset-4 hover:underline"
-    >
-      {children}
-      <ExternalLink className="size-3.5" />
-    </a>
-  )
 }

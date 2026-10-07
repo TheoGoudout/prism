@@ -45,6 +45,7 @@ def _completed_analysis(db: Session, workspace: Workspace) -> PerformanceAnalysi
             engagements=120,
         ),
     )
+    db.commit()
     result = {
         "summary": "Video drove the week.",
         "topics": [
@@ -98,6 +99,25 @@ def test_create_analysis_enqueues_it(client: TestClient, db: Session) -> None:
     with patch(RUN_ANALYSIS):
         r = client.post(_url(ws), headers=headers, json={})
     assert r.status_code == 409
+
+
+def test_create_analysis_when_the_queue_is_down(
+    client: TestClient, db: Session
+) -> None:
+    """The analysis is recorded as failed, so it doesn't block the next one."""
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+
+    with patch(RUN_ANALYSIS) as task:
+        task.delay.side_effect = ConnectionError("broker down")
+        r = client.post(_url(ws), headers=headers, json={})
+    assert r.status_code == 503
+
+    [analysis] = crud.get_analyses(session=db, workspace_id=ws.id)[0]
+    assert analysis.status == AnalysisStatus.failed
+    assert analysis.error is not None
+    with patch(RUN_ANALYSIS):
+        assert client.post(_url(ws), headers=headers, json={}).status_code == 202
 
 
 def test_create_analysis_viewer_with_dates(client: TestClient, db: Session) -> None:
@@ -283,7 +303,7 @@ def test_email_analysis_to_current_user(client: TestClient, db: Session) -> None
     send_email.assert_called_once()
     kwargs = send_email.call_args.kwargs
     assert kwargs["email_to"] == user.email
-    assert "Video drove the week." in kwargs["html_content"]
+    assert "Video drove the week." in kwargs["email"].html_content
 
 
 def test_email_unfinished_analysis_is_rejected(client: TestClient, db: Session) -> None:

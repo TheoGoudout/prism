@@ -46,7 +46,8 @@ def import_file(
     export_format: ExportFormat | None = None,
 ) -> UploadResult:
     """
-    Parse an exported file and store its posts or daily metrics in ``account``.
+    Parse an exported file and store its posts or daily metrics in ``account``,
+    in one transaction.
 
     Raises ImportFileError when the file can't be read at all.
     """
@@ -65,6 +66,7 @@ def import_file(
             snapshots=parsed.snapshots,
             source=parsed.export_format.value,
         )
+    session.commit()
     date_from, date_to = date_range(parsed)
     return UploadResult(
         format=parsed.export_format,
@@ -172,12 +174,13 @@ def create_migration(
 
 def run(session: Session, migration: Migration) -> None:
     """
-    Fetch every mapped profile from the source and store it, recording
-    progress on the migration after each profile. A profile already done
-    (by a run interrupted by a worker restart) is skipped.
+    Fetch every mapped profile from the source and store it. Each profile's
+    data is committed with its progress, so a profile is either fully
+    migrated and marked done, or not at all; one already done (by a run
+    interrupted by a worker restart) is skipped.
     """
     if migration.credentials_encrypted is None:
-        _finish(session, migration, "The credentials are no longer available")
+        finish(session, migration, "The credentials are no longer available")
         return
     credentials = SourceCredentials.model_validate(
         json.loads(decrypt_token(migration.credentials_encrypted))
@@ -220,17 +223,17 @@ def run(session: Session, migration: Migration) -> None:
             item.done = True
             migration.profiles = [p.model_dump(mode="json") for p in progress]
             crud.save(session, migration)
-    except SourceAuthError as exc:
-        _finish(session, migration, str(exc))
-        return
     except Exception as exc:
-        logger.exception("Migration %s failed", migration.id)
-        _finish(session, migration, describe_error(exc))
+        session.rollback()  # the failed profile's partial data
+        if not isinstance(exc, SourceAuthError):
+            logger.exception("Migration %s failed", migration.id)
+        finish(session, migration, describe_error(exc))
         return
-    _finish(session, migration, None)
+    finish(session, migration, None)
 
 
-def _finish(session: Session, migration: Migration, error: str | None) -> None:
+def finish(session: Session, migration: Migration, error: str | None) -> None:
+    """Record the migration's outcome and forget the source's credentials."""
     migration.status = MigrationStatus.failed if error else MigrationStatus.completed
     migration.error = error[:1024] if error else None
     migration.completed_at = get_datetime_utc()

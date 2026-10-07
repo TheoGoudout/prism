@@ -1,11 +1,11 @@
 """
-Celery application: a worker runs the sync and analysis tasks, and Beat
-schedules the nightly sync and checks for due follow-up syncs and analysis
-schedules. Task results
-are not stored: the tasks record their outcome on the Integration or
-PerformanceAnalysis row instead.
+Celery application: a worker runs the sync, analysis and migration tasks, and
+Beat schedules the nightly sync and checks for due follow-up syncs and
+analysis schedules. Task results are not stored: the tasks record their
+outcome on the Integration, PerformanceAnalysis or Migration row instead.
 """
 
+import logging
 from typing import Any
 
 from celery import Celery
@@ -13,6 +13,10 @@ from celery.schedules import crontab
 from celery.signals import worker_ready
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+QUEUE_UNAVAILABLE = "The task queue is unavailable. Please try again in a moment."
 
 celery_app = Celery(
     "prism",
@@ -60,3 +64,16 @@ def _log_platform_availability(**_kwargs: Any) -> None:
     from app.integrations.oauth import registry
 
     registry.log_availability()
+
+
+def enqueue(task: Any, *args: Any) -> bool:
+    """
+    Queue a run of ``task``. Returns False, after logging why, when the broker
+    can't be reached, so callers can record that the work didn't start.
+    """
+    try:
+        task.delay(*args)
+    except Exception:
+        logger.exception("Could not enqueue %s%r", task.name, args)
+        return False
+    return True

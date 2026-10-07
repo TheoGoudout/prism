@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
+from app.crud.common import get_for_workspace
 from app.models.analysis import AnalysisSchedule, AnalysisStatus, PerformanceAnalysis
 
 UNFINISHED_STATUSES = (AnalysisStatus.pending, AnalysisStatus.running)
@@ -15,10 +16,7 @@ UNFINISHED_STATUSES = (AnalysisStatus.pending, AnalysisStatus.running)
 def get_analysis(
     *, session: Session, workspace_id: uuid.UUID, analysis_id: uuid.UUID
 ) -> PerformanceAnalysis | None:
-    analysis = session.get(PerformanceAnalysis, analysis_id)
-    if analysis is None or analysis.workspace_id != workspace_id:
-        return None
-    return analysis
+    return get_for_workspace(session, PerformanceAnalysis, analysis_id, workspace_id)
 
 
 def get_analyses(

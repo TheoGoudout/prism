@@ -52,14 +52,12 @@ def recover_password(email: str, session: SessionDep) -> None:
     # Same response whether or not the user exists, to prevent email
     # enumeration; only send the email if they do
     if user:
-        password_reset_token = generate_password_reset_token(email=email)
-        email_data = generate_reset_password_email(
-            email_to=user.email, email=email, token=password_reset_token
-        )
+        token = generate_password_reset_token(email=email)
         send_email(
             email_to=user.email,
-            subject=email_data.subject,
-            html_content=email_data.html_content,
+            email=generate_reset_password_email(
+                email_to=user.email, email=email, token=token
+            ),
         )
 
 
@@ -77,9 +75,6 @@ def reset_password(session: SessionDep, body: NewPassword) -> None:
         raise HTTPException(status_code=400, detail="Invalid token")
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    user_in_update = UserUpdate(password=body.new_password)
     crud.update_user(
-        session=session,
-        db_user=user,
-        user_in=user_in_update,
+        session=session, db_user=user, user_in=UserUpdate(password=body.new_password)
     )

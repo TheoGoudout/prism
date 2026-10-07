@@ -37,7 +37,7 @@ def test_create_user_new_email(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     with (
-        patch("app.utils.send_email", return_value=None),
+        patch("app.api.routes.users.send_email", return_value=None),
         patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
         patch("app.core.config.settings.SMTP_USER", "admin@example.com"),
     ):
@@ -71,7 +71,7 @@ def test_create_user_existing_username(
         json=data,
     )
     created_user = r.json()
-    assert r.status_code == 400
+    assert r.status_code == 409
     assert "_id" not in created_user
 
 
@@ -205,7 +205,7 @@ def test_update_user_me_email_exists(
         json=data,
     )
     assert r.status_code == 409
-    assert r.json()["detail"] == "User with this email already exists"
+    assert r.json()["detail"] == "The user with this email already exists in the system"
 
 
 def test_update_password_me_same_password_error(
@@ -262,7 +262,7 @@ def test_register_user_already_exists_error(client: TestClient) -> None:
         f"{settings.API_V1_STR}/users/signup",
         json=data,
     )
-    assert r.status_code == 400
+    assert r.status_code == 409
     assert r.json()["detail"] == "The user with this email already exists in the system"
 
 
@@ -302,7 +302,7 @@ def test_update_user_not_exists(
         json=data,
     )
     assert r.status_code == 404
-    assert r.json()["detail"] == "The user with this id does not exist in the system"
+    assert r.json()["detail"] == "User not found"
 
 
 def test_update_user_email_exists(
@@ -325,7 +325,7 @@ def test_update_user_email_exists(
         json=data,
     )
     assert r.status_code == 409
-    assert r.json()["detail"] == "User with this email already exists"
+    assert r.json()["detail"] == "The user with this email already exists in the system"
 
 
 def test_delete_user_me(client: TestClient, db: Session) -> None:
@@ -426,3 +426,13 @@ def test_delete_user_without_privileges(
     )
     assert r.status_code == 403
     assert r.json()["detail"] == "The user doesn't have enough privileges"
+
+
+def test_invalid_token_is_unauthorized(client: TestClient) -> None:
+    """401 tells the client to log in again; 403 only means "not allowed"."""
+    r = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers={"Authorization": "Bearer not-a-token"},
+    )
+    assert r.status_code == 401
+    assert r.headers["WWW-Authenticate"] == "Bearer"

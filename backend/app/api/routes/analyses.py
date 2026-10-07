@@ -28,6 +28,7 @@ from app.models.analysis import (
 from app.models.common import get_datetime_utc
 from app.models.workspace import WorkspaceMember
 from app.services import analysis as analysis_service
+from app.worker.celery_app import QUEUE_UNAVAILABLE, enqueue
 from app.worker.tasks import analysis as analysis_tasks
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["analyses"])
@@ -45,6 +46,11 @@ def _get_analysis(
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return analysis
+
+
+def _require_emails() -> None:
+    if not settings.emails_enabled:
+        raise HTTPException(status_code=503, detail="Emails are not configured")
 
 
 @router.get("/analyses", response_model=AnalysesPublic)
@@ -75,12 +81,8 @@ def create_analysis(
     """
     if analysis_in.kind == AnalysisKind.yearly:
         require_manager(member, "run yearly analyses")
-    if analysis_in.email_recipients and not settings.emails_enabled:
-        raise HTTPException(status_code=503, detail="Emails are not configured")
-    if crud.has_unfinished_analysis(session=session, workspace_id=member.workspace_id):
-        raise HTTPException(
-            status_code=409, detail="An analysis is already running for this workspace"
-        )
+    if analysis_in.email_recipients:
+        _require_emails()
     default_from, default_to = analysis_service.default_period(analysis_in.kind)
     date_from = analysis_in.date_from or default_from
     date_to = analysis_in.date_to or default_to
@@ -94,6 +96,12 @@ def create_analysis(
             status_code=422,
             detail=f"A {analysis_in.kind.value} analysis covers at most {max_days} days",
         )
+    # Checked under the workspace's lock, so two requests can't both start one
+    crud.lock_workspace(session, member.workspace_id)
+    if crud.has_unfinished_analysis(session=session, workspace_id=member.workspace_id):
+        raise HTTPException(
+            status_code=409, detail="An analysis is already running for this workspace"
+        )
     analysis = crud.save(
         session,
         PerformanceAnalysis(
@@ -104,7 +112,10 @@ def create_analysis(
             email_recipients=analysis_in.email_recipients,
         ),
     )
-    analysis_tasks.run_analysis.delay(str(analysis.id))
+    if not enqueue(analysis_tasks.run_analysis, str(analysis.id)):
+        # Not left pending: it would block every other analysis
+        analysis_service.fail(session, analysis, QUEUE_UNAVAILABLE)
+        raise HTTPException(status_code=503, detail=QUEUE_UNAVAILABLE)
     return analysis_service.to_public(session, analysis)
 
 
@@ -136,8 +147,7 @@ def email_analysis(
     analysis = _get_analysis(session, member, analysis_id)
     if analysis.status != AnalysisStatus.completed:
         raise HTTPException(status_code=400, detail="The analysis is not completed")
-    if not settings.emails_enabled:
-        raise HTTPException(status_code=503, detail="Emails are not configured")
+    _require_emails()
     assert member.workspace is not None  # guaranteed by the foreign key
     analysis_service.send_by_email(
         analysis, workspace_name=member.workspace.name, recipients=[current_user.email]

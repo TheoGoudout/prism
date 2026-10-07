@@ -3,10 +3,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 
 if TYPE_CHECKING:
     from app.models.workspace import WorkspaceMember
@@ -51,10 +50,7 @@ class UpdatePassword(SQLModel):
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
     workspace_memberships: list[WorkspaceMember] = Relationship(
         back_populates="user", cascade_delete=True
     )

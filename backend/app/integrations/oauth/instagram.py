@@ -9,7 +9,6 @@ Instagram integrations connected before through Facebook Login keep their
 Facebook token, which is refreshed and revoked through Facebook.
 """
 
-from datetime import timedelta
 from typing import Any
 
 from app.integrations.http import get_json
@@ -55,7 +54,7 @@ class InstagramOAuthProvider(OAuthProvider):
             data = data["data"][0]
         # The code exchange yields a short-lived (1h) token. Swap it right
         # away for a long-lived (60 day) one so nightly syncs work.
-        return self._token_response(
+        return self._long_lived(
             get_json(
                 f"{self.TOKEN_API}/access_token",
                 params={
@@ -73,7 +72,7 @@ class InstagramOAuthProvider(OAuthProvider):
         """
         if not uses_instagram_login(refresh_token):
             return facebook_provider.refresh(refresh_token)
-        return self._token_response(
+        return self._long_lived(
             get_json(
                 f"{self.TOKEN_API}/refresh_access_token",
                 params={
@@ -119,14 +118,8 @@ class InstagramOAuthProvider(OAuthProvider):
             avatar_url=data.get("profile_picture_url"),
         )
 
-    def _token_response(self, data: dict[str, Any]) -> TokenResponse:
-        expires_in = data.get("expires_in", _LONG_LIVED_SECONDS)
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=None,
-            expires_at=self._now_utc() + timedelta(seconds=expires_in),
-            raw=data,
-        )
+    def _long_lived(self, data: dict[str, Any]) -> TokenResponse:
+        return self._token_response(data, default_expires_in=_LONG_LIVED_SECONDS)
 
 
 instagram_provider = InstagramOAuthProvider()

@@ -36,6 +36,13 @@ def log_http_errors(what: str) -> Iterator[None]:
         logger.error("%s failed: %s", what, exc)
 
 
+def as_count(value: Any) -> int | None:
+    """The value as a whole count, or None if the platform didn't report a number."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return round(value)
+
+
 def sum_known(*values: Any) -> int | None:
     """Sum of the values the platform reported, or None if it reported none."""
     known = [v for v in values if isinstance(v, int)]

@@ -4,10 +4,9 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 from app.models.user import User
 
 if TYPE_CHECKING:
@@ -34,10 +33,7 @@ class Workspace(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(min_length=1, max_length=255)
     slug: str = Field(unique=True, index=True, max_length=100)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
     members: list[WorkspaceMember] = Relationship(
         back_populates="workspace", cascade_delete=True
     )
@@ -59,10 +55,7 @@ class WorkspaceMember(SQLModel, table=True):
         foreign_key="user.id", primary_key=True, ondelete="CASCADE"
     )
     role: WorkspaceRole = Field(default=WorkspaceRole.viewer)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
 
     workspace: Workspace | None = Relationship(back_populates="members")
     user: User | None = Relationship(back_populates="workspace_memberships")

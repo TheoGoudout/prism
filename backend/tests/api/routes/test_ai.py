@@ -102,6 +102,7 @@ def test_insights_with_metrics_data(client: TestClient, db: Session) -> None:
             date=TODAY, impressions=500, engagements=40, followers_count=2000
         ),
     )
+    db.commit()
 
     parsed = json.loads(_FAKE_INSIGHTS)
     mock_chain = MagicMock()

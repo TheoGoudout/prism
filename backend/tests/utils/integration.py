@@ -34,10 +34,12 @@ def create_fake_account(
     external_id: str = "page-456",
     name: str = "Test Account",
 ) -> PlatformAccount:
-    return crud.upsert_platform_account(
+    result = crud.upsert_platform_account(
         session=db,
         integration=integration,
         external_id=external_id,
         name=name,
         account_type="page",
     )
+    db.commit()
+    return result

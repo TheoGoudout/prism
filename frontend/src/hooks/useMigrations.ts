@@ -3,18 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   ExportFormat,
   MigrationCreate,
+  MigrationPublic,
   MigrationSource,
-  MigrationStatus,
   SourceCredentials,
 } from "@/client"
 import { MigrateService } from "@/client"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
-
-const POLL_MS = 4000
-
-export const isUnfinished = (status: MigrationStatus) =>
-  status === "pending" || status === "running"
+import { pollWhileUnfinished } from "@/lib/jobs"
 
 /** The accounts history can be migrated into: those found by a sync. */
 export function useMigrationAccounts(enabled = true) {
@@ -33,8 +29,9 @@ export function useMigrations() {
   return useQuery({
     queryKey: ["migrations", workspace.id],
     queryFn: () => MigrateService.listMigrations({ workspaceId: workspace.id }),
-    refetchInterval: (query) =>
-      query.state.data?.some((m) => isUnfinished(m.status)) ? POLL_MS : false,
+    refetchInterval: pollWhileUnfinished((migrations: MigrationPublic[]) =>
+      migrations.map((m) => m.status),
+    ),
   })
 }
 

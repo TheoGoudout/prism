@@ -13,7 +13,7 @@ app/
 │   └── routes/          # one module per resource
 ├── models/              # SQLModel tables and API schemas
 ├── crud/                # database reads and writes
-├── services/metrics.py  # aggregation shared by the dashboards and the AI endpoints
+├── services/            # metrics aggregation, AI analyses, migrations, sync schedule
 ├── integrations/
 │   ├── oauth/           # one OAuth provider per platform + registry
 │   ├── platforms/       # one sync module per platform
@@ -44,8 +44,28 @@ Everything under `/api/v1`:
 | `/oauth/callback/{platform}` | Where providers redirect after authorization |
 
 Workspace routes check membership from the path: non-members get a 404, and
-viewers get a 403 on anything that changes data. The interactive docs are at
+viewers get a 403 on anything that changes data. An invalid or expired token
+gets a 401: the client then logs in again. The interactive docs are at
 `/docs`.
+
+## Transactions
+
+Each API request and each worker task is one unit of work, committed once
+when it is complete:
+
+- CRUD helpers that stand for a whole unit (creating a user, renaming a
+  workspace...) commit through `crud.save` / `crud.delete`. Those that are
+  steps of a larger unit (storing what a sync fetched, importing a file) only
+  add to the session, and their caller commits.
+- A sync stores its accounts, posts and snapshots together with the
+  integration's new status, or nothing if it fails. Refreshed OAuth tokens
+  are the exception: they are committed right away, since a provider that
+  rotates refresh tokens has already invalidated the old one.
+- A migration commits each profile's data with its progress.
+- Rules checked before writing ("one analysis at a time", "a workspace keeps
+  an owner") are checked under row locks (`crud.lock_workspace`,
+  `crud.count_owners`), so concurrent requests can't both pass them; unique
+  constraints guard the upserts.
 
 ## Setup
 

@@ -151,6 +151,24 @@ def test_failure_records_error_and_retries(
     assert integration.sync_error == "API exploded"
 
 
+def test_failed_sync_stores_nothing(db: Session, integration: Integration) -> None:
+    """A sync is one transaction: what it stored before failing is dropped."""
+
+    def sync_fn(session: Session, integ: Integration, _token: str) -> None:
+        crud.upsert_platform_account(
+            session=session, integration=integ, external_id="page", name="Page"
+        )
+        raise RuntimeError("API exploded")
+
+    with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: sync_fn}):
+        with pytest.raises(RuntimeError):
+            _run(db, integration.id)
+
+    db.refresh(integration)
+    assert integration.status == IntegrationStatus.error
+    assert integration.accounts == []
+
+
 def test_rejected_token_marks_expired(db: Session, integration: Integration) -> None:
     sync_fn = MagicMock(side_effect=_http_error(401))
     with patch.dict(SYNC_FUNCTIONS, {Platform.twitter: sync_fn}):

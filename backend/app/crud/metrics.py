@@ -1,4 +1,9 @@
-"""Storage for synced metrics: daily account snapshots and per-post metrics."""
+"""
+Storage for synced metrics: daily account snapshots and per-post metrics.
+
+The writes here are steps of a sync or an import: they are not committed, so
+that the caller stores all of its rows in one transaction.
+"""
 
 import math
 import uuid
@@ -10,7 +15,6 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from app.core.config import settings
-from app.crud.common import save
 from app.models.common import get_datetime_utc
 from app.models.integration import PlatformAccount
 from app.models.metrics import (
@@ -81,12 +85,13 @@ def upsert_metric_snapshot(
             MetricSnapshot.platform_account_id == platform_account_id,
             MetricSnapshot.date == snapshot_in.date,
         )
-    ).first()
+    ).one_or_none()
     if snapshot is None:
         snapshot = MetricSnapshot(platform_account_id=platform_account_id, **data)
     else:
         _apply(snapshot, data)
-    return save(session, snapshot)
+    session.add(snapshot)
+    return snapshot
 
 
 def upsert_post(
@@ -104,7 +109,7 @@ def upsert_post(
             Post.platform_account_id == platform_account_id,
             Post.external_id == post_in.external_id,
         )
-    ).first()
+    ).one_or_none()
     if post is None:
         # Publication is the post's first interaction
         post = Post(
@@ -116,7 +121,8 @@ def upsert_post(
     else:
         _apply(post, data)
         _track_engagement(post)
-    return save(session, post)
+    session.add(post)
+    return post
 
 
 def get_snapshots_for_accounts(
@@ -182,8 +188,8 @@ def merge_imported_snapshots(
     source: str,
 ) -> tuple[int, int]:
     """
-    Store daily snapshots imported from a file, in one transaction. Returns
-    how many were created and updated.
+    Add daily snapshots imported from a file or another tool. Returns how
+    many are created and updated.
     """
     by_date = {s.date: s for s in snapshots}  # a repeated day: the last row wins
     existing = session.exec(
@@ -210,9 +216,9 @@ def merge_imported_posts(
     source: str,
 ) -> tuple[int, int]:
     """
-    Store posts imported from a file, in one transaction; a post the sync
-    already stored (same external ID) is completed. Returns how many were
-    created and updated.
+    Add posts imported from a file or another tool; a post the sync already
+    stored (same external ID) is completed. Returns how many are created and
+    updated.
     """
     by_id = {p.external_id: p for p in posts}
     existing = session.exec(
@@ -260,5 +266,4 @@ def _merge_imported[RowT: (MetricSnapshot, Post)](
         row.raw_data = {**(row.raw_data or {}), "imported_from": source}
         row.engagement_rate = _engagement_rate(row)
         session.add(row)
-    session.commit()
     return created, len(incoming) - created

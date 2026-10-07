@@ -287,14 +287,14 @@ def test_delete_integration_cascades_accounts(client: TestClient, db: Session) -
     user, headers = create_user_with_headers(client, db)
     ws = create_random_workspace(db, user)
     integration = create_fake_integration(db, ws)
-    account = create_fake_account(db, integration)
+    integration_id, account_id = integration.id, create_fake_account(db, integration).id
 
-    r = client.delete(_url(ws, str(integration.id)), headers=headers)
+    r = client.delete(_url(ws, str(integration_id)), headers=headers)
     assert r.status_code == 204
 
     db.expunge_all()
-    assert crud.get_integration(session=db, integration_id=integration.id) is None
-    assert db.get(PlatformAccount, account.id) is None
+    assert crud.get_integration(session=db, integration_id=integration_id) is None
+    assert db.get(PlatformAccount, account_id) is None
 
 
 def test_delete_integration_revokes_access(
@@ -377,6 +377,18 @@ def test_trigger_sync_accepted(client: TestClient, db: Session) -> None:
 
     assert r.status_code == 202
     mock_task.delay.assert_called_once_with(str(integration.id))
+
+
+def test_trigger_sync_when_the_queue_is_down(client: TestClient, db: Session) -> None:
+    user, headers = create_user_with_headers(client, db)
+    ws = create_random_workspace(db, user)
+    integration = create_fake_integration(db, ws)
+
+    with patch("app.worker.tasks.sync.sync_integration") as mock_task:
+        mock_task.delay.side_effect = ConnectionError("broker down")
+        r = client.post(_url(ws, f"{integration.id}/sync"), headers=headers)
+
+    assert r.status_code == 503
 
 
 def test_trigger_sync_unavailable_platform_rejected(

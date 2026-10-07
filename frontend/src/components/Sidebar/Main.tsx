@@ -20,16 +20,17 @@ interface MainProps {
   items: Item[]
 }
 
-export function Main({ items }: MainProps) {
+/** Closes the sidebar sheet on phones, once one of its links is followed. */
+export function useCloseMobileSidebar() {
   const { isMobile, setOpenMobile } = useSidebar()
-  const router = useRouterState()
-  const currentPath = router.location.pathname
-
-  const handleMenuClick = () => {
-    if (isMobile) {
-      setOpenMobile(false)
-    }
+  return () => {
+    if (isMobile) setOpenMobile(false)
   }
+}
+
+export function Main({ items }: MainProps) {
+  const closeMobileSidebar = useCloseMobileSidebar()
+  const currentPath = useRouterState({ select: (s) => s.location.pathname })
 
   return (
     <SidebarGroup>
@@ -45,7 +46,7 @@ export function Main({ items }: MainProps) {
                   isActive={isActive}
                   asChild
                 >
-                  <RouterLink to={item.path} onClick={handleMenuClick}>
+                  <RouterLink to={item.path} onClick={closeMobileSidebar}>
                     <item.icon />
                     <span>{item.title}</span>
                   </RouterLink>

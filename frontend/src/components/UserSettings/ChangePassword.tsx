@@ -4,36 +4,24 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { type UpdatePassword, UsersService } from "@/client"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { PasswordField } from "@/components/Common/FormFields"
+import { Form } from "@/components/ui/form"
 import { LoadingButton } from "@/components/ui/loading-button"
-import { PasswordInput } from "@/components/ui/password-input"
 import useCustomToast from "@/hooks/useCustomToast"
+import {
+  confirmPasswordSchema,
+  PASSWORDS_DONT_MATCH,
+  passwordSchema,
+  passwordsMatch,
+} from "@/lib/validation"
 
 const formSchema = z
   .object({
-    current_password: z
-      .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
-    new_password: z
-      .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
-    confirm_password: z
-      .string()
-      .min(1, { message: "Password confirmation is required" }),
+    current_password: passwordSchema,
+    new_password: passwordSchema,
+    confirm_password: confirmPasswordSchema,
   })
-  .refine((data) => data.new_password === data.confirm_password, {
-    message: "The passwords don't match",
-    path: ["confirm_password"],
-  })
+  .refine(passwordsMatch("new_password"), PASSWORDS_DONT_MATCH)
 
 type FormData = z.infer<typeof formSchema>
 
@@ -60,73 +48,36 @@ const ChangePassword = () => {
     onError: showApiError,
   })
 
-  const onSubmit = async (data: FormData) => {
-    mutation.mutate(data)
-  }
-
   return (
     <div className="max-w-md">
       <h3 className="text-lg font-semibold py-4">Change Password</h3>
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(({ confirm_password: _, ...data }) =>
+            mutation.mutate(data),
+          )}
           className="flex flex-col gap-4"
         >
-          <FormField
+          <PasswordField
             control={form.control}
             name="current_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>Current Password</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="current-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Current Password"
+            placeholder="••••••••"
+            data-testid="current-password-input"
           />
-
-          <FormField
+          <PasswordField
             control={form.control}
             name="new_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>New Password</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="new-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="New Password"
+            placeholder="••••••••"
+            data-testid="new-password-input"
           />
-
-          <FormField
+          <PasswordField
             control={form.control}
             name="confirm_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>Confirm Password</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="confirm-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Confirm Password"
+            placeholder="••••••••"
+            data-testid="confirm-password-input"
           />
 
           <LoadingButton

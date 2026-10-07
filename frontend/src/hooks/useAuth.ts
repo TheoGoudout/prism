@@ -8,11 +8,8 @@ import {
   type UserRegister,
   UsersService,
 } from "@/client"
+import { clearAccessToken, isLoggedIn, setAccessToken } from "@/lib/auth"
 import useCustomToast from "./useCustomToast"
-
-const isLoggedIn = () => {
-  return localStorage.getItem("access_token") !== null
-}
 
 const useAuth = () => {
   const navigate = useNavigate()
@@ -37,15 +34,11 @@ const useAuth = () => {
     },
   })
 
-  const login = async (data: AccessToken) => {
-    const response = await LoginService.loginAccessToken({
-      formData: data,
-    })
-    localStorage.setItem("access_token", response.access_token)
-  }
-
   const loginMutation = useMutation({
-    mutationFn: login,
+    mutationFn: async (data: AccessToken) => {
+      const response = await LoginService.loginAccessToken({ formData: data })
+      setAccessToken(response.access_token)
+    },
     onSuccess: () => {
       navigate({ to: "/" })
     },
@@ -53,7 +46,7 @@ const useAuth = () => {
   })
 
   const logout = () => {
-    localStorage.removeItem("access_token")
+    clearAccessToken()
     navigate({ to: "/login" })
   }
 
@@ -65,5 +58,4 @@ const useAuth = () => {
   }
 }
 
-export { isLoggedIn }
 export default useAuth

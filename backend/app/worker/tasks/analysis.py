@@ -2,8 +2,9 @@
 Analysis tasks — run AI performance analyses.
 
 `run_analysis` runs one pending analysis and emails it to its recipients (for
-a scheduled analysis, the schedule's recipients when it started). `start_scheduled_analyses` runs every few minutes
-and starts the analyses whose schedule is due.
+a scheduled analysis, the schedule's recipients when it started).
+`start_scheduled_analyses` runs every few minutes and starts the analyses
+whose schedule is due.
 """
 
 import logging
@@ -18,7 +19,7 @@ from app.crud.analysis import UNFINISHED_STATUSES
 from app.models.analysis import AnalysisStatus, PerformanceAnalysis
 from app.models.common import get_datetime_utc
 from app.services import analysis as analysis_service
-from app.worker.celery_app import celery_app
+from app.worker.celery_app import QUEUE_UNAVAILABLE, celery_app, enqueue
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,9 @@ def start_scheduled_analyses() -> dict[str, Any]:
     """Create and enqueue the analyses of every due schedule."""
     with Session(engine) as session:
         analyses = analysis_service.start_due_analyses(session, get_datetime_utc())
-    for analysis in analyses:
-        run_analysis.delay(str(analysis.id))
+        for analysis in analyses:
+            if not enqueue(run_analysis, str(analysis.id)):
+                analysis_service.fail(session, analysis, QUEUE_UNAVAILABLE)
     if analyses:
         logger.info("start_scheduled_analyses: started %d analyses", len(analyses))
     return {"started": len(analyses)}

@@ -54,12 +54,17 @@ export function isDay(value: unknown): value is Day {
   )
 }
 
+/** The date as a Day, in the local time zone. */
+export function toDay(date: Date): Day {
+  return format(date, "yyyy-MM-dd")
+}
+
 export function today(): Day {
-  return format(new Date(), "yyyy-MM-dd")
+  return toDay(new Date())
 }
 
 export function shiftDay(day: Day, days: number): Day {
-  return format(addDays(parseISO(day), days), "yyyy-MM-dd")
+  return toDay(addDays(parseISO(day), days))
 }
 
 /** Days from `from` to `to`, both included. */
@@ -102,15 +107,15 @@ export function lastDaysPeriod(days: number, now: Day): Period {
 
 /** The current month so far (open-ended). */
 export function thisMonthPeriod(now: Day): Period {
-  return { from: format(startOfMonth(parseISO(now)), "yyyy-MM-dd") }
+  return { from: toDay(startOfMonth(parseISO(now))) }
 }
 
 /** The calendar month before the one `day` is in. */
 export function monthBefore(day: Day): ClosedPeriod {
   const month = subMonths(startOfMonth(parseISO(day)), 1)
   return {
-    from: format(month, "yyyy-MM-dd"),
-    to: format(endOfMonth(month), "yyyy-MM-dd"),
+    from: toDay(month),
+    to: toDay(endOfMonth(month)),
   }
 }
 
@@ -125,7 +130,7 @@ export function previousPeriod(period: Period, now: Day): ClosedPeriod {
 
 /** The same dates a year earlier. */
 export function yearBefore(period: Period, now: Day): ClosedPeriod {
-  const shift = (d: Day) => format(subYears(parseISO(d), 1), "yyyy-MM-dd")
+  const shift = (d: Day) => toDay(subYears(parseISO(d), 1))
   return { from: shift(period.from), to: shift(periodEnd(period, now)) }
 }
 

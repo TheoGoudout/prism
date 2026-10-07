@@ -1,7 +1,5 @@
 """Twitter/X OAuth2 (v2 API with PKCE)."""
 
-from datetime import timedelta
-
 import httpx
 
 from app.integrations.oauth.base import (
@@ -23,41 +21,30 @@ class TwitterOAuthProvider(OAuthProvider):
     CLIENT_ID_SETTING = "TWITTER_CLIENT_ID"
     CLIENT_SECRET_SETTING = "TWITTER_CLIENT_SECRET"
 
-    def _token_request(self, data: dict[str, str]) -> TokenResponse:
-        resp = httpx.post(
-            self.TOKEN_URL,
-            data=data,
-            auth=(self._client_id(), self._client_secret()),
-            timeout=10,
-        )
-        resp.raise_for_status()
-        body = resp.json()
-        expires_at = self._now_utc() + timedelta(seconds=body.get("expires_in", 7200))
-        return TokenResponse(
-            access_token=body["access_token"],
-            # Twitter rotates refresh tokens on every use
-            refresh_token=body.get("refresh_token", data.get("refresh_token")),
-            expires_at=expires_at,
-            raw=body,
-        )
-
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None
     ) -> TokenResponse:
         if not code_verifier:
             raise ValueError("Twitter requires a PKCE code_verifier")
-        return self._token_request(
+        data = self._post_token(
             {
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": redirect_uri,
                 "code_verifier": code_verifier,
-            }
+            },
+            basic_auth=True,
         )
+        return self._token_response(data, default_expires_in=7200)
 
     def refresh(self, refresh_token: str) -> TokenResponse:
-        return self._token_request(
-            {"grant_type": "refresh_token", "refresh_token": refresh_token}
+        data = self._post_token(
+            {"grant_type": "refresh_token", "refresh_token": refresh_token},
+            basic_auth=True,
+        )
+        # Twitter rotates refresh tokens on every use
+        return self._token_response(
+            data, default_expires_in=7200, refresh_token=refresh_token
         )
 
     def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:

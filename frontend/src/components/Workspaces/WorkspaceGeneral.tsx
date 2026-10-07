@@ -6,6 +6,7 @@ import { z } from "zod"
 
 import { WorkspacesService } from "@/client"
 import ConfirmDialog from "@/components/Common/ConfirmDialog"
+import { TextField } from "@/components/Common/FormFields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,15 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+import { Form } from "@/components/ui/form"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useCustomToast from "@/hooks/useCustomToast"
@@ -86,18 +79,11 @@ export default function WorkspaceGeneral() {
               onSubmit={form.handleSubmit((d) => renameMut.mutate(d))}
               className="flex flex-col gap-4"
             >
-              <FormField
+              <TextField
                 control={form.control}
                 name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input disabled={!editable} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label="Name"
+                disabled={!editable}
               />
               {editable && (
                 <LoadingButton

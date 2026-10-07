@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns"
 import { useState } from "react"
 
 import type { PostPerformanceReport } from "@/client"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { SkeletonRows } from "@/components/Common/SkeletonRows"
 import { PlatformIcon } from "@/components/Integrations/PlatformIcon"
 import {
@@ -25,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import { usePostPerformance } from "@/hooks/useMetrics"
 import { platformLabel } from "@/lib/platforms"
+import { pageHead } from "@/lib/routing"
 
 export const Route = createFileRoute("/_layout/posts")({
   component: PostsPage,
@@ -34,9 +36,7 @@ export const Route = createFileRoute("/_layout/posts")({
     account: typeof search.account === "string" ? search.account : undefined,
     platform: typeof search.platform === "string" ? search.platform : undefined,
   }),
-  head: () => ({
-    meta: [{ title: "Posts - Prism" }],
-  }),
+  head: pageHead("Posts"),
 })
 
 function AccountReport({ report }: { report: PostPerformanceReport }) {
@@ -129,13 +129,10 @@ function PostsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Posts</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your latest posts against your best (P95) and worst (P5) posts of the
-          last 12 months · {workspace.name}
-        </p>
-      </div>
+      <PageHeader
+        title="Posts"
+        description={`Your latest posts against your best (P95) and worst (P5) posts of the last 12 months · ${workspace.name}`}
+      />
 
       {reports.isLoading ? (
         <SkeletonRows count={6} className="h-12" />

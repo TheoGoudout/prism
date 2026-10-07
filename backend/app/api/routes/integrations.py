@@ -24,10 +24,12 @@ from app.models.integration import (
     IntegrationPublic,
     OAuthConnectResponse,
     Platform,
+    PlatformAccount,
     PlatformAccountPublic,
     PlatformAccountUpdate,
 )
 from app.models.workspace import WorkspaceMember
+from app.worker.celery_app import QUEUE_UNAVAILABLE
 from app.worker.tasks import sync as sync_tasks
 
 logger = logging.getLogger(__name__)
@@ -48,8 +50,10 @@ def _require_available(platform: Platform) -> None:
 def _get_integration(
     session: SessionDep, member: WorkspaceMember, integration_id: uuid.UUID
 ) -> Integration:
-    integration = crud.get_integration(session=session, integration_id=integration_id)
-    if integration is None or integration.workspace_id != member.workspace_id:
+    integration = crud.get_for_workspace(
+        session, Integration, integration_id, member.workspace_id
+    )
+    if integration is None:
         raise HTTPException(status_code=404, detail="Integration not found")
     return integration
 
@@ -145,10 +149,7 @@ def connect_with_api_key(
         ),
     )
     # Pull data right away rather than waiting for the nightly sync
-    try:
-        sync_tasks.sync_integration.delay(str(integration.id))
-    except Exception:
-        logger.warning("Could not enqueue initial sync for %s", integration.id)
+    sync_tasks.enqueue_sync(integration.id)
     return integration
 
 
@@ -174,7 +175,8 @@ def trigger_sync(
     require_manager(member, "trigger syncs")
     integration = _get_integration(session, member, integration_id)
     _require_available(integration.platform)
-    sync_tasks.sync_integration.delay(str(integration.id))
+    if not sync_tasks.enqueue_sync(integration.id):
+        raise HTTPException(status_code=503, detail=QUEUE_UNAVAILABLE)
 
 
 @router.patch(
@@ -192,9 +194,10 @@ def update_account(
     the workspace's dashboards. Hidden accounts keep syncing.
     """
     require_manager(member, "choose the accounts shown")
-    integration = _get_integration(session, member, integration_id)
-    account = crud.get_platform_account(session=session, account_id=account_id)
-    if account is None or account.integration_id != integration.id:
+    account = crud.get_for_workspace(
+        session, PlatformAccount, account_id, member.workspace_id
+    )
+    if account is None or account.integration_id != integration_id:
         raise HTTPException(status_code=404, detail="Account not found")
     return crud.set_platform_account_active(
         session=session, account=account, is_active=account_in.is_active

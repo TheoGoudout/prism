@@ -2,14 +2,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-
 import type { SchedulePublic } from "@/client"
 import { AnalysesService } from "@/client"
-import { Button } from "@/components/ui/button"
+import { CancelButton } from "@/components/Common/CancelButton"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -361,11 +359,7 @@ export function ScheduleDialog({
             />
 
             <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" type="button">
-                  {editable ? "Cancel" : "Close"}
-                </Button>
-              </DialogClose>
+              <CancelButton>{editable ? "Cancel" : "Close"}</CancelButton>
               {editable && (
                 <LoadingButton type="submit" loading={saveMut.isPending}>
                   Save

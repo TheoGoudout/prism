@@ -1,15 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { format, subDays } from "date-fns"
+import { subDays } from "date-fns"
 import { CalendarRange, Sparkles, TriangleAlert } from "lucide-react"
 import { useState } from "react"
-
 import type { AnalysisKind, AnalysisPublic } from "@/client"
 import { AnalysesService } from "@/client"
-import { Button } from "@/components/ui/button"
+import { CancelButton } from "@/components/Common/CancelButton"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -30,6 +28,7 @@ import { canManage } from "@/components/Workspaces/roles"
 import { useCurrentWorkspace } from "@/contexts/WorkspaceContext"
 import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
+import { toDay } from "@/lib/comparison"
 import { type DateRange, lastDays } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { recipientsError, splitEmails } from "./emails"
@@ -55,8 +54,8 @@ function yearlyPeriods(): PeriodOption[] {
       value: "last-12-months",
       label: "Last 12 months",
       range: () => ({
-        dateFrom: format(subDays(today, 364), "yyyy-MM-dd"),
-        dateTo: format(today, "yyyy-MM-dd"),
+        dateFrom: toDay(subDays(today, 364)),
+        dateTo: toDay(today),
       }),
     },
     ...[0, 1, 2, 3].map((ago) => ({
@@ -64,7 +63,7 @@ function yearlyPeriods(): PeriodOption[] {
       label: ago === 0 ? `${year} (to date)` : String(year - ago),
       range: () => ({
         dateFrom: `${year - ago}-01-01`,
-        dateTo: ago === 0 ? format(today, "yyyy-MM-dd") : `${year - ago}-12-31`,
+        dateTo: ago === 0 ? toDay(today) : `${year - ago}-12-31`,
       }),
     })),
   ]
@@ -248,13 +247,12 @@ export function RunAnalysisDialog({
         </div>
 
         <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" type="button">
-              Cancel
-            </Button>
-          </DialogClose>
-          <LoadingButton loading={runMut.isPending} onClick={submit}>
-            <Sparkles />
+          <CancelButton />
+          <LoadingButton
+            icon={Sparkles}
+            loading={runMut.isPending}
+            onClick={submit}
+          >
             Run analysis
           </LoadingButton>
         </DialogFooter>

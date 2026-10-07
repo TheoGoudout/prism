@@ -24,7 +24,7 @@ import urllib.parse
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -244,12 +244,35 @@ class OAuthProvider(ABC):
         value: str = getattr(settings, self.CLIENT_SECRET_SETTING)
         return value
 
-    def _post_token(self, data: dict[str, Any]) -> dict[str, Any]:
-        """POST to TOKEN_URL and return the JSON response."""
-        resp = httpx.post(self.TOKEN_URL, data=data, timeout=10)
+    def _post_token(
+        self, data: dict[str, Any], *, basic_auth: bool = False
+    ) -> dict[str, Any]:
+        """
+        POST a form to TOKEN_URL and return the JSON response. With
+        ``basic_auth`` the app's credentials go in the Authorization header
+        rather than in the form.
+        """
+        auth = (self._client_id(), self._client_secret()) if basic_auth else None
+        resp = httpx.post(self.TOKEN_URL, data=data, auth=auth, timeout=10)
         resp.raise_for_status()
         result: dict[str, Any] = resp.json()
         return result
 
-    def _now_utc(self) -> datetime:
-        return datetime.now(UTC)
+    def _token_response(
+        self,
+        data: dict[str, Any],
+        *,
+        default_expires_in: int,
+        refresh_token: str | None = None,
+    ) -> TokenResponse:
+        """
+        A token endpoint's answer. ``refresh_token`` is kept unless the
+        provider returned a new one (rotated it).
+        """
+        expires_in = data.get("expires_in", default_expires_in)
+        return TokenResponse(
+            access_token=data["access_token"],
+            refresh_token=data.get("refresh_token", refresh_token),
+            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in),
+            raw=data,
+        )
