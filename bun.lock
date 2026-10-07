@@ -7,7 +7,7 @@
     },
     "frontend": {
       "name": "frontend",
-      "version": "1.1.10",
+      "version": "1.1.11",
       "dependencies": {
         "@fontsource-variable/inter": "^5.3.0",
         "@fontsource-variable/manrope": "^5.3.0",
@@ -61,7 +61,7 @@
     },
     "landing": {
       "name": "landing",
-      "version": "1.1.10",
+      "version": "1.1.11",
       "devDependencies": {
         "wrangler": "^4.147.0",
       },

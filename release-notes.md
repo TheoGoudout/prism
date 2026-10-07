@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.11 (2026-10-07)
+
+### Refactors
+
+* Make DB writes atomic and race-free; simplify backend and frontend. PR [#75](https://github.com/TheoGoudout/prism/pull/75) by [@TheoGoudout](https://github.com/TheoGoudout).
+
 ## 1.1.10 (2026-10-06)
 
 ### Features
