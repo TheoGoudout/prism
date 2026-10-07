@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.common import get_datetime_utc
@@ -42,6 +42,17 @@ class Integration(SQLModel, table=True):
     One connection between a workspace and a platform: through OAuth, or an
     API key for the platforms without OAuth (stored as the access token).
     """
+
+    # Reconnecting an account updates its integration (see
+    # app.crud.integration.upsert_integration) rather than adding another one
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "platform",
+            "external_account_id",
+            name="uq_integration_workspace_platform_account",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: uuid.UUID = Field(
@@ -97,6 +108,13 @@ class PlatformAccount(SQLModel, table=True):
     """
 
     __tablename__ = "platformaccount"
+    __table_args__ = (
+        UniqueConstraint(
+            "integration_id",
+            "external_id",
+            name="uq_platformaccount_integration_external_id",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     integration_id: uuid.UUID = Field(

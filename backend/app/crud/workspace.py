@@ -2,7 +2,6 @@ import re
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from app.crud.common import save
@@ -96,15 +95,20 @@ def get_members(
 
 
 def count_owners(*, session: Session, workspace_id: uuid.UUID) -> int:
+    """
+    The workspace's owner count, with its owners locked until the transaction
+    ends: two owners demoting each other at the same time are then counted
+    one after the other, and the workspace can't end up without an owner.
+    """
     statement = (
-        select(func.count())
-        .select_from(WorkspaceMember)
+        select(WorkspaceMember.user_id)
         .where(
             WorkspaceMember.workspace_id == workspace_id,
             WorkspaceMember.role == WorkspaceRole.owner,
         )
+        .with_for_update()
     )
-    return session.exec(statement).one()
+    return len(session.exec(statement).all())
 
 
 def add_member(

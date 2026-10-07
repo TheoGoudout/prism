@@ -96,6 +96,7 @@ def test_build_prompt(db: Session) -> None:
                 date=snapshot_day, impressions=impressions
             ),
         )
+        db.commit()
     posts = [
         crud.upsert_post(
             session=db,
@@ -173,6 +174,7 @@ def test_build_prompt_selects_each_accounts_best_posts(
                     engagements=value,
                 ),
             )
+            db.commit()
     monkeypatch.setitem(
         PROMPT_LIMITS,
         AnalysisKind.standard,
@@ -210,6 +212,7 @@ def test_build_yearly_prompt(db: Session) -> None:
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=date(2026, 2, 3), impressions=4200),
     )
+    db.commit()
     crud.upsert_post(
         session=db,
         platform_account_id=account.id,
@@ -221,6 +224,7 @@ def test_build_yearly_prompt(db: Session) -> None:
             engagements=5,
         ),
     )
+    db.commit()
 
     query = MetricsQuery(workspace.id, None, date(2025, 10, 1), date(2026, 9, 30))
     variables, refs = build_prompt(

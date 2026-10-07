@@ -11,6 +11,7 @@ the due follow-up syncs.
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -24,7 +25,7 @@ from app.integrations.tokens import TokenExpiredError, ensure_fresh_token
 from app.models.common import get_datetime_utc
 from app.models.integration import Integration, IntegrationStatus
 from app.services import sync_schedule
-from app.worker.celery_app import celery_app
+from app.worker.celery_app import celery_app, enqueue
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,29 @@ RECONNECT_MESSAGE = "The platform rejected our access token. Please reconnect."
 
 def _is_auth_error(exc: Exception) -> bool:
     return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401
+
+
+def _reconnect(exc: Exception) -> str:
+    """Why the user must reconnect, for an expired or rejected token."""
+    return str(exc) if isinstance(exc, TokenExpiredError) else RECONNECT_MESSAGE
+
+
+def _sync(session: Session, integration: Integration) -> datetime | None:
+    """
+    Fetch the integration's data and store it, all in one transaction with
+    its new status: a failing sync stores nothing. Returns when the next
+    follow-up sync is due.
+    """
+    ensure_fresh_token(session=session, integration=integration)
+    access_token = crud.get_access_token(integration)
+    if not access_token:
+        raise TokenExpiredError("No access token stored. Please reconnect.")
+    SYNC_FUNCTIONS[integration.platform](session, integration, access_token)
+    next_sync_at = sync_schedule.schedule_next_sync(
+        session, integration, get_datetime_utc()
+    )
+    crud.mark_integration_synced(session=session, integration=integration)
+    return next_sync_at
 
 
 @celery_app.task(
@@ -69,20 +93,14 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
             return {"status": "skipped", "reason": "platform_unavailable"}
 
         try:
-            ensure_fresh_token(session=session, integration=integration)
-            access_token = crud.get_access_token(integration)
-            if not access_token:
-                raise TokenExpiredError("No access token stored. Please reconnect.")
-            SYNC_FUNCTIONS[integration.platform](session, integration, access_token)
-        except TokenExpiredError as exc:
-            crud.mark_integration_expired(
-                session=session, integration=integration, error=str(exc)
-            )
-            return {"status": "expired", "integration_id": integration_id}
+            next_sync_at = _sync(session, integration)
         except Exception as exc:
-            if _is_auth_error(exc):  # token revoked: retrying won't help
+            # Drop the sync's partial writes; refreshed tokens are already saved
+            session.rollback()
+            if isinstance(exc, TokenExpiredError) or _is_auth_error(exc):
+                # The user must reconnect: retrying won't help
                 crud.mark_integration_expired(
-                    session=session, integration=integration, error=RECONNECT_MESSAGE
+                    session=session, integration=integration, error=_reconnect(exc)
                 )
                 return {"status": "expired", "integration_id": integration_id}
             logger.exception("sync_integration: error for %s", integration_id)
@@ -91,16 +109,17 @@ def sync_integration(self: Any, integration_id: str) -> dict[str, Any]:
             )
             raise self.retry(exc=exc)
 
-        next_sync_at = sync_schedule.schedule_next_sync(
-            session, integration, get_datetime_utc()
-        )
-        crud.mark_integration_synced(session=session, integration=integration)
         logger.info(
             "sync_integration: OK for %s, next follow-up sync: %s",
             integration_id,
             next_sync_at,
         )
         return {"status": "ok", "integration_id": integration_id}
+
+
+def enqueue_sync(integration_id: uuid.UUID) -> bool:
+    """Sync the integration in the background now; False if it couldn't be queued."""
+    return enqueue(sync_integration, str(integration_id))
 
 
 @celery_app.task(name="app.worker.tasks.sync.sync_all_active_integrations")
@@ -119,7 +138,7 @@ def sync_all_active_integrations() -> dict[str, Any]:
         ).all()
 
     for integration_id in integration_ids:
-        sync_integration.delay(str(integration_id))
+        enqueue(sync_integration, str(integration_id))
 
     logger.info("sync_all_active_integrations: enqueued %d tasks", len(integration_ids))
     return {"enqueued": len(integration_ids)}
@@ -140,7 +159,7 @@ def sync_due_integrations() -> dict[str, Any]:
         ]
 
     for integration_id in integration_ids:
-        sync_integration.delay(str(integration_id))
+        enqueue(sync_integration, str(integration_id))
 
     if integration_ids:
         logger.info("sync_due_integrations: enqueued %d tasks", len(integration_ids))

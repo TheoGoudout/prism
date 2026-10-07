@@ -69,6 +69,7 @@ def _post(
             content_type=ContentType.post,
         ),
     )
+    db.commit()
 
 
 def test_latest_interaction_of_recent_posts(db: Session) -> None:

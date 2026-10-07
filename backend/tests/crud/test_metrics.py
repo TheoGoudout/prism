@@ -37,6 +37,7 @@ def test_upsert_snapshot_creates(db: Session) -> None:
     snap = mcrud.upsert_metric_snapshot(
         session=db, platform_account_id=account.id, snapshot_in=snap_in
     )
+    db.commit()
     assert snap.id is not None
     assert snap.followers_count == 1000
     assert snap.impressions == 5000
@@ -52,6 +53,7 @@ def test_upsert_snapshot_updates_existing(db: Session) -> None:
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=d, followers_count=900),
     )
+    db.commit()
     updated = mcrud.upsert_metric_snapshot(
         session=db,
         platform_account_id=account.id,
@@ -59,6 +61,7 @@ def test_upsert_snapshot_updates_existing(db: Session) -> None:
             date=d, followers_count=1100, impressions=2000
         ),
     )
+    db.commit()
     assert updated.followers_count == 1100
     assert updated.impressions == 2000
 
@@ -76,6 +79,7 @@ def test_upsert_snapshot_engagement_rate_none_when_no_reach(db: Session) -> None
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=date(2024, 3, 3), engagements=50),
     )
+    db.commit()
     assert snap.engagement_rate is None
 
 
@@ -92,11 +96,13 @@ def test_get_snapshots_for_accounts(db: Session) -> None:
         platform_account_id=acc1.id,
         snapshot_in=MetricSnapshotUpsert(date=d, followers_count=10),
     )
+    db.commit()
     mcrud.upsert_metric_snapshot(
         session=db,
         platform_account_id=acc2.id,
         snapshot_in=MetricSnapshotUpsert(date=d, followers_count=20),
     )
+    db.commit()
 
     rows = mcrud.get_snapshots_for_accounts(
         session=db,
@@ -125,6 +131,7 @@ def test_snapshot_stores_raw_data(db: Session) -> None:
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=date(2024, 7, 1), raw_data=raw),
     )
+    db.commit()
     assert snap.raw_data == raw
 
 
@@ -147,6 +154,7 @@ def test_upsert_post_creates(db: Session) -> None:
     post = mcrud.upsert_post(
         session=db, platform_account_id=account.id, post_in=post_in
     )
+    db.commit()
     assert post.id is not None
     assert post.content_type == ContentType.reel
     assert post.engagement_rate == round(320 / 8000, 6)
@@ -163,10 +171,12 @@ def test_upsert_post_updates_existing(db: Session) -> None:
     created = mcrud.upsert_post(
         session=db, platform_account_id=account.id, post_in=post_in
     )
+    db.commit()
     post_in.likes = 250
     updated = mcrud.upsert_post(
         session=db, platform_account_id=account.id, post_in=post_in
     )
+    db.commit()
 
     assert updated.id == created.id
     assert updated.likes == 250
@@ -178,7 +188,7 @@ def test_upsert_post_updates_existing(db: Session) -> None:
 
 
 def _upsert_engagements(db: Session, account_id, engagements: int | None):  # type: ignore[no-untyped-def]
-    return mcrud.upsert_post(
+    result = mcrud.upsert_post(
         session=db,
         platform_account_id=account_id,
         post_in=PostUpsert(
@@ -188,6 +198,8 @@ def _upsert_engagements(db: Session, account_id, engagements: int | None):  # ty
             engagements=engagements,
         ),
     )
+    db.commit()
+    return result
 
 
 def test_new_post_is_engaged_at_publication(db: Session) -> None:

@@ -13,7 +13,7 @@ from app import crud
 from app.api.deps import CurrentMember, SessionDep, require_manager
 from app.migrate.files.reading import ImportFileError
 from app.migrate.sources import SourceAuthError
-from app.models.integration import PlatformAccountPublic
+from app.models.integration import PlatformAccount, PlatformAccountPublic
 from app.models.migration import (
     ExportFormat,
     MigrationCreate,
@@ -24,6 +24,7 @@ from app.models.migration import (
     UploadResult,
 )
 from app.services import migration as migration_service
+from app.worker.celery_app import QUEUE_UNAVAILABLE, enqueue
 from app.worker.tasks import migration as migration_tasks
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -31,7 +32,7 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 router = APIRouter(prefix="/workspaces/{workspace_id}/migrate", tags=["migrate"])
 
 
-def _accounts(session: SessionDep, member: CurrentMember) -> list[Any]:
+def _accounts(session: SessionDep, member: CurrentMember) -> list[PlatformAccount]:
     accounts = crud.get_accounts_for_workspace(
         session=session, workspace_id=member.workspace_id
     )
@@ -41,7 +42,7 @@ def _accounts(session: SessionDep, member: CurrentMember) -> list[Any]:
 def _list_profiles(
     source: MigrationSource,
     credentials: SourceCredentials,
-    accounts: list[Any],
+    accounts: list[PlatformAccount],
 ) -> list[RemoteProfile]:
     try:
         return migration_service.list_profiles(source, credentials, accounts)
@@ -143,13 +144,15 @@ def start_migration(
     migration finishes.
     """
     require_manager(member, "migrate data")
+    accounts = _accounts(session, member)
+    profiles = _list_profiles(source, migration_in.credentials, accounts)
+    # Checked under the workspace's lock, so two requests can't both start one
+    crud.lock_workspace(session, member.workspace_id)
     if crud.has_unfinished_migration(session=session, workspace_id=member.workspace_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A migration is already running for this workspace",
         )
-    accounts = _accounts(session, member)
-    profiles = _list_profiles(source, migration_in.credentials, accounts)
     try:
         migration = migration_service.create_migration(
             session,
@@ -166,5 +169,10 @@ def start_migration(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         )
-    migration_tasks.run_migration.delay(str(migration.id))
+    if not enqueue(migration_tasks.run_migration, str(migration.id)):
+        # Not left pending: it would block every other migration
+        migration_service.finish(session, migration, QUEUE_UNAVAILABLE)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=QUEUE_UNAVAILABLE
+        )
     return migration

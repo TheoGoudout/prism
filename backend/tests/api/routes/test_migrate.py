@@ -74,6 +74,7 @@ def test_upload_posts(client: TestClient, db: Session) -> None:
             raw_data={"from": "sync"},
         ),
     )
+    db.commit()
 
     r = client.post(
         _url(ws, "upload"),

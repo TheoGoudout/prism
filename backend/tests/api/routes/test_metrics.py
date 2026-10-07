@@ -49,6 +49,7 @@ def _add_snapshot(
             followers_count=followers_count,
         ),
     )
+    db.commit()
 
 
 def _add_post(
@@ -71,6 +72,7 @@ def _add_post(
             **metrics,
         ),
     )
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +238,7 @@ def test_summary_counts_posts_of_platforms_without_daily_metrics(
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=TODAY, followers_count=300),
     )
+    db.commit()
     _add_post(db, account.id, external_id="t1", engagements=40, impressions=1000)
     _add_post(db, account.id, external_id="t2", engagements=10, impressions=500)
 
@@ -264,6 +267,7 @@ def test_summary_prefers_daily_metrics_over_posts(
         platform_account_id=account.id,
         snapshot_in=MetricSnapshotUpsert(date=TODAY, views=2000, reach=800),
     )
+    db.commit()
     _add_post(db, account.id, engagements=30, views=900, reach=600, likes=25)
 
     r = client.get(_url(ws, "summary"), headers=headers)
@@ -315,6 +319,7 @@ def _add_followers(db: Session, account_id: uuid.UUID, counts: dict[date, int]) 
             platform_account_id=account_id,
             snapshot_in=MetricSnapshotUpsert(date=day, followers_count=count),
         )
+        db.commit()
 
 
 def test_summary_follower_growth(client: TestClient, db: Session) -> None:
@@ -674,6 +679,7 @@ def _add_dated_post(
             likes=likes,
         ),
     )
+    db.commit()
 
 
 def test_post_performance_non_member_returns_404(

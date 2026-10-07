@@ -88,6 +88,7 @@ def test_run_analysis(db: Session, workspace: Workspace) -> None:
             engagements=42,
         ),
     )
+    db.commit()
     analysis = _analysis(db, workspace)
 
     answer = {
@@ -142,9 +143,9 @@ def test_analysis_is_emailed_to_its_recipients(
         "a@example.com",
         "b@example.com",
     ]
-    html = send_email.call_args.kwargs["html_content"]
+    html = send_email.call_args.kwargs["email"].html_content
     assert "Quiet &lt;b&gt;week&lt;/b&gt;." in html  # AI output is escaped
-    assert "performance analysis" in send_email.call_args.kwargs["subject"]
+    assert "performance analysis" in send_email.call_args.kwargs["email"].subject
     assert "Month by month" not in html
     assert f"/ai-analysis?analysis={analysis.id}" in html
     db.refresh(analysis)
@@ -172,9 +173,9 @@ def test_yearly_analysis_email(db: Session, workspace: Workspace) -> None:
 
     build_chain.assert_called_once_with(AnalysisKind.yearly)
     kwargs = send_email.call_args.kwargs
-    assert "year in review" in kwargs["subject"]
-    assert "Month by month" in kwargs["html_content"]
-    assert "Slow start." in kwargs["html_content"]
+    assert "year in review" in kwargs["email"].subject
+    assert "Month by month" in kwargs["email"].html_content
+    assert "Slow start." in kwargs["email"].html_content
 
 
 def test_email_failure_keeps_result(db: Session, workspace: Workspace) -> None:

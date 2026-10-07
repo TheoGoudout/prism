@@ -9,6 +9,8 @@ from app.crud.analysis import (
 )
 from app.crud.common import (
     delete,
+    get_for_workspace,
+    lock_workspace,
     save,
 )
 from app.crud.integration import (
@@ -17,7 +19,6 @@ from app.crud.integration import (
     get_accounts_for_workspace,
     get_integration,
     get_integrations_for_workspace,
-    get_platform_account,
     get_refresh_token,
     mark_integration_error,
     mark_integration_expired,
@@ -42,6 +43,7 @@ from app.crud.user import (
     create_user,
     get_user_by_email,
     get_user_by_email_case_insensitive,
+    get_users,
     update_user,
 )
 from app.crud.workspace import (
@@ -68,10 +70,10 @@ __all__ = [
     "get_accounts_for_workspace",
     "get_analyses",
     "get_analysis",
+    "get_for_workspace",
     "get_due_schedules",
     "get_integration",
     "get_integrations_for_workspace",
-    "get_platform_account",
     "get_member",
     "get_members",
     "get_memberships_for_user",
@@ -83,9 +85,11 @@ __all__ = [
     "get_snapshots_for_accounts",
     "get_user_by_email",
     "get_user_by_email_case_insensitive",
+    "get_users",
     "get_workspace",
     "has_unfinished_analysis",
     "has_unfinished_migration",
+    "lock_workspace",
     "mark_integration_error",
     "mark_integration_expired",
     "mark_integration_synced",

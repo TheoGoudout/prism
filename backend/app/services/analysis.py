@@ -270,12 +270,20 @@ def run(session: Session, analysis: PerformanceAnalysis) -> PerformanceAnalysis:
         result = to_result(raw, post_refs)
     except Exception as exc:
         logger.exception("Analysis %s failed", analysis.id)
-        analysis.status = AnalysisStatus.failed
-        analysis.error = f"AI generation failed: {exc}"[:1024]
-    else:
-        analysis.status = AnalysisStatus.completed
-        analysis.result = result.model_dump(mode="json")
-        analysis.post_count = len(post_refs)
+        return fail(session, analysis, f"AI generation failed: {exc}")
+    analysis.status = AnalysisStatus.completed
+    analysis.result = result.model_dump(mode="json")
+    analysis.post_count = len(post_refs)
+    analysis.completed_at = get_datetime_utc()
+    return crud.save(session, analysis)
+
+
+def fail(
+    session: Session, analysis: PerformanceAnalysis, error: str
+) -> PerformanceAnalysis:
+    """Record that the analysis failed, and why."""
+    analysis.status = AnalysisStatus.failed
+    analysis.error = error[:1024]
     analysis.completed_at = get_datetime_utc()
     return crud.save(session, analysis)
 
@@ -319,9 +327,7 @@ def send_by_email(
         yearly=analysis.kind == AnalysisKind.yearly,
     )
     for recipient in recipients:
-        send_email(
-            email_to=recipient, subject=email.subject, html_content=email.html_content
-        )
+        send_email(email_to=recipient, email=email)
     return True
 
 

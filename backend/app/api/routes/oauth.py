@@ -91,11 +91,7 @@ def callback(
         return _back_to_frontend(error="connection_failed")
 
     # Pull data right away rather than waiting for the nightly sync
-    try:
-        sync_tasks.sync_integration.delay(str(integration.id))
-    except Exception:
-        logger.warning("Could not enqueue initial sync for %s", integration.id)
-
+    sync_tasks.enqueue_sync(integration.id)
     return _back_to_frontend(connected="1")
 
 

@@ -14,7 +14,6 @@ from app.core import security
 from app.core.config import settings
 from app.models.analysis import AnalysisResult
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -29,25 +28,28 @@ def render_email_template(*, template_name: str, context: dict[str, Any]) -> str
         Path(__file__).parent / "email-templates" / "build" / template_name
     ).read_text()
     # Escaped: contexts can hold text we don't control (e.g. AI output)
-    html_content = (
-        Environment(autoescape=True).from_string(template_str).render(context)
+    return Environment(autoescape=True).from_string(template_str).render(context)
+
+
+def _email(subject: str, template_name: str, **context: Any) -> EmailData:
+    """An email of the project, from one of the templates."""
+    html_content = render_email_template(
+        template_name=template_name,
+        context={"project_name": settings.PROJECT_NAME, **context},
     )
-    return html_content
+    return EmailData(
+        html_content=html_content, subject=f"{settings.PROJECT_NAME} - {subject}"
+    )
 
 
-def send_email(
-    *,
-    email_to: str,
-    subject: str = "",
-    html_content: str = "",
-) -> None:
+def send_email(*, email_to: str, email: EmailData) -> None:
     from_email = settings.EMAILS_FROM_EMAIL
     assert settings.emails_enabled and from_email, (
         "no provided configuration for email variables"
     )
     message = Message(
-        subject=subject,
-        html=html_content,
+        subject=email.subject,
+        html=email.html_content,
         mail_from=(settings.EMAILS_FROM_NAME, from_email),
     )
     smtp_options = {"host": settings.SMTP_HOST, "port": settings.SMTP_PORT}
@@ -64,38 +66,27 @@ def send_email(
 
 
 def generate_reset_password_email(email_to: str, email: str, token: str) -> EmailData:
-    project_name = settings.PROJECT_NAME
-    subject = f"{project_name} - Password recovery for user {email}"
-    link = f"{settings.FRONTEND_HOST}/reset-password?token={token}"
-    html_content = render_email_template(
-        template_name="reset_password.html",
-        context={
-            "project_name": settings.PROJECT_NAME,
-            "username": email,
-            "email": email_to,
-            "valid_hours": settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS,
-            "link": link,
-        },
+    return _email(
+        f"Password recovery for user {email}",
+        "reset_password.html",
+        username=email,
+        email=email_to,
+        valid_hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS,
+        link=f"{settings.FRONTEND_HOST}/reset-password?token={token}",
     )
-    return EmailData(html_content=html_content, subject=subject)
 
 
 def generate_new_account_email(
     email_to: str, username: str, password: str
 ) -> EmailData:
-    project_name = settings.PROJECT_NAME
-    subject = f"{project_name} - New account for user {username}"
-    html_content = render_email_template(
-        template_name="new_account.html",
-        context={
-            "project_name": settings.PROJECT_NAME,
-            "username": username,
-            "password": password,
-            "email": email_to,
-            "link": settings.FRONTEND_HOST,
-        },
+    return _email(
+        f"New account for user {username}",
+        "new_account.html",
+        username=username,
+        password=password,
+        email=email_to,
+        link=settings.FRONTEND_HOST,
     )
-    return EmailData(html_content=html_content, subject=subject)
 
 
 def generate_analysis_email(
@@ -108,28 +99,21 @@ def generate_analysis_email(
     yearly: bool = False,
 ) -> EmailData:
     title = "AI year in review" if yearly else "AI performance analysis"
-    subject = (
-        f"{settings.PROJECT_NAME} - {workspace_name} {title.removeprefix('AI ')} "
-        f"({date_from} to {date_to})"
+    return _email(
+        f"{workspace_name} {title.removeprefix('AI ')} ({date_from} to {date_to})",
+        "performance_analysis.html",
+        workspace_name=workspace_name,
+        date_from=date_from.isoformat(),
+        date_to=date_to.isoformat(),
+        summary=result.summary,
+        what_worked=result.what_worked,
+        what_didnt_work=result.what_didnt_work,
+        recommendations=result.recommendations,
+        topics=result.topics,
+        periods=result.periods,
+        title=title,
+        link=f"{settings.FRONTEND_HOST}/ai-analysis?analysis={analysis_id}",
     )
-    html_content = render_email_template(
-        template_name="performance_analysis.html",
-        context={
-            "project_name": settings.PROJECT_NAME,
-            "workspace_name": workspace_name,
-            "date_from": date_from.isoformat(),
-            "date_to": date_to.isoformat(),
-            "summary": result.summary,
-            "what_worked": result.what_worked,
-            "what_didnt_work": result.what_didnt_work,
-            "recommendations": result.recommendations,
-            "topics": result.topics,
-            "periods": result.periods,
-            "title": title,
-            "link": f"{settings.FRONTEND_HOST}/ai-analysis?analysis={analysis_id}",
-        },
-    )
-    return EmailData(html_content=html_content, subject=subject)
 
 
 def generate_password_reset_token(email: str) -> str:

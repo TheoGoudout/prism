@@ -33,7 +33,7 @@ def upsert_integration(
             Integration.platform == integration_in.platform,
             Integration.external_account_id == integration_in.external_account_id,
         )
-    ).first() or Integration(
+    ).one_or_none() or Integration(
         workspace_id=integration_in.workspace_id,
         platform=integration_in.platform,
         external_account_id=integration_in.external_account_id,
@@ -80,7 +80,9 @@ def update_integration_tokens(
     """Store new tokens and mark the integration as working again.
 
     ``refresh_token=None`` keeps the stored refresh token: most providers only
-    return one when they rotate it.
+    return one when they rotate it. Committed right away: a provider that
+    rotates refresh tokens has already invalidated the previous one, so the
+    new one must not be lost if the rest of the sync fails.
     """
     integration.access_token_encrypted = encrypt_token(access_token)
     if refresh_token:
@@ -197,14 +199,15 @@ def upsert_platform_account(
 ) -> PlatformAccount:
     """
     Create the account found during a sync, or refresh its details. A new
-    account is active; an existing one keeps the user's choice.
+    account is active; an existing one keeps the user's choice. Not
+    committed: part of the sync's transaction.
     """
     account = session.exec(
         select(PlatformAccount).where(
             PlatformAccount.integration_id == integration.id,
             PlatformAccount.external_id == external_id,
         )
-    ).first() or PlatformAccount(
+    ).one_or_none() or PlatformAccount(
         integration_id=integration.id,
         workspace_id=integration.workspace_id,
         platform=integration.platform,
@@ -214,13 +217,8 @@ def upsert_platform_account(
     account.name = name
     account.avatar_url = avatar_url
     account.account_type = account_type
-    return save(session, account)
-
-
-def get_platform_account(
-    *, session: Session, account_id: uuid.UUID
-) -> PlatformAccount | None:
-    return session.get(PlatformAccount, account_id)
+    session.add(account)
+    return account
 
 
 def set_platform_account_active(

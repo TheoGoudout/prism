@@ -1,5 +1,7 @@
+from collections.abc import Sequence
+
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.security import get_password_hash, verify_password
 from app.crud.common import save
@@ -24,6 +26,11 @@ def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> User
         extra_data["hashed_password"] = get_password_hash(user_data["password"])
     db_user.sqlmodel_update(user_data, update=extra_data)
     return save(session, db_user)
+
+
+def get_users(*, session: Session) -> Sequence[User]:
+    """Every user, newest first."""
+    return session.exec(select(User).order_by(col(User.created_at).desc())).all()
 
 
 def get_user_by_email(*, session: Session, email: str) -> User | None:
