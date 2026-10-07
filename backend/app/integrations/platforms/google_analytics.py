@@ -18,7 +18,7 @@ from typing import Any
 from sqlmodel import Session
 
 from app import crud
-from app.integrations.common import SYNC_WINDOW_DAYS, log_http_errors
+from app.integrations.common import SYNC_WINDOW_DAYS, as_count, log_http_errors
 from app.integrations.http import get_json, post_json
 from app.models.integration import Integration
 from app.models.metrics import MetricSnapshotUpsert
@@ -51,10 +51,6 @@ def _fetch_ga4_properties(token: str) -> list[dict[str, Any]]:
             }
         )
     return properties
-
-
-def _as_int(value: float | None) -> int | None:
-    return None if value is None else int(value)
 
 
 def _sync_property_report(
@@ -95,12 +91,12 @@ def _sync_property_report(
             platform_account_id=platform_account_id,
             snapshot_in=MetricSnapshotUpsert(
                 date=day,
-                views=_as_int(values["screenPageViews"]),
-                impressions=_as_int(values["sessions"]),
-                reach=_as_int(values["totalUsers"]),
+                views=as_count(values["screenPageViews"]),
+                impressions=as_count(values["sessions"]),
+                reach=as_count(values["totalUsers"]),
                 # The website's equivalent of interactions with a post
-                engagements=_as_int(values["engagedSessions"]),
-                clicks=_as_int(values["conversions"]),
+                engagements=as_count(values["engagedSessions"]),
+                clicks=as_count(values["conversions"]),
                 raw_data=values,
             ),
         )

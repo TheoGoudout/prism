@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
-from app.integrations.common import engagement_total
+from app.integrations.common import as_count, engagement_total
 from app.migrate.files.parser import guess_content_type, parse_export
 from app.migrate.files.reading import ImportFileError
 from app.migrate.sources.base import (
@@ -253,10 +253,7 @@ def _post(
         return None
 
     def count(field: str) -> int | None:
-        found = value(field)
-        if isinstance(found, int | float) and not isinstance(found, bool):
-            return round(found)
-        return None
+        return as_count(value(field))
 
     post_id = value("id")
     published_at = _datetime(value("published_at"))

@@ -112,12 +112,16 @@ class MetricsQuery:
         )
 
 
-def account_platforms(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
-    """{account id: platform name} for the workspace's active accounts."""
-    accounts = crud.get_accounts_for_workspace(
+def query_accounts(session: Session, query: MetricsQuery) -> Sequence[PlatformAccount]:
+    """The workspace's active accounts the query covers."""
+    return crud.get_accounts_for_workspace(
         session=session, workspace_id=query.workspace_id, platform=query.platform
     )
-    return {a.id: a.platform.value for a in accounts}
+
+
+def account_platforms(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
+    """{account id: platform name} for the workspace's active accounts."""
+    return {a.id: a.platform.value for a in query_accounts(session, query)}
 
 
 def _snapshots(
@@ -353,12 +357,7 @@ def top_posts(
     account's average post. Posts of accounts with too few posts to rank
     against come after the ranked ones.
     """
-    accounts = {
-        a.id: a
-        for a in crud.get_accounts_for_workspace(
-            session=session, workspace_id=query.workspace_id, platform=query.platform
-        )
-    }
+    accounts = {a.id: a for a in query_accounts(session, query)}
     posts = [
         post
         for post in crud.get_posts_for_accounts(

@@ -1,8 +1,5 @@
 """Klaviyo OAuth2 provider (PKCE, client credentials sent with Basic auth)."""
 
-from datetime import timedelta
-from typing import Any
-
 import httpx
 
 from app.integrations.oauth.base import (
@@ -32,41 +29,30 @@ class KlaviyoOAuthProvider(OAuthProvider):
     CLIENT_ID_SETTING = "KLAVIYO_CLIENT_ID"
     CLIENT_SECRET_SETTING = "KLAVIYO_CLIENT_SECRET"
 
-    def _token_request(self, data: dict[str, str]) -> TokenResponse:
-        resp = httpx.post(
-            self.TOKEN_URL,
-            data=data,
-            auth=(self._client_id(), self._client_secret()),
-            timeout=10,
-        )
-        resp.raise_for_status()
-        body: dict[str, Any] = resp.json()
-        return TokenResponse(
-            access_token=body["access_token"],
-            # Klaviyo may rotate the refresh token
-            refresh_token=body.get("refresh_token", data.get("refresh_token")),
-            expires_at=self._now_utc()
-            + timedelta(seconds=body.get("expires_in", 3600)),
-            raw=body,
-        )
-
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None
     ) -> TokenResponse:
         if not code_verifier:
             raise ValueError("Klaviyo requires a PKCE code_verifier")
-        return self._token_request(
+        data = self._post_token(
             {
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": redirect_uri,
                 "code_verifier": code_verifier,
-            }
+            },
+            basic_auth=True,
         )
+        return self._token_response(data, default_expires_in=3600)
 
     def refresh(self, refresh_token: str) -> TokenResponse:
-        return self._token_request(
-            {"grant_type": "refresh_token", "refresh_token": refresh_token}
+        data = self._post_token(
+            {"grant_type": "refresh_token", "refresh_token": refresh_token},
+            basic_auth=True,
+        )
+        # Klaviyo may rotate the refresh token
+        return self._token_response(
+            data, default_expires_in=3600, refresh_token=refresh_token
         )
 
     def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:

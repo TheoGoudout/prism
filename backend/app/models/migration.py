@@ -9,12 +9,10 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Column, Date
-from sqlalchemy import DateTime as SADateTime
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 from app.models.integration import Platform
 
 # ---------------------------------------------------------------------------
@@ -145,18 +143,13 @@ class Migration(SQLModel, table=True):
     status: MigrationStatus = Field(default=MigrationStatus.pending)
     # SourceCredentials, encrypted; erased once the migration finishes
     credentials_encrypted: str | None = None
-    date_from: date_type = Field(sa_column=Column(Date, nullable=False))
-    date_to: date_type = Field(sa_column=Column(Date, nullable=False))
+    date_from: date_type
+    date_to: date_type
     # A ProfileProgress per migrated profile
     profiles: list[dict[str, Any]] = Field(default=[], sa_type=JSON)
     error: str | None = Field(default=None, max_length=1024)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_column=Column(SADateTime(timezone=True), nullable=True),
-    )
-    completed_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
+    created_at: datetime | None = timestamp_field(now=True)
+    completed_at: datetime | None = timestamp_field()
 
 
 class MigrationPublic(SQLModel):

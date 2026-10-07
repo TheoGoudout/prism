@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from app.integrations.common import engagement_total
+from app.integrations.common import as_count, engagement_total
 from app.migrate.files.parser import guess_content_type
 from app.migrate.sources.base import (
     ApiClient,
@@ -353,11 +353,9 @@ def native_post_id(guid: str) -> str:
 
 
 def _first_int(metrics: dict[str, Any], keys: tuple[str, ...]) -> int | None:
-    for key in keys:
-        value = metrics.get(key)
-        if isinstance(value, int | float) and not isinstance(value, bool):
-            return round(value)
-    return None
+    """The first of the metrics reported as a number."""
+    counts = (as_count(metrics.get(key)) for key in keys)
+    return next((count for count in counts if count is not None), None)
 
 
 def _str_or_none(value: Any) -> str | None:

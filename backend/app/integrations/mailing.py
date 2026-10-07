@@ -21,14 +21,8 @@ from typing import Any
 from sqlmodel import Session
 
 from app import crud
+from app.integrations.common import as_count
 from app.models.metrics import ContentType, MetricSnapshotUpsert, PostUpsert
-
-
-def as_int(value: Any) -> int | None:
-    """The value as an int, or None if the platform didn't report a number."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    return int(value)
 
 
 def email_campaign_post(
@@ -49,10 +43,10 @@ def email_campaign_post(
         content_type=ContentType.email,
         text=subject,
         permalink=permalink,
-        impressions=as_int(delivered),
-        views=as_int(unique_opens),
-        engagements=as_int(unique_clicks),
-        clicks=as_int(clicks),
+        impressions=as_count(delivered),
+        views=as_count(unique_opens),
+        engagements=as_count(unique_clicks),
+        clicks=as_count(clicks),
         raw_data=raw_data,
     )
 
@@ -69,7 +63,7 @@ def record_subscribers(
         platform_account_id=platform_account_id,
         snapshot_in=MetricSnapshotUpsert(
             date=date.today(),
-            followers_count=as_int(subscribers),
+            followers_count=as_count(subscribers),
             raw_data=raw_data,
         ),
     )

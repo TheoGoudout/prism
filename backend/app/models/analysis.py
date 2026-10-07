@@ -11,12 +11,10 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import EmailStr, field_validator, model_validator
-from sqlalchemy import Column, Date
-from sqlalchemy import DateTime as SADateTime
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 
 MAX_RECIPIENTS = 20
 
@@ -121,29 +119,20 @@ class PerformanceAnalysis(SQLModel, table=True):
     workspace_id: uuid.UUID = Field(
         foreign_key="workspace.id", nullable=False, ondelete="CASCADE", index=True
     )
-    date_from: date_type = Field(sa_column=Column(Date, nullable=False))
-    date_to: date_type = Field(sa_column=Column(Date, nullable=False))
+    date_from: date_type
+    date_to: date_type
     trigger: AnalysisTrigger = Field(default=AnalysisTrigger.manual)
     kind: AnalysisKind = Field(default=AnalysisKind.standard)
     status: AnalysisStatus = Field(default=AnalysisStatus.pending)
     error: str | None = Field(default=None, max_length=1024)
     # An AnalysisResult once completed
-    result: dict[str, Any] | None = Field(
-        default=None, sa_column=Column(JSON, nullable=True)
-    )
+    result: dict[str, Any] | None = Field(default=None, sa_type=JSON)
     post_count: int = 0
     # Who receives the analysis by email once it completes
     email_recipients: list[str] = Field(default=[], sa_type=JSON)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_column=Column(SADateTime(timezone=True), nullable=True),
-    )
-    completed_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
-    emailed_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
+    created_at: datetime | None = timestamp_field(now=True)
+    completed_at: datetime | None = timestamp_field()
+    emailed_at: datetime | None = timestamp_field()
 
 
 class ScheduleSettings(SQLModel):
@@ -180,12 +169,8 @@ class AnalysisSchedule(ScheduleSettings, table=True):
     workspace_id: uuid.UUID = Field(
         foreign_key="workspace.id", primary_key=True, ondelete="CASCADE"
     )
-    next_run_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
-    last_run_at: datetime | None = Field(
-        default=None, sa_column=Column(SADateTime(timezone=True), nullable=True)
-    )
+    next_run_at: datetime | None = timestamp_field()
+    last_run_at: datetime | None = timestamp_field()
 
 
 # ---------------------------------------------------------------------------

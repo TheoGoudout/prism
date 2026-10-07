@@ -3,10 +3,10 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.common import get_datetime_utc
+from app.models.common import timestamp_field
 from app.models.workspace import Workspace
 
 if TYPE_CHECKING:
@@ -64,10 +64,7 @@ class Integration(SQLModel, table=True):
     # Encrypted OAuth tokens (or API key) — never exposed via the API
     access_token_encrypted: str | None = Field(default=None)
     refresh_token_encrypted: str | None = Field(default=None)
-    token_expires_at: datetime | None = Field(
-        default=None,
-        sa_type=DateTime(timezone=True),
-    )
+    token_expires_at: datetime | None = timestamp_field()
 
     # External account snapshot (cached at connect time)
     external_account_id: str = Field(max_length=255)
@@ -76,22 +73,13 @@ class Integration(SQLModel, table=True):
     external_account_avatar: str | None = Field(default=None, max_length=2048)
 
     # Sync state
-    last_synced_at: datetime | None = Field(
-        default=None,
-        sa_type=DateTime(timezone=True),
-    )
+    last_synced_at: datetime | None = timestamp_field()
     sync_error: str | None = Field(default=None, max_length=1024)
     # A follow-up sync on top of the nightly one, while recent posts are
     # getting engagement (see app.services.sync_schedule); None if none is due
-    next_sync_at: datetime | None = Field(
-        default=None,
-        sa_type=DateTime(timezone=True),
-    )
+    next_sync_at: datetime | None = timestamp_field()
 
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
 
     workspace: Workspace | None = Relationship(back_populates="integrations")
     accounts: list[PlatformAccount] = Relationship(
@@ -132,10 +120,7 @@ class PlatformAccount(SQLModel, table=True):
     # Whether the dashboards show this account. New accounts are shown; users
     # can hide some, e.g. the Facebook Pages a workspace isn't about.
     is_active: bool = Field(default=True)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime | None = timestamp_field(now=True)
 
     integration: Integration | None = Relationship(back_populates="accounts")
     workspace: Workspace | None = Relationship(back_populates="platform_accounts")

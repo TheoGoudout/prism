@@ -99,9 +99,7 @@ def _post_line(ref: str, post: Post, account: str, text_chars: int) -> str:
 
 def _account_labels(session: Session, query: MetricsQuery) -> dict[uuid.UUID, str]:
     """{account id: "platform · account name"} for the workspace's accounts."""
-    accounts = crud.get_accounts_for_workspace(
-        session=session, workspace_id=query.workspace_id, platform=query.platform
-    )
+    accounts = metrics_service.query_accounts(session, query)
     return {a.id: f"{a.platform.value} · {a.name}" for a in accounts}
 
 

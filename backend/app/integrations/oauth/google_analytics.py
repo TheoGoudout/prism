@@ -1,7 +1,5 @@
 """Google Analytics (GA4) OAuth2 provider."""
 
-from datetime import timedelta
-
 import httpx
 
 from app.integrations.oauth.base import (
@@ -40,13 +38,7 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
                 "client_secret": self._client_secret(),
             }
         )
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 3600))
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data.get("refresh_token"),
-            expires_at=expires_at,
-            raw=data,
-        )
+        return self._token_response(data, default_expires_in=3600)
 
     def refresh(self, refresh_token: str) -> TokenResponse:
         data = self._post_token(
@@ -57,12 +49,9 @@ class GoogleAnalyticsOAuthProvider(OAuthProvider):
                 "client_secret": self._client_secret(),
             }
         )
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 3600))
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=refresh_token,  # Google doesn't rotate refresh tokens
-            expires_at=expires_at,
-            raw=data,
+        # Google doesn't rotate refresh tokens: the same one keeps working
+        return self._token_response(
+            data, default_expires_in=3600, refresh_token=refresh_token
         )
 
     def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:

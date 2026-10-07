@@ -1,7 +1,5 @@
 """TikTok Business API OAuth2 provider."""
 
-from datetime import timedelta
-
 import httpx
 
 from app.integrations.oauth.base import (
@@ -33,46 +31,34 @@ class TikTokOAuthProvider(OAuthProvider):
     def exchange_code(
         self, code: str, redirect_uri: str, code_verifier: str | None = None
     ) -> TokenResponse:
-        resp = httpx.post(
-            self.TOKEN_URL,
-            data={
-                "client_key": self._client_id(),
-                "client_secret": self._client_secret(),
+        return self._tiktok_token(
+            {
                 "code": code,
                 "grant_type": "authorization_code",
                 "redirect_uri": redirect_uri,
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json().get("data", resp.json())
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 86400))
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data.get("refresh_token"),
-            expires_at=expires_at,
-            raw=data,
+            }
         )
 
     def refresh(self, refresh_token: str) -> TokenResponse:
-        resp = httpx.post(
-            self.TOKEN_URL,
-            data={
+        return self._tiktok_token(
+            {"grant_type": "refresh_token", "refresh_token": refresh_token},
+            refresh_token=refresh_token,
+        )
+
+    def _tiktok_token(
+        self, data: dict[str, str], refresh_token: str | None = None
+    ) -> TokenResponse:
+        body = self._post_token(
+            {
                 "client_key": self._client_id(),
                 "client_secret": self._client_secret(),
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token,
-            },
-            timeout=10,
+                **data,
+            }
         )
-        resp.raise_for_status()
-        data = resp.json().get("data", resp.json())
-        expires_at = self._now_utc() + timedelta(seconds=data.get("expires_in", 86400))
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data.get("refresh_token", refresh_token),
-            expires_at=expires_at,
-            raw=data,
+        return self._token_response(
+            body.get("data", body),
+            default_expires_in=86400,
+            refresh_token=refresh_token,
         )
 
     def revoke(self, *, access_token: str, refresh_token: str | None) -> bool:

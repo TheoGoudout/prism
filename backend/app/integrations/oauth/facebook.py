@@ -1,7 +1,5 @@
 """Facebook / Meta OAuth2 provider (also the base for Instagram Business)."""
 
-from datetime import timedelta
-
 import httpx
 
 from app.integrations.meta import FACEBOOK_DIALOG_URL, GRAPH_API, graph_get
@@ -54,13 +52,7 @@ class FacebookOAuthProvider(OAuthProvider):
                 "fb_exchange_token": refresh_token,
             }
         )
-        expires_in = data.get("expires_in", _LONG_LIVED_SECONDS)
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=None,
-            expires_at=self._now_utc() + timedelta(seconds=expires_in),
-            raw=data,
-        )
+        return self._token_response(data, default_expires_in=_LONG_LIVED_SECONDS)
 
     def refresh_credential(
         self, *, access_token: str, refresh_token: str | None

@@ -1,7 +1,5 @@
 """LinkedIn OAuth2 provider."""
 
-from datetime import timedelta
-
 import httpx
 
 from app.integrations.oauth.base import (
@@ -10,6 +8,9 @@ from app.integrations.oauth.base import (
     TokenResponse,
 )
 from app.models.integration import Platform
+
+# LinkedIn access tokens last 60 days
+_TOKEN_SECONDS = 60 * 24 * 60 * 60
 
 
 class LinkedInOAuthProvider(OAuthProvider):
@@ -33,15 +34,7 @@ class LinkedInOAuthProvider(OAuthProvider):
                 "client_secret": self._client_secret(),
             }
         )
-        expires_at = self._now_utc() + timedelta(
-            seconds=data.get("expires_in", 5184000)
-        )
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data.get("refresh_token"),
-            expires_at=expires_at,
-            raw=data,
-        )
+        return self._token_response(data, default_expires_in=_TOKEN_SECONDS)
 
     def refresh(self, refresh_token: str) -> TokenResponse:
         data = self._post_token(
@@ -52,14 +45,8 @@ class LinkedInOAuthProvider(OAuthProvider):
                 "client_secret": self._client_secret(),
             }
         )
-        expires_at = self._now_utc() + timedelta(
-            seconds=data.get("expires_in", 5184000)
-        )
-        return TokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data.get("refresh_token", refresh_token),
-            expires_at=expires_at,
-            raw=data,
+        return self._token_response(
+            data, default_expires_in=_TOKEN_SECONDS, refresh_token=refresh_token
         )
 
     def get_account_info(self, access_token: str) -> AccountInfo:
