@@ -4,7 +4,7 @@ version = "1.1.11"
 description = ""
 requires-python = ">=3.14,<4.0"
 dependencies = [
-    "fastapi[standard]>=0.141.1,<1.0.0",
+    "fastapi[standard]>=0.142.2,<1.0.0",
     "python-multipart<1.0.0,>=0.0.7",
     "email-validator<3.0.0.0,>=2.1.0.post1",
     "tenacity>=9.0.0,<10.0.0",
@@ -19,7 +19,7 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.71.0,<3.0.0",
     "pyjwt<3.0.0,>=2.8.0",
     "pwdlib[argon2,bcrypt]>=0.3.1",
-    "cryptography>=50.0.1,<51.0.0",
+    "cryptography>=50.0.2,<51.0.0",
     "celery[redis]>=5.3.0,<6.0.0",
     "langchain-core>=0.3",
     "langchain-openai>=0.2",
